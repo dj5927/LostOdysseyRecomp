@@ -530,9 +530,10 @@ namespace gpu::renderer
             double tDraw = 0, tShader = 0, tPipeline = 0, tTexture = 0, tResolve = 0, tFlush = 0;
             double tConst = 0, tSets = 0, tVertex = 0, tBind = 0, tIndex = 0, tRecord = 0;
             double tRt = 0, tTaa = 0, tNestedFlush = 0;
+            double tShaderLookup = 0, tPipelineLookup = 0, tSceneCopy = 0;
             uint32_t nShader = 0, nPipeline = 0, nTexture = 0, nResolve = 0;
             size_t texBytes = 0;
-            void ResetTimers() { tDraw = tShader = tPipeline = tTexture = tResolve = tFlush = 0; tConst = tSets = tVertex = tBind = tIndex = tRecord = 0; tRt = tTaa = tNestedFlush = 0; nShader = nPipeline = nTexture = nResolve = 0; texBytes = 0; }
+            void ResetTimers() { tDraw = tShader = tPipeline = tTexture = tResolve = tFlush = 0; tConst = tSets = tVertex = tBind = tIndex = tRecord = 0; tRt = tTaa = tNestedFlush = 0; tShaderLookup = tPipelineLookup = tSceneCopy = 0; nShader = nPipeline = nTexture = nResolve = 0; texBytes = 0; }
             std::map<uint64_t, std::unique_ptr<RenderSampler>> samplers;
             std::map<std::pair<const RenderTexture*, const RenderTexture*>, std::unique_ptr<RenderFramebuffer>> framebuffers;
 
@@ -2944,18 +2945,26 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 // Shaders come from the command processor's last IM_LOAD.
                 uint32_t vsCount = 0, psCount = 0;
                 uint64_t vsCommandHash = 0, psCommandHash = 0;
-                const uint32_t* vsWords = g_commandProcessor.GetActiveShader(false, vsCount, vsCommandHash);
-                const uint32_t* psWords = g_commandProcessor.GetActiveShader(true, psCount, psCommandHash);
-                if (!vsWords || vsCount == 0)
+                const uint32_t* vsWords = nullptr;
+                const uint32_t* psWords = nullptr;
+                uint64_t vsHash = 0, psHash = 0;
                 {
-                    if (debugShaderSources && !debugCaptureDir.empty())
-                        debugShaderSources->Observe(true, 0, vsWords, vsCount, frame);
-                    drops.shader++;
-                    return;
+                    render_batch::CpuTimer<> shaderLookupTimer(cpuTimingEnabled);
+                    vsWords = g_commandProcessor.GetActiveShader(false, vsCount, vsCommandHash);
+                    psWords = g_commandProcessor.GetActiveShader(true, psCount, psCommandHash);
+                    if (!vsWords || vsCount == 0)
+                    {
+                        shaderLookupTimer.AddTo(tShaderLookup);
+                        if (debugShaderSources && !debugCaptureDir.empty())
+                            debugShaderSources->Observe(true, 0, vsWords, vsCount, frame);
+                        drops.shader++;
+                        return;
+                    }
+                    vsHash = shaderIdentities.Get(vsCommandHash, vsWords, vsCount);
+                    psHash = modeControl == 4 && psWords && psCount
+                        ? shaderIdentities.Get(psCommandHash, psWords, psCount) : 0;
+                    shaderLookupTimer.AddTo(tShaderLookup);
                 }
-                const uint64_t vsHash = shaderIdentities.Get(vsCommandHash, vsWords, vsCount);
-                const uint64_t psHash = modeControl == 4 && psWords && psCount
-                    ? shaderIdentities.Get(psCommandHash, psWords, psCount) : 0;
                 Shader* vs = GetShader(false, vsWords, vsCount, vsHash);
                 // RB_MODECONTROL=5 is depth-only: the last loaded pixel shader
                 // is inactive, including its discard and depth exports. Running
@@ -3024,7 +3033,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 
                 // Pipeline.
                 PipelineKey key{};
-                key.vs = vsHash;
+                float layerDepthOffset = 0.0f;
+                {
+                    render_batch::CpuTimer<> pipelineLookupTimer(cpuTimingEnabled);
+                    key.vs = vsHash;
                 key.ps = ps ? psHash : 0;
                 key.blend = Reg(REG_RB_BLENDCONTROL0);
                 key.depthControl = depthControl;
@@ -3040,7 +3052,6 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         key.depthControl = (key.depthControl & ~0x70u) | (7u << 4);
                 }
                 key.modeCull = Reg(REG_PA_SU_SC_MODE_CNTL) & 0x3807;
-                float layerDepthOffset = 0.0f;
                 if (depth && (depthControl & 2))
                 {
                     // The supported polygonal draws are triangles, fans, strips
@@ -3073,6 +3084,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 key.prim = info.primitiveType;
                 key.rtFormat = uint32_t(color->format);
                 key.depthFormat = depth ? uint32_t(depth->format) : 0;
+                    pipelineLookupTimer.AddTo(tPipelineLookup);
+                }
                 RenderPipeline* pipeline = GetPipeline(key, vs, ps, color->format, depth ? depth->format : RenderFormat::UNKNOWN);
                 if (!pipeline)
                 {
@@ -3376,7 +3389,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 // Restrict to two triangles forming a rectangle; viewport size alone
                 // cannot justify treating an arbitrary fullscreen-looking draw as a copy.
                 uint32_t fullCopyReason=0;std::string fullCopyVertices;
-                const bool fullSceneCopy = [&]() {
+                bool fullSceneCopy = false;
+                {
+                    render_batch::CpuTimer<> sceneCopyTimer(cpuTimingEnabled);
+                    fullSceneCopy = [&]() {
                     auto reject=[&](uint32_t why){fullCopyReason=why;return false;};
                     if(key.vs!=0x8bbd4da701845d16ull||key.ps!=0xcda578aef1724fdcull||
                        info.primitiveType!=4||!info.indexed||info.indexCount!=6||info.indexBufferWords<6||
@@ -3420,6 +3436,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 if(key.vs==0x8bbd4da701845d16ull&&key.ps==0xcda578aef1724fdcull) {
                     static const uint64_t start=getenv("LO_SCENE_AA_LOG_START_FRAME")?strtoull(getenv("LO_SCENE_AA_LOG_START_FRAME"),nullptr,10):~0ull;
                     if(frame>=start&&frame-start<128)SHADER_LOG_INFO("scene-aa", None, "renderer scene AA guard f{} full={} reason={} mode={} jitter={} blend={:#x} mask={} vtx={} prim={} n={} cull={:#x} ctl={:#x} vp=({},{},{},{}) extent={}x{} fetch95={:08x},{:08x} quad={} ",frame,fullSceneCopy,fullCopyReason,sceneAAMode,temporalJitter,key.blend,key.colorMask,shared.vtxFmt,info.primitiveType,info.indexCount,key.modeCull,Reg(REG_RB_COLORCONTROL),viewport.x,viewport.y,viewport.width,viewport.height,pitch,rtHeight,Reg(REG_FETCH_CONSTANTS+190),Reg(REG_FETCH_CONSTANTS+191),fullCopyVertices);
+                }
+                    sceneCopyTimer.AddTo(tSceneCopy);
                 }
                 // Textures used by the pixel and vertex shaders.
                 render_batch::CpuTimer<> tBind0(cpuTimingEnabled);
@@ -4949,7 +4967,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const render_timing::CpuSegments cpu{r.drawsThisFrame, r.nShader, r.nPipeline, r.nTexture, r.nResolve,
                     r.tDraw, r.tConst, r.tSets, r.tVertex, r.tBind, r.tIndex, r.tRecord,
                     r.tShader, r.tPipeline, r.tTexture, r.tResolve, r.tFlush,
-                    r.tRt, r.tTaa, r.tNestedFlush};
+                    r.tRt, r.tTaa, r.tNestedFlush,
+                    r.tShaderLookup, r.tPipelineLookup, r.tSceneCopy};
                 render_timing::LogFrame(r.frame, cpu, r.gpuTiming, !r.debugCaptureDir.empty(),
                     r.resolveTraceRemaining || r.psTraceRemaining || GetHotCaptureEnvironment().geometryCaptureEnabled);
                 r.gpuTiming.Reset();
@@ -4962,8 +4981,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 lastFrame = now;
                 Renderer& r = *g_renderer;
                 if (frameMs > 150.0 || (r.frame % 60) == 0)
-                    LOG_INFO("renderer frame {}: {:.0f} ms, draws {} ({:.0f} ms: const {:.0f} sets {:.0f} vertex {:.0f} bind {:.0f} index {:.0f} record {:.0f} rt {:.0f} taa {:.0f} nested_flush {:.0f}), shaders {} ({:.0f} ms), pipelines {} ({:.0f} ms), textures {} ({:.0f} ms, {} KB), vertex uploads {}+{} ({} KB, arena {} MB), resolves {} ({:.0f} ms), gpu wait {:.0f} ms",
-                        r.frame, frameMs, r.drawsThisFrame, r.tDraw, r.tConst, r.tSets, r.tVertex, r.tBind, r.tIndex, r.tRecord, r.tRt, r.tTaa, r.tNestedFlush, r.nShader, r.tShader, r.nPipeline, r.tPipeline, r.nTexture, r.tTexture, r.texBytes / 1024,
+                    LOG_INFO("renderer frame {}: {:.0f} ms, draws {} ({:.0f} ms: const {:.0f} sets {:.0f} vertex {:.0f} bind {:.0f} index {:.0f} record {:.0f} rt {:.0f} taa {:.0f} nested_flush {:.0f} shader_lookup {:.0f} pipeline_lookup {:.0f} scene_copy {:.0f}), shaders {} ({:.0f} ms), pipelines {} ({:.0f} ms), textures {} ({:.0f} ms, {} KB), vertex uploads {}+{} ({} KB, arena {} MB), resolves {} ({:.0f} ms), gpu wait {:.0f} ms",
+                        r.frame, frameMs, r.drawsThisFrame, r.tDraw, r.tConst, r.tSets, r.tVertex, r.tBind, r.tIndex, r.tRecord, r.tRt, r.tTaa, r.tNestedFlush, r.tShaderLookup, r.tPipelineLookup, r.tSceneCopy, r.nShader, r.tShader, r.nPipeline, r.tPipeline, r.nTexture, r.tTexture, r.texBytes / 1024,
                         r.vertexUploads, r.vertexRevalidations, r.vertexBytesUploaded / 1024, r.Gpu().arenaOffset >> 20, r.nResolve, r.tResolve, r.tFlush);
                 if (stats && r.transfers)
                     LOG_INFO("renderer frame {}: {} EDRAM ownership transfers", r.frame, r.transfers);
