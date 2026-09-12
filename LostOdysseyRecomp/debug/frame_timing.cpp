@@ -81,16 +81,39 @@ void Present(uint32_t swap, uint32_t fps, double flushMs, double waitMs, double 
     const auto now = Clock::now();
     const double seconds = std::chrono::duration<double>(now - start).count();
     if (seconds < 1.0) return;
-    std::lock_guard lock(mutex);
-    LOG_INFO("frame timing completed={} target={} window={:.6f}s presents={} rate={:.3f} flush={:.3f}ms pace={:.3f}ms present={:.3f}ms engine_ticks={} delta_sum={:.6f} intervals={} last_interval={:#x}->{:#x}",
-        swap, fps, seconds, count, count / seconds, flush / count, wait / count, present / count,
-        ticks, deltaSum, intervals, requested, encoded);
-    LOG_INFO("frame pacing completed={} samples={} sleep_requested={:.3f}ms sleep_actual={:.3f}ms wake_over={:.3f}ms wake_max={:.3f}ms slept={} over_1ms={} between={:.3f}ms paired={} cp_idle={:.3f}ms",
-        swap, count, sleepRequest / count, sleepActual / count, wakeOver / count, wakeMax,
-        slept, over1ms, paired ? between / paired : 0.0, paired, cpIdleMs / count);
-    start = now; count = 0; flush = wait = present = deltaSum = 0; ticks = intervals = 0;
-    sleepRequest = sleepActual = wakeOver = wakeMax = between = cpIdleMs = 0;
+    uint64_t snapTicks = 0, snapIntervals = 0;
+    double snapDelta = 0, snapIdle = 0;
+    uint32_t snapRequested = 0, snapEncoded = 0;
+    {
+        std::lock_guard lock(mutex);
+        snapTicks = ticks;
+        snapDelta = deltaSum;
+        snapIntervals = intervals;
+        snapRequested = requested;
+        snapEncoded = encoded;
+        snapIdle = cpIdleMs;
+        ticks = intervals = 0;
+        deltaSum = cpIdleMs = 0;
+    }
+    const uint32_t snapCount = count;
+    const double snapFlush = flush, snapWait = wait, snapPresent = present;
+    const double snapSleepRequest = sleepRequest, snapSleepActual = sleepActual;
+    const double snapWakeOver = wakeOver, snapWakeMax = wakeMax, snapBetween = between;
+    const uint32_t snapSlept = slept, snapOver1ms = over1ms, snapPaired = paired;
+    start = now;
+    count = 0;
+    flush = wait = present = 0;
+    sleepRequest = sleepActual = wakeOver = wakeMax = between = 0;
     slept = over1ms = paired = 0;
+    // Every-frame present timing already records this window. The 1s summary
+    // is extra file I/O on the swap thread and has stalled city presents 200ms+.
+    if (gpu::render_timing::Enabled()) return;
+    LOG_INFO("frame timing completed={} target={} window={:.6f}s presents={} rate={:.3f} flush={:.3f}ms pace={:.3f}ms present={:.3f}ms engine_ticks={} delta_sum={:.6f} intervals={} last_interval={:#x}->{:#x}",
+        swap, fps, seconds, snapCount, snapCount / seconds, snapFlush / snapCount, snapWait / snapCount, snapPresent / snapCount,
+        snapTicks, snapDelta, snapIntervals, snapRequested, snapEncoded);
+    LOG_INFO("frame pacing completed={} samples={} sleep_requested={:.3f}ms sleep_actual={:.3f}ms wake_over={:.3f}ms wake_max={:.3f}ms slept={} over_1ms={} between={:.3f}ms paired={} cp_idle={:.3f}ms",
+        swap, snapCount, snapSleepRequest / snapCount, snapSleepActual / snapCount, snapWakeOver / snapCount, snapWakeMax,
+        snapSlept, snapOver1ms, snapPaired ? snapBetween / snapPaired : 0.0, snapPaired, snapIdle / snapCount);
 }
 }
 
