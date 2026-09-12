@@ -31,6 +31,9 @@ int main()
     assert(cpu.rtAcquireMs == 0);
     assert(cpu.taaMs == 0);
     assert(cpu.nestedFlushMs == 0);
+    assert(cpu.shaderLookupMs == 0);
+    assert(cpu.pipelineLookupMs == 0);
+    assert(cpu.sceneCopyMs == 0);
 
     constexpr std::string_view required[] = {
         "draw_ms=",
@@ -48,6 +51,9 @@ int main()
         "rt_acquire_ms=",
         "taa_ms=",
         "nested_flush_ms=",
+        "shader_lookup_ms=",
+        "pipeline_lookup_ms=",
+        "scene_copy_ms=",
     };
     static_assert(std::size(kCpuFieldKeys) == std::size(required));
     for (std::size_t i = 0; i < std::size(required); ++i)
@@ -56,8 +62,14 @@ int main()
     cpu.rtAcquireMs = 1.25;
     cpu.taaMs = 2.5;
     cpu.nestedFlushMs = 3.75;
+    cpu.shaderLookupMs = 4.0;
+    cpu.pipelineLookupMs = 5.0;
+    cpu.sceneCopyMs = 6.0;
     assert(cpu.rtAcquireMs == 1.25);
     assert(cpu.taaMs == 2.5);
     assert(cpu.nestedFlushMs == 3.75);
+    assert(cpu.shaderLookupMs == 4.0);
+    assert(cpu.pipelineLookupMs == 5.0);
+    assert(cpu.sceneCopyMs == 6.0);
     return 0;
 }

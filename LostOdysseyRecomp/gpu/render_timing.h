@@ -58,12 +58,14 @@ namespace gpu::render_timing
             "draw_ms={:.6f} constants_ms={:.6f} sets_ms={:.6f} vertex_ms={:.6f} bind_ms={:.6f} index_ms={:.6f} record_ms={:.6f} "
             "shader_ms={:.6f} pipeline_ms={:.6f} texture_ms={:.6f} resolve_ms={:.6f} fence_wait_ms={:.6f} "
             "rt_acquire_ms={:.6f} taa_ms={:.6f} nested_flush_ms={:.6f} "
+            "shader_lookup_ms={:.6f} pipeline_lookup_ms={:.6f} scene_copy_ms={:.6f} "
             "gpu_queue_batches_elapsed_ms={} gpu_batches={} gpu_valid={} gpu_invalid={} gpu_complete={} "
             "capture_active={} geometry_trace_active={} cpu_scope=overlapping_wall_components gpu_scope=renderer_queue_batches_excludes_present_and_compositor",
             frame, cpu.draws, cpu.shaders, cpu.pipelines, cpu.textures, cpu.resolves,
             cpu.drawMs, cpu.constantsMs, cpu.setsMs, cpu.vertexMs, cpu.bindMs, cpu.indexMs, cpu.recordMs,
             cpu.shaderMs, cpu.pipelineMs, cpu.textureMs, cpu.resolveMs, cpu.fenceWaitMs,
             cpu.rtAcquireMs, cpu.taaMs, cpu.nestedFlushMs,
+            cpu.shaderLookupMs, cpu.pipelineLookupMs, cpu.sceneCopyMs,
             gpu.valid ? fmt::format("{:.6f}", gpu.elapsedMs) : std::string("unknown"),
             gpu.count, gpu.valid, gpu.invalid, gpu.Complete(), captureActive, geometryTraceActive);
     }

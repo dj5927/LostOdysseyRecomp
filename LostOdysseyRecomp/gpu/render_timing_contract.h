@@ -13,6 +13,7 @@ namespace gpu::render_timing
         double bindMs = 0, indexMs = 0, recordMs = 0;
         double shaderMs = 0, pipelineMs = 0, textureMs = 0, resolveMs = 0, fenceWaitMs = 0;
         double rtAcquireMs = 0, taaMs = 0, nestedFlushMs = 0;
+        double shaderLookupMs = 0, pipelineLookupMs = 0, sceneCopyMs = 0;
     };
 
     inline constexpr std::string_view kCpuFieldKeys[] = {
@@ -31,5 +32,8 @@ namespace gpu::render_timing
         "rt_acquire_ms=",
         "taa_ms=",
         "nested_flush_ms=",
+        "shader_lookup_ms=",
+        "pipeline_lookup_ms=",
+        "scene_copy_ms=",
     };
 }
