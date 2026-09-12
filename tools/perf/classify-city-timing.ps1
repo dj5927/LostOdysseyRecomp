@@ -21,7 +21,7 @@ $spikeKeys = @(
 )
 
 $city = @()
-$pattern = 'render timing frame=(\d+) draws=(\d+).*draw_ms=([0-9.]+).*vertex_ms=([0-9.]+).*bind_ms=([0-9.]+).*record_ms=([0-9.]+).*fence_wait_ms=([0-9.]+).*rt_acquire_ms=([0-9.]+).*taa_ms=([0-9.]+).*nested_flush_ms=([0-9.]+)'
+$pattern = 'render timing frame=(\d+) draws=(\d+).*draw_ms=([0-9.]+).*vertex_ms=([0-9.]+).*bind_ms=([0-9.]+).*record_ms=([0-9.]+).*fence_wait_ms=([0-9.]+).*rt_acquire_ms=([0-9.]+).*taa_ms=([0-9.]+).*nested_flush_ms=([0-9.]+)(?:.*shader_lookup_ms=([0-9.]+).*pipeline_lookup_ms=([0-9.]+).*scene_copy_ms=([0-9.]+))?'
 Select-String -LiteralPath $LogPath -Pattern $pattern | ForEach-Object {
     $g = $_.Matches[0].Groups
     $draws = [int]$g[2].Value
@@ -37,6 +37,9 @@ Select-String -LiteralPath $LogPath -Pattern $pattern | ForEach-Object {
         rt_acquire_ms = [double]$g[8].Value
         taa_ms = [double]$g[9].Value
         nested_flush_ms = [double]$g[10].Value
+        shader_lookup_ms = if ($g[11].Success) { [double]$g[11].Value } else { 0 }
+        pipeline_lookup_ms = if ($g[12].Success) { [double]$g[12].Value } else { 0 }
+        scene_copy_ms = if ($g[13].Success) { [double]$g[13].Value } else { 0 }
     }
 }
 
@@ -73,6 +76,9 @@ $summary = [ordered]@{
     draw_ms_p99 = Percentile $city 'draw_ms' 0.99
     draw_ms_max = if ($city.Count) { [math]::Round((($city | Measure-Object draw_ms -Maximum).Maximum), 3) } else { $null }
     nested_flush_ms_max = if ($city.Count) { [math]::Round((($city | Measure-Object nested_flush_ms -Maximum).Maximum), 3) } else { $null }
+    shader_lookup_ms_mean = if ($city.Count) { [math]::Round((($city | Measure-Object shader_lookup_ms -Average).Average), 3) } else { $null }
+    pipeline_lookup_ms_mean = if ($city.Count) { [math]::Round((($city | Measure-Object pipeline_lookup_ms -Average).Average), 3) } else { $null }
+    scene_copy_ms_mean = if ($city.Count) { [math]::Round((($city | Measure-Object scene_copy_ms -Average).Average), 3) } else { $null }
     dominant_spike = $buckets
 }
 
