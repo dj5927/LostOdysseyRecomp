@@ -33,7 +33,7 @@ The final-branch `final-freeze-01` validation passed on D3D12/local Asia Disc 3 
 
 The earlier native save in new slot `10`/`user09` was successfully reread from `seed-before-boarding/checkpoint.json` (SHA-256 `0fe47315ef942fae29b2f7216f80760dcc59d6039ded38784f64029d1dea621a`); the original `user08` was unchanged. These save checks do not establish recoverable in-memory save state. `current-package-mismatch` indicates a source/package or development-marker mismatch and does not prove stale DLLs or resources.
 
-Issue #16 remains OPEN. Vulkan and other-region coverage and player acceptance remain pending; Asia Disc 3 D3D12 final-branch target-scene validation and recovery are covered above. No commit, push or release occurred; version 0.5.4 is unchanged.
+Issue #16 remains OPEN. Vulkan and other-region coverage and player acceptance remain pending; Asia Disc 3 D3D12 final-branch target-scene validation and recovery are covered above. The implementation and local validation are committed as `2019cd017ab939d0b728cec340f7835c2082e615`; the local source integration retains the existing `main` city-performance work. No push or release occurred. The validation executable and retained evidence remain source version 0.5.4.
 
 ## Evidence
 

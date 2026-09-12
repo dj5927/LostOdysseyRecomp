@@ -19,6 +19,8 @@ lo_add_header_test(LoPollWaitTest ${CMAKE_SOURCE_DIR}/tools/tests/poll_wait_test
 lo_add_header_test(LoParticleMaterialCompatTest ${CMAKE_SOURCE_DIR}/tools/tests/particle_material_compat_test.cpp)
 lo_add_header_test(LoRenderBatchPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/render_batch_policy_test.cpp)
 lo_add_header_test(LoTextureDescriptorCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_descriptor_cache_test.cpp)
+lo_add_header_test(LoVertexCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/vertex_cache_test.cpp)
+target_include_directories(LoVertexCacheTest PRIVATE ${CMAKE_SOURCE_DIR}/thirdparty/unordered_dense/include)
     lo_add_header_test(LoRenderTimingTest ${CMAKE_SOURCE_DIR}/tools/tests/render_timing_test.cpp)
     lo_add_header_test(LoRenderArenaTest ${CMAKE_SOURCE_DIR}/tools/tests/render_arena_policy_test.cpp)
 set(LO_PRIVATE_DIR ${CMAKE_SOURCE_DIR}/LostOdysseyRecompLib/private)

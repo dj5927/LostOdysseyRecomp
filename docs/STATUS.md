@@ -24,6 +24,8 @@ The standalone updater retains the behavior validated for [v0.5.1](https://githu
 
 ## Current validation and limits
 
+The bug-fix implementation and its recorded local validation are committed as `2019cd017ab939d0b728cec340f7835c2082e615`. The local source integration with `main` retains its existing city-performance work; these fixes have not been pushed or released.
+
 ### Issue #14–#16 triage — 2026-09-12
 
 GitHub Issues [#14](https://github.com/freefrank/LostOdysseyRecomp/issues/14), [#15](https://github.com/freefrank/LostOdysseyRecomp/issues/15) and [#16](https://github.com/freefrank/LostOdysseyRecomp/issues/16) were read as **OPEN** on 2026-09-12. Their tracker state remains separate from implementation, validation and reporter acceptance.
@@ -80,6 +82,97 @@ Header fixtures pass: LoRenderBatchPolicyTest 22/22 and LoTextureDescriptorCache
 Ring EXE SHA-256 `5917F389F9FD9E88FDEC6DBD3437ADE76D415F1653FB6924575ACCF478C1B9AD`. Stable city (1664 frames, swap 1367–3030): about 57.7 fps (49.1–60), draws 1816, batches 2.00, splits 0, draw_ms 9.82, fence_wait_ms 1.67, gpu_queue 3.91, bind_ms 1.99, descriptor hits/misses 5289/160. Published v0.5.4 city diagnostic: 31–44 fps, about 5.2 batches, fence_wait_ms 15.40, draw_ms 21.19. Dummy EXE SHA-256 `02E303F1462546FB98236446E24B2397DF762179923DE1D7C02852317ED37BC4`. Stable city (1639 frames): about 56.0 fps (28–60), bind_ms 1.58, hits/misses 837/156. Dummy is bind-path only and shows no fps win versus the ring run. The two EXEs are sequential diagnostic captures, not a laboratory A/B.
 
 These city numbers are diagnostic. They are not 60 fps acceptance, player acceptance, Vulkan coverage or a new Release. Compare note: [GPU ring measured comparison](notes/perf-gpu-ring-compare.md).
+
+### City CPU conversion follow-up — local, unpublished
+
+The measured vertex-cache diagnosis and bounded-cache follow-up are now the
+current city CPU result. With `LO_VERTEX_TIMING=1`, frame 1858 isolated a
+41.8241 ms `unordered_map` insertion during a 262,144-to-524,288 bucket rehash;
+the frame's 495 endian copies took 0.0254 ms in total. `gpu/vertex_cache.h` now
+reserves a 65,536-entry metadata cache and, when full, examines at most 16
+rotating candidates for eviction. It does not change GPU arena bytes, offsets,
+slots or waits, and does not add a flush. `LoVertexCacheTest` passed 3,569,548
+checks once; existing SIMD and arena results were reused.
+
+Three single Hidden Uhra residential captures used the same 1280x720 D3D12,
+AA=3, 60-cap, background and muted setup. The final same-EXE control moved only
+the driver input/screenshot-request files to TEMP. The final all-city sample
+had 1,790 frames at 59.651 FPS mean, 45.989 FPS 1% low and 43.0117 ms worst
+accepted-present. In the paired render-frame 1600–2800 window, mean was 59.918
+FPS, 1% low 54.495 FPS, draw max 13.162 ms, vertex max 2.2981 ms and there
+were no draw over-budget samples or rehashes. The requested mean of at least
+58 FPS is met on this route with the 60 cap. The strict present ratio remains
+50.375% over 16.67 ms, so this is near-60 route evidence rather than a locked
+60 FPS result or strict S4 pass.
+
+The bounded run exposed a 412.9283 ms previous-swap post-present interval;
+moving the polled control files to TEMP reduced that maximum to 0.4193 ms and
+the long-stall class did not recur. This localizes the measurement-path I/O,
+but does not establish a Syncthing filesystem or scheduler root cause. The
+new previous-swap, post-present and command-processor-idle fields are
+diagnostic only. `LO_VERTEX_TIMING` remains off by default. All captures were
+Hidden and muted, every `original_saves_changed` result was false, and the
+independent original-save SHA-256 inventories had zero differences. The final
+image was visually checked as the expected Uhra residential area.
+
+The final executable is `out/perf-ring/run/LostOdysseyRecomp.exe` with SHA-256
+`9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B`; its PDB
+is alongside it. Compilation, linking and provenance completed; the known
+post-build `dxcompiler.dll` copy failure was reused because the run directory
+already contained the DLL. This local 0.5.4 work is unpublished and absent
+from the published v0.5.4 package. It establishes neither whole-game behavior,
+player acceptance nor a new release. Evidence: [city vertex-cache follow-up](notes/city-60fps-handoff.md),
+`out/perf-ring/vertex-stage/{REPORT.md,comparison.json,identity.json,vertex-cache-test-evidence.json}`.
+
+The implementation is recorded in code commit
+`ae287f2a43a73c6f6bea61c40822c37f40afe052`. The measured executable was built
+from the same runtime source before that commit; the commit did not trigger a
+rebuild or rerun, so its hash and the reported performance figures are
+unchanged.
+
+The earlier SIMD conversion run remains historical context: its 41.736 ms
+vertex hitch did not identify the cause. Current follow-up should focus on
+broader-scene and longer-session coverage of bounded-cache eviction and on
+remaining accepted-present timing variability; do not reclassify the TEMP
+comparison as proof of a filesystem root cause.
+
+### Historical SIMD conversion diagnostic — local, unpublished
+
+The local renderer now uses `gpu::geometry_prepare::CopyDwordsSwapped` for the
+two vertex-buffer conversion paths. Endian 0 uses `memcpy`; endian modes 1/2/3
+use an SSSE3 four-dword loop where available, followed by scalar tails and the
+portable fallback. The production object contains the expected `vpshufb`
+instruction. The focused geometry fixture passed 16,685,865 checks, including
+unaligned inputs and inaccessible-page boundary guards
+(`out/perf-ring/simd-copy/geometry_prepare_test.log`).
+
+A same-harness Hidden user01 city run used the local executable
+`AFCC4BE89B42C033FB4041185E35F33CDDFCF7832FEACE2F6FA8328F10BFA7C2` and
+completed in 57.5 seconds with 1,801 city frames, 884 menu frames and
+`original_saves_changed=false`. The run kept 1280x720, window mode 0, backend 0,
+AA 3 and frame-rate target 60, with the original configuration unchanged. City draw mean was 8.203 ms (p95 10.473 ms,
+p99 11.547 ms, max 49.265 ms), vertex mean 1.467 ms, fence wait 0.003 ms and
+`gpu_batches` 1.001. On the fixed render-frame 1600–2800 window, draw mean was
+7.838 ms and vertex mean 1.396 ms; the matching same-harness no-rebuild baseline
+was 7.766 ms and 1.436 ms. In the fixed 1600–2800 window, present mean was
+16.779 ms, 51.457% of intervals exceeded 16.67 ms, and the 1% low was 36.539
+fps; the baseline was 16.831 ms, 50.458% and 31.044 fps. The SIMD run still contained a 41.736 ms vertex hitch and a
+separate 47.467 ms flush sample. Its 779.572 ms worst accepted-present interval
+was a load-in `between_ms` interval, not a flush. Neither redirected-log run
+reproduced the earlier 200–400 ms flush class, but the residual stalls remain
+unexplained.
+
+This is implementation and bounded diagnostic evidence only. The earlier
+handoff attribution of the vertex hitch directly to `CopySwapped` is not
+confirmed. `tVertex` covers the whole vertex-fetch loop
+(`renderer.cpp:3339–3380`), including lookup, sample matching, capture/vector
+resize, conversion and map insertion (`renderer.cpp:2818–2850`); rehash,
+allocation, page fault and scheduling effects remain hypotheses. No SIMD
+performance gain, S4 pass, player acceptance, Vulkan coverage or new release
+is claimed. This local source remains version 0.5.4 and is absent from the
+published v0.5.4 package. Full evidence is in the [city 60 FPS
+handoff](notes/city-60fps-handoff.md) and
+`out/perf-ring/city-simd-comparison.json`.
 
 ### TAA binding evidence — 0.5.2 historical build
 

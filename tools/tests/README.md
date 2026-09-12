@@ -11,6 +11,16 @@ clang-cl /std:c++20 /EHsc /I LostOdysseyRecomp tools/tests/texture_descriptor_ca
 
 CMake targets `LoRenderBatchPolicyTest` and `LoTextureDescriptorCacheTest` match `LoPollWaitTest`. The recorded local run passed 22 batch-policy checks and 11 descriptor-cache checks (including 2000 repeated hits). They do not prove a game frame, GPU heap layout or 60 fps.
 
+## Bounded vertex metadata cache
+
+`LoVertexCacheTest` is a native CPU-only fixture for the renderer's bounded
+vertex metadata cache. Its recorded run passed 3,569,548 checks once. It
+covers small capacities, recent-use retention, dense erase iteration during
+slot reset, refill/churn, and sample/key/offset/slot ownership after movement
+and replacement. At the default capacity, 196,645 unique insertions retained
+65,536 entries with 131,072 buckets and 131,109 evictions. It creates no GPU
+device and does not launch the game. Evidence: `out/perf-ring/vertex-stage/vertex-cache-test-evidence.json`.
+
 ## Assembly profiler report
 
 The offline report fixture is a focused check for `tools/asm-profiler/report.py`; it does not launch the game or collect a native process sample. Install the pinned Capstone dependency, then run:
@@ -503,6 +513,6 @@ Release packaging is separate from test CI. A build or fixture pass is not gamep
 
 ## Geometry preparation
 
-`geometry_prepare_test.cpp` checks the scalar-compatible 16/32-bit index conversion for all endian modes, unaligned inputs and boundary counts, plus exact vertex sample comparisons and mutation detection. The retained run passed 3,206,492 value/guard assertions in `out/v0.5.0/performance-fix/geometry-candidate/geometry_prepare_test.log`. It is a standalone CPU fixture, compiled like the shader identity fixture above, and does not imply full-buffer coverage for large sampled vertex streams or GPU validation.
+`geometry_prepare_test.cpp` checks the scalar-compatible 16/32-bit index conversion for all endian modes, unaligned inputs and boundary counts, plus exact vertex sample comparisons and mutation detection. It also covers `CopyDwordsSwapped`, including endian 0 `memcpy`, SSSE3 four-dword conversion for endian modes 1/2/3, scalar tails/fallbacks, unaligned source/destination offsets and inaccessible-page boundary guards. The current focused run passed 16,685,865 value/guard assertions in `out/perf-ring/simd-copy/geometry_prepare_test.log`; the earlier 3,206,492-assertion run remains historical evidence in `out/v0.5.0/performance-fix/geometry-candidate/geometry_prepare_test.log`. It is a standalone CPU fixture and does not imply full-buffer coverage for large sampled vertex streams, a renderer performance gain or GPU validation.
 
 `deadline_wait_test.cpp` covers the reusable Windows pacing timer with 32 future deadlines in high-resolution mode and 32 in normal-timer fallback mode, plus already-expired deadlines. Both modes passed on this host. It preserves the existing `FramePacer` schedule and uses no busy wait or global timer-resolution change. Evidence: `out/v0.5.0/performance-fix/final-0.5.0/deadline_wait_test.log`.

@@ -10,6 +10,26 @@ One record of completed changes, with unpublished work separated from verified r
 
 - Fix updater manifest staging for subsequent transactions using the new `StageArchive`; the focused manifest transaction check passed three scenarios with zero failures. This does not repair already mixed installations, remove old resources or establish the unresolved Issue #15 save-flow hang. See [Issue #14–#16 triage](docs/notes/issues14-16-triage.md) for the #14–#16 investigation boundaries.
 - For Issue #16, add a narrow particle-material compatibility fallback for the zero-entry `xf_shd_aniflz.freeze` shader case; `LoParticleMaterialCompatTest` compiled and ran with zero failures. Final-branch D3D12/local Asia Disc 3 validation completed the target freeze sequence and subsequent map229/menu progression. Vulkan, other-region coverage and player acceptance remain pending. See the [triage record](docs/notes/issues14-16-triage.md).
+- Bound the renderer's vertex metadata cache to 65,536 reserved entries. Full
+  caches evict from at most 16 rotating candidates, eliminating the old
+  `unordered_map` growth path: the diagnostic capture measured a 41.8241 ms
+  insertion during a 262,144-to-524,288 bucket rehash, while all 495 endian
+  copies in that frame took 0.0254 ms. `LoVertexCacheTest` passed 3,569,548
+  checks once. Three single Hidden Uhra captures (old map, bounded cache and
+  the same executable with input/shot controls moved to TEMP) retained
+  `original_saves_changed=false`; the final all-city sample reached mean 59.651
+  FPS, 1% low 45.989 FPS and worst accepted-present 43.0117 ms. The fixed
+  1600–2800 window reached 59.918 FPS mean and 54.495 FPS 1% low, with zero
+  draw over-budget samples and zero rehashes. This meets the requested mean
+  threshold on the route, but is not a locked 60 FPS result, strict S4 pass,
+  whole-game validation or player acceptance. The local 0.5.4 source remains
+  unpublished. See [city vertex-cache follow-up](docs/notes/city-60fps-handoff.md).
+
+- Keep `LO_VERTEX_TIMING` disabled by default; the added previous-swap,
+  post-present and command-processor-idle fields are diagnostic measurements,
+  not optimization savings. The bounded run's 412.9283 ms post-present sample
+  fell to 0.4193 ms after moving the driver input/screenshot controls to TEMP;
+  this does not establish a Syncthing filesystem or scheduler root cause.
 
 - Use a PPC prebuilt library by default in the release workflow. `release.yml` restores a
   sharded library bundle from the immutable private `ppc/<key>` branch selected by
@@ -60,10 +80,34 @@ One record of completed changes, with unpublished work separated from verified r
   published v0.5.4, and is not player acceptance or a 60 fps claim. See
   [GPU ring compare](docs/notes/perf-gpu-ring-compare.md).
 
+- Move the vertex dword endian copy helper into `geometry_prepare.h` and add an
+  SSSE3 four-dword path for endian modes 1/2/3, with scalar tails/fallbacks and
+  `memcpy` for endian 0. The focused fixture passed 16,685,865 checks,
+  including unaligned and inaccessible-page boundary cases. A same-harness
+  Hidden city run completed with `original_saves_changed=false`; the SIMD run
+  still had a 41.736 ms vertex hitch, a separate 47.467 ms flush sample and a
+  779.572 ms load-in present interval, so the change does not establish a
+  performance gain or 60 fps acceptance. Both redirected-log runs avoided the
+  earlier 200–400 ms flush class, but residual stalls remain. This work is
+  local, unpublished, and absent from the published v0.5.4 package (the local
+  source version remains 0.5.4). See [city 60 FPS handoff](docs/notes/city-60fps-handoff.md).
+
 ### 简体中文
 
 - 修复使用新版 `StageArchive` 的后续更新事务中的 manifest staging；manifest 事务定向检查 3 个场景零失败。该修复不会自动修复已经混装的安装、清理旧资源，也不能证明 #15 存档流程卡顿的原因。#14–#16 调查边界见[分流记录](docs/notes/issues14-16-triage.md)。
 - 针对 Issue #16 的零项 `xf_shd_aniflz.freeze` shader 情况增加窄范围 particle-material 兼容回退；`LoParticleMaterialCompatTest` 已编译并运行且零失败。最终分支 D3D12／亚洲 Disc 3 验证已完成目标冻结过场及后续 map229／菜单流程。Vulkan、其他地区覆盖和玩家验收仍待完成，见[分流记录](docs/notes/issues14-16-triage.md)。
+- 将渲染器顶点 metadata cache 限制为预留 65,536 项。缓存满时最多检查 16 个轮转候选并淘汰，消除了旧
+  `unordered_map` 扩容路径：诊断捕获中一次 262,144 到 524,288 bucket 的 rehash 插入耗时 41.8241 ms，
+  而该帧全部 495 次 endian copy 合计仅 0.0254 ms。`LoVertexCacheTest` 一次通过 3,569,548 项检查。
+  三次单独 Hidden 乌拉住宅区捕获（旧 map、有界缓存、以及将输入／截图控制移到 TEMP 的同一 EXE）均为
+  `original_saves_changed=false`；最终全城市样本平均 59.651 FPS、1% low 45.989 FPS，最差 accepted-present
+  间隔 43.0117 ms。固定 1600–2800 窗口平均 59.918 FPS、1% low 54.495 FPS，draw 超预算为 0、rehash 为 0。
+  这满足该路线请求的平均帧率门槛，但不能称为全程锁 60 FPS、严格 S4 通过、全游戏验证或玩家验收。本地
+  0.5.4 源码仍未发布。见[城市 vertex-cache 后续记录](docs/notes/city-60fps-handoff.md)。
+
+- `LO_VERTEX_TIMING` 默认关闭；新增的 previous-swap、post-present 和 command-processor-idle 字段是诊断测量，
+  不是优化收益。有界缓存运行中的 412.9283 ms post-present 样本，在将驱动输入／截图控制移到 TEMP 后降至
+  0.4193 ms；这不能证明 Syncthing 文件系统或调度是根因。
 
 - 发布流程默认使用 PPC 预编译库。`release.yml` 根据输入／编译参数 key 从私有
   不可变的 `ppc/<key>` branch 恢复分片库；手动设置 `rebuild_ppc: true` 仍使用源码编译
@@ -104,6 +148,15 @@ One record of completed changes, with unpublished work separated from verified r
   实验室 A/B。该改动在本地分支 `perf-gpu-ring`（`b91d279`、`ed90fe9`），
   尚未推送，不包含在已发布的 v0.5.4 中，不是玩家验收，也不宣称 60 fps。
   见[GPU 环缓冲实测对比](docs/notes/perf-gpu-ring-compare.md)。
+
+- 将顶点 dword endian copy helper 移到 `geometry_prepare.h`，为 endian 1／2／3
+  增加每次处理四个 dword 的 SSSE3 路径，并保留 scalar 尾部／fallback，endian 0
+  使用 `memcpy`。专项夹具通过 16,685,865 项检查，包括非对齐和不可访问页边界。
+  同一 Hidden 城市脚本的复测为 `original_saves_changed=false`；SIMD 运行仍有
+  41.736 ms 顶点卡顿、另一个 47.467 ms flush 样本以及 779.572 ms 的载入期
+  present 间隔，因此不能据此宣称性能提升或 60 fps 验收。两次重定向日志运行
+  都未复现之前 200–400 ms 的 flush 类别，但残余卡顿仍在。该改动只在本地、尚未
+  发布，不在已发布的 v0.5.4 包中（本地源码版本仍为 0.5.4）。见[城市 60 FPS handoff](docs/notes/city-60fps-handoff.md)。
 
 ## v0.5.4 — 2026-09-11
 

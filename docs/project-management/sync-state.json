@@ -1296,11 +1296,11 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Release engineering",
-        "Status": "Awaiting validation",
-        "Delivery": "Implemented",
+        "Status": "Done",
+        "Delivery": "Released",
         "Release": "v0.5.0",
         "Source key": "pc-backend-release-readiness",
-        "Evidence": "Local formal v0.5.0 ZIP completed from clean source/tag/package commit 86ba2c1641bb9a8324e0b1710783bead0c39bf23: 44,080,866 bytes, SHA256 100e6491548579e3a13aa60564bc760bca121113915842f73817d1b943482ce4, source identity 896317f1a0ed86cea58fe353a2cb2104b4aa757efff4b72147e4da8ba2b82f7c. It used 1 PCH, 4 TUs, 2 links and 1 package; manifest/payload/hash/license checks passed; no functional tests, game runs or CI. Local tag v0.5.0 exists, but no remote push, public Release or anonymous download verification has occurred; public latest remains v0.4.2. Source 0.4.22/0.4.23 packages remain historical. Cross-GPU feedback is not a v0.5.0 pre-release gate."
+        "Evidence": "Public latest v0.5.0 Release 385591785, non-draft/non-prerelease, published 2026-09-09T22:18:20Z from main/source 0.5.0/tag f78f64fea8707b1447ada044abec2e0da4e6e9bc. LostOdysseyRecomp-windows-x64-v0.5.0.zip: 44,137,866 bytes, SHA256 1767dd1ab6cf675e48f28e00c64c8ce48b2f6dabd9706a3ee699f8039d60387b; anonymous download matched. Publication does not establish real-scene verification of the formal binary, player acceptance, whole-game/cross-GPU coverage, unknown-shader coverage, or c230 enemy-death repair."
       },
       "title": "Prepare v0.5.0 backend packages and documentation",
       "body_sha256": "fa280da894321f4db778bb3059c1bef149f5db1d2285df5db5e78a2d1904dde2"
@@ -1346,8 +1346,8 @@
       "fields": {
         "Kind": "Bug",
         "Area": "TAA",
-        "Status": "In Progress",
-        "Delivery": "In progress",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
         "Source key": "enemy-disappearance-flicker",
         "Evidence": "Accepted bounded c7 repair: candidate SHA256 1c9911a3ad6dc91acc5ac1a2cffd7503031b12a81b82b19dd526ce28345ca87a classifies four capture 2813–2815 VS paths (48 draws/frame) while retaining exact matrix, viewport and depth guards. In the same D-drive slot 02 Ghost Town — City of Ruins scene, six presented frames spanning about 11.37 seconds showed no flicker; the user accepts this scoped repair as successful. The sample is not continuous video; broader scene regression remains pending. Release evidence is unchanged."
       },
@@ -1435,7 +1435,7 @@
         "Area": "Content import",
         "Status": "Done",
         "Delivery": "Implemented",
-        "Evidence": "v0.5.0 target. Existing real three-package import and duplicate preservation are reused. The directory-filter repair prevents spa.bin entering *.fpi; fixed native 30-call evidence and frozen source-0.4.18 runtime02 read complete header/index/payload data for LODLC002/001/003, with zero spa.bin matches or crashes and a normal main menu. Thirteen imported files and isolated save/config remained unchanged; both games exited. Reward collection, dungeon play, user acceptance and publication remain untested. Current local source 0.4.21 is uncommitted.",
+        "Evidence": "Prior import evidence is retained. The completed 2026-09-10 four-save survey loaded and moved in the DLC Underground Research Division Lowest Level; runtime selected disc4 and logged LODLC003.fpi. This establishes the bounded room/resource path, not a DLC boss encounter, DLC completion, player acceptance, version change, or publication. Follow-up product F1 capture ZIPs are complete for all four slots; each has three consecutive frames, screenshot, temporal JSON, runtime/shader logs and source manifest, with CRC and included-source hashes matching. Evidence: out/save-temporal-survey-20260910/REPORT.md; F1-REPORT.md; f1-zip-audit.json.",
         "Source key": "dlc-import-support",
         "Release": "v0.5.0"
       }
@@ -1529,9 +1529,10 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Game progression",
-        "Status": "Todo",
-        "Delivery": "Not started",
-        "Source key": "chapter-disc-save-regression"
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Source key": "chapter-disc-save-regression",
+        "Evidence": "The completed 2026-09-10 four-save survey loaded and moved in four 3D scenes. user17 naturally entered Ipsilon Valley Road and the runtime opened sibling disc4, establishing bounded cross-disc save loading/resource availability. Follow-up product F1 capture ZIPs are complete for all four slots; each has three consecutive frames, screenshot, temporal JSON, runtime/shader logs and source manifest, with CRC and included-source hashes matching. A story-driven disc-change boundary, further save/restart behavior, player acceptance and publication remain untested. Evidence: out/save-temporal-survey-20260910/REPORT.md; F1-REPORT.md; f1-zip-audit.json."
       },
       "title": "Validate chapter and disc transitions on both editions",
       "body_sha256": "8d475698ffdea8dcac36c388be7a07968aae2138ae78ac8b846739a9d6198a9a"
@@ -1746,9 +1747,10 @@
       "fields": {
         "Kind": "Research",
         "Area": "Temporal rendering",
-        "Status": "Todo",
-        "Delivery": "Not started",
-        "Source key": "native-object-motion"
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Source key": "native-object-motion",
+        "Evidence": "Four-save survey complete: 288 renderer frames/864 stage traces, all 32 jitter phases. 24 unregistered scene/viewport VS candidates include at least 3 pass-through paths, so no 24-target TAA claim. Offline camera-only MV works; native object/skinned MV, palette producer/history and object generation remain open. Four product F1 ZIPs each contain 3 consecutive frames, screenshot, temporal JSON, logs and manifest; CRC/source hashes match. Static anchors: skeletal 823CB350→823C87D8; material 8258A958/823CB538; atoms 822B5938; camera current/previous/velocity. No repair, FG, build, release or acceptance. Evidence: out/save-temporal-survey-20260910/REPORT.md, analysis-summary.json, submission-research.md, F1-REPORT.md, f1-zip-audit.json."
       },
       "title": "Develop native object and skeletal motion vectors",
       "body_sha256": "8d1455d9f1eac1b553a4c033fb945b6a2b4ae02e277b54c7fd35a970c76e917e"
@@ -2247,8 +2249,8 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Desktop windowing",
-        "Status": "In Progress",
-        "Delivery": "In progress",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
         "Evidence": "Source 0.5.6 corrected the failing legacy DPI144 fixture. Final actual D3D12 DPI144 evidence reports an SDL client of 3840x2160, raw output 2560x1440, physical output and swapchain 3840x2160 at 363.065s, and a 3840x2160 normal-ground screenshot. The intermediate 3846x2177 observation is retained as non-final. Vulkan and player acceptance remain pending; release remains pending.",
         "Source key": "render-output-dpi-presentation-diagnosis",
         "Release": "v0.5.0"
@@ -2301,10 +2303,10 @@
       "fields": {
         "Kind": "Research",
         "Area": "Runtime performance",
-        "Status": "In Progress",
-        "Delivery": "Validated",
-        "Release": "v0.5.0",
-        "Evidence": "Source/release fixed at 0.5.0 by user correction. Content-checked shader reuse, exact vertex sample comparison, reused index/primitive scratch, endian loop specialization and precise Windows deadline waits implemented. Focused geometry/timer checks passed. Fixed Map16 D3D12 4K/TAA3/cap60: RTSS 54.05 to 58.33 to 59.76 FPS; final mean 16.7238 ms/p95 17.1576 ms/1196 consecutive valid frames. Vertex/index 1.5741/1.9266 to 0.6519/0.2914 ms. Output normal, no new shader/pipeline/texture or in-window captures. External load and collector cost differ; bounded near-60 result, not whole-game acceptance. Saves/settings unchanged, all games closed. No commit/push/release.",
+        "Status": "Awaiting validation",
+        "Delivery": "Implemented",
+        "Release": "v0.5.4",
+        "Evidence": "Implemented: seven VS paths and the exact 99c2/67b10 PS pair for the new captures. CPU contract checks passed (500,868 retained plus 299,256 additional); they do not establish scene or player behavior. Final source-0.5.4 build exited 0: 83,400,192 B, SHA256 504f08ac86b83edf5bddc10ed66c19aa19f0e7a2d03a3f991dd1c9e4c8cc4f30, staged under out/releases/LostOdysseyRecomp-v0.5.4-taa-new-scenes-local. Local commit e2e93bc records this TAA mapping/reconstruction, fixtures, offline audit and notes. The separately named game-directory copy did not replace v0.5.3; no launch or player acceptance. FPS renderer work remains unstaged except the shared-pair line. Push, tag and release are pending; 8d977/02d8 remain unimplemented and nine-path acceptance is retained.",
         "Source key": "4k-runtime-performance-diagnosis"
       },
       "title": "Diagnose observed 4K runtime performance",
@@ -2315,10 +2317,10 @@
       "fields": {
         "Kind": "Bug",
         "Area": "TAA and shadows",
-        "Status": "Awaiting validation",
-        "Delivery": "Validated",
+        "Status": "In Progress",
+        "Delivery": "In progress",
         "Release": "v0.5.0",
-        "Evidence": "The Map16 three-slot fcbb/c7/e8c0+576d/c8 repair passed 20,635 CPU checks and a 3840x2160 continuous 32-phase run: all summaries ready/completed/reused, no gap or jitter miss, with 160 material/depth VP uploads bit-identical. Accepted bounded follow-up: candidate SHA256 1c9911a3ad6dc91acc5ac1a2cffd7503031b12a81b82b19dd526ce28345ca87a classifies four c7 VS paths from captures 2813–2815 (48 draws/frame) with exact matrix, viewport and depth guards retained. In the same D-drive slot 02 Ghost Town — City of Ruins scene, six intermittent presented frames spanning about 11.37 seconds showed no flicker; the user accepted this scope. This does not validate broader shader families or release.",
+        "Evidence": "Prior Map16 fcbb/c7/e8c0+576d/c8 scope remains accepted. Frozen source-0.5.2 candidate 2f1cea96cd08cb7cfcbd0369e7eee8618e13c169d885a4c6caeaf60953416624 added 11 confirmed position VS; build/provenance and one 10,658-check affected suite passed. Four D3D12 1280x720 TAA scenes recorded 2,566 applications without rejection; White Boa gate/Valley Road variation fell, while forest/effect residuals remain. Static pattern research found two unimplemented PS compensation gaps: 99c2+fa9c9d4fe29fc6ce and 99c2+67b10ad6a0e3d811; WorldMap lacks same-draw camera and Valley ROI does not prove a brightness flip. Four local F1 ZIP/source checks passed; automatic immediate upload pending. Local commit 3c825ce23234a6f16ccad25e40fe4c6e7b820b65 records this bounded repair; it is unpushed on trail/updater and is not a release. No new acceptance. Evidence: out/save-temporal-survey-20260910/repair/VALIDATION.md; pattern-research/REPORT.md.",
         "Source key": "4k-taa-ground-shadow-diagnosis"
       },
       "title": "Diagnose reported 4K TAA ground and shadow blacking",
@@ -2333,7 +2335,7 @@
         "Delivery": "Released",
         "Release": "v0.5.4",
         "Start date": "2026-09-10",
-        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Two 2026-09-11 gameplay captures on published EXE 3c3b4073: user00 walk 5092/0 fail hottest 8.11s; user01 city 10736/0 fail hottest 7.27s. Both xenon_scr.fpd ~36-44 fps ~1900-2300 draws 1280x720. Hottest thread unresolved EXE + NtWaitForSingleObject + AMD/D3D12. No PDB. Wall-clock waits included. No GPU/stacks/player acceptance.",
+        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Actual-game sampling and player acceptance remain pending.",
         "Source key": "assembly-level-performance-analysis-tool",
         "Target date": "2026-09-10"
       },
@@ -2365,7 +2367,7 @@
         "Delivery": "Validated",
         "Release": "v0.5.4",
         "Start date": "2026-09-10",
-        "Evidence": "Automatic sync enabled (lo.ppcAutoSync=true): changed input publishes immutable ppc/<key> branch; matching remote key reused; CI resolves by key, no workflow SHA pin update. 19 sync tests, 2 extraction cases, actionlint, real hook upload of existing lib to private 5e802634, same-key unchanged, sparse restore/hash, CI-contract checks passed. No PPC C++ compile/game run. Pushed 2c0456c to github/main. Hosted PPC prebuilt tests 34565564964 passed (not release E2E). Not in published v0.5.4 package; no player acceptance. Prior 2b5b1d1/CI34553414428 is historical.",
+        "Evidence": "Automatic sync enabled (lo.ppcAutoSync=true): changed input publishes immutable ppc/<key> branch; matching remote key reused; CI resolves by key, no workflow SHA pin update. 19 sync tests, 2 extraction cases, actionlint, real hook upload of existing lib to private 5e802634, same-key unchanged, sparse restore/hash, CI-contract checks passed. No PPC C++ compile/game run. Pushed 2c0456c to github/main; hosted CI for auto-sync tests not yet confirmed; not in published v0.5.4 package; no player acceptance. Prior 2b5b1d1/CI34553414428 is historical.",
         "Source key": "release-reuse-local-ppc-static-library"
       },
       "title": "Reuse a locally built PPC static library in release workflows",
@@ -2379,7 +2381,7 @@
         "Status": "In Progress",
         "Delivery": "In progress",
         "Start date": "2026-09-12",
-        "Evidence": "Investigation active. The original attached log is historical source v0.5.0 (LR 829DFDCC, CTR 829DFEF0). A second reporter log is historical source v0.4.2 (LR 823CB53C, CTR 0), with a virtual call at guest 823CB538 matching a call site discussed in docs/notes/issue12-root-cause.md, but without an object-freeing capture. Neither log establishes a current-version reproduction or a shared root cause. The current gc_render_flush.cpp repair exists at 17e3ab7; no new runtime validation, reporter acceptance, or release evidence is recorded.",
+        "Evidence": "Investigation active. The original attached log is historical source v0.5.0 (LR 829DFDCC, CTR 829DFEF0). A second reporter log is historical source v0.4.2 (LR 823CB53C, CTR 0), with a virtual call at guest 823CB538 matching a call site discussed in docs/notes/issue12-root-cause.md, but without an object-freeing capture. Neither log establishes a current-version reproduction or a shared root cause. The current gc_render_flush.cpp repair exists at 17e3ab7. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records this task's current work and is integrated with main locally, unpushed and unreleased; no new runtime validation or reporter acceptance is recorded.",
         "Source key": "issue14-cage-crash-investigation"
       }
     },
@@ -2391,7 +2393,7 @@
         "Status": "In Progress",
         "Delivery": "In progress",
         "Start date": "2026-09-12",
-        "Evidence": "Investigation active. Source v0.5.4 log retained 60 fps rendering and audio until user closure; the same save later loaded and a second save did not hang. Two compiler-DLL hashes match the v0.5.4 manifest; other components remain unknown. StageArchive omits manifest.json from ApplyPlan. The associated repair is validated: current-worktree clang-cl /O2 /MT targeted build succeeded and --manifest-transaction completed three scenarios with zero failures, covering plan round trip, post-apply rollback, injected failure after manifest replacement rollback, and manifest-tamper rejection. No helper/game run, commit, release, or player acceptance. The up-to-date path compares only version, so mixed DLL/resource installs remain unexcluded and the Issue #15 hang cause remains unknown.",
+        "Evidence": "Investigation active. Source v0.5.4 log retained 60 fps rendering and audio until user closure; the same save later loaded and a second save did not hang. Two compiler-DLL hashes match the v0.5.4 manifest; other components remain unknown. StageArchive omits manifest.json from ApplyPlan. The associated repair is validated: current-worktree clang-cl /O2 /MT targeted build succeeded and --manifest-transaction completed three scenarios with zero failures, covering plan round trip, post-apply rollback, injected failure after manifest replacement rollback, and manifest-tamper rejection. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records the repair and is integrated with main locally, unpushed and unreleased. No helper/game run or player acceptance. The up-to-date path compares only version, so mixed DLL/resource installs remain unexcluded and the Issue #15 hang cause remains unknown.",
         "Source key": "issue15-save-hang-investigation"
       }
     },
@@ -2403,9 +2405,24 @@
         "Status": "Awaiting validation",
         "Delivery": "Validated",
         "Start date": "2026-09-12",
-        "Evidence": "Implementation and bounded local validation complete; reporter validation pending. Final branch-native-r1 EXE f2015ad76edd48adf7603221c9618804645224c22fd5ca0bcee1471af55d483f passed final-freeze-01 target sequence on D3D12/Asian Disc 3 from user09, without skipping the King freeze. At 1527.792s raw 0A33A8C0 used missing-particle-shader fallback; stable memory matched xf_shd_aniflz.freeze, GUID 0fd4ca6d4bb67581c9c9f5b8f0af62c0, child table count 16 and particle shader 0. 180 PNG captures completed: shot45508 freeze, shot45823 caboose dialogue, shot47673 exterior; at 1733.599s map229 returned, shot52115 menu, and shots53430-53517 show 30-tick down-input movement/camera change. This run has no coordinate telemetry. Both native checkpoints reload and original seed is unchanged. No reporter/player acceptance, Vulkan/other-region coverage, commit, push or release.",
+        "Evidence": "Implementation and bounded local validation complete; reporter validation pending. Final branch-native-r1 EXE f2015ad76edd48adf7603221c9618804645224c22fd5ca0bcee1471af55d483f passed final-freeze-01 target sequence on D3D12/Asian Disc 3 from user09, without skipping the King freeze. At 1527.792s raw 0A33A8C0 used missing-particle-shader fallback; stable memory matched xf_shd_aniflz.freeze, GUID 0fd4ca6d4bb67581c9c9f5b8f0af62c0, child table count 16 and particle shader 0. 180 PNG captures completed: shot45508 freeze, shot45823 caboose dialogue, shot47673 exterior; at 1733.599s map229 returned, shot52115 menu, and shots53430-53517 show 30-tick down-input movement/camera change. This run has no coordinate telemetry. Both native checkpoints reload and original seed is unchanged. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records the repair and evidence and is integrated with main locally, unpushed and unreleased. No reporter/player acceptance or Vulkan/other-region coverage.",
         "Source key": "issue16-train-freeze-investigation"
       }
+    },
+    "performance-and-shader-startup": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6qLPE",
+      "fields": {
+        "Evidence": "Bounded city segment implemented and diagnostically validated in local main commit ae287f2a43a73c6f6bea61c40822c37f40afe052, not pushed or released: 41.8241ms vertex spike was unordered_map insert/rehash, not CopySwapped. A 65,536-entry reserved dense metadata cache with 16-candidate LRU eviction passed LoVertexCacheTest once (3,569,548 checks); it preserves quality, 1280x720 D3D12 AA3, two slots and arena/wait policy. Same-EXE TEMP control files reduced observed post-present max 412.9283->0.4193ms without proving a filesystem cause. Final Hidden route: 1790 frames, mean 59.651463 FPS; fixed 1201-frame window mean 59.918376, 1% low 54.494611, >16.67ms 50.374688%, max frame 22.5913ms, max vertex 2.2981ms, zero rehashes and zero stable draw overruns. Mean>=58 target is met. All-city 1% low 45.989346 and max frame 43.0117 retain entry/load tail. Saves unchanged; final local EXE 9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B. No strict S4, whole-game result or player acceptance.",
+        "Kind": "Feature",
+        "Area": "Runtime performance",
+        "Status": "In Progress",
+        "Delivery": "Validated",
+        "Release": "v0.5.4",
+        "Start date": "2026-09-11",
+        "Source key": "performance-and-shader-startup"
+      },
+      "title": "Investigate remaining stalls and shader-startup compiler failures",
+      "body_sha256": "41489dbefd4270a8d81d104fb1050e126ecb5703dd059ab4cd8a3972b0fb1184"
     }
   }
 }
