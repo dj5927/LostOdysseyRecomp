@@ -108,7 +108,24 @@ python -B tools/tests/updater_archive_test.py out/build/windows-clang/LostOdysse
 
 The recorded run passed 12/12 cases in `out/updater-fix/archive-test.log`. It verifies release-style staging with an explicit root directory entry, implicit-root and root-last ordering, and rejection of multiple roots, top-level files, absolute or parent roots, traversal, duplicate and unlisted payloads, SHA256 mismatch and a missing root manifest. This is archive staging coverage; it does not establish a network update, package transaction or live native dialog.
 
+The manifest transaction check is a separate focused mode. After building `LoUpdaterTest`, run it with a new isolated output directory:
+
+```powershell
+.\LoUpdaterTest.exe --manifest-transaction out/updater-manifest-check
+```
+
+The recorded run passed three scenarios with zero failures: successful update and post-apply rollback, failure after manifest replacement, and tamper rejection, including `WriteApplyPlan`/`ReadApplyPlan` serialization round-trip. It does not start the updater helper or game, and it does not repeat the older updater suite. Evidence: `out/bug-fix-evidence/updater-manifest-build/REPORT.md`.
+
 `LoUpdaterStandaloneTest` passed 43 checks in the local Release /MT host build. It covers installed-manifest/EXE validation, no-argument and malformed-argument routing, injected check results, Unicode/unrelated cwd, exact-path fake game processes, and the real helper replacing synthetic files and launching a WIN32 probe after the standalone parent exits. No real game or public download is involved. Evidence: `out/standalone-host/REPORT.md` and `fixture.log`.
+
+`LoParticleMaterialCompatTest` is an `EXCLUDE_FROM_ALL` target for the particle material compatibility policy. Build the explicit target in an existing configured build directory and run the resulting executable:
+
+```powershell
+cmake --build out/build/release --target LoParticleMaterialCompatTest
+.\out\build\release\LostOdysseyRecomp\LoParticleMaterialCompatTest.exe
+```
+
+The focused `/UNDEBUG` fixture passed with zero failures. It covers the material compatibility policy and does not cover ABI integration, GPU behavior or game runtime acceptance.
 
 `python -B tools/tests/package_suffix_version_test.py` passed 7 focused cases covering full suffix identity, invalid suffixes, exact tag/source/commit matching and retained clean-checkout/build guards. Earlier updater fixtures were reused.
 

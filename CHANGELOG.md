@@ -8,6 +8,9 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- Fix updater manifest staging for subsequent transactions using the new `StageArchive`; the focused manifest transaction check passed three scenarios with zero failures. This does not repair already mixed installations, remove old resources or establish the unresolved Issue #15 save-flow hang. See [Issue #14–#16 triage](docs/notes/issues14-16-triage.md) for the #14–#16 investigation boundaries.
+- For Issue #16, add a narrow particle-material compatibility fallback for the zero-entry `xf_shd_aniflz.freeze` shader case; `LoParticleMaterialCompatTest` compiled and ran with zero failures. Final-branch D3D12/local Asia Disc 3 validation completed the target freeze sequence and subsequent map229/menu progression. Vulkan, other-region coverage and player acceptance remain pending. See the [triage record](docs/notes/issues14-16-triage.md).
+
 - Use a PPC prebuilt library by default in the release workflow. `release.yml` restores a
   sharded library bundle from the immutable private `ppc/<key>` branch selected by
   the computed inputs/compiler key, while
@@ -58,6 +61,9 @@ One record of completed changes, with unpublished work separated from verified r
   [GPU ring compare](docs/notes/perf-gpu-ring-compare.md).
 
 ### 简体中文
+
+- 修复使用新版 `StageArchive` 的后续更新事务中的 manifest staging；manifest 事务定向检查 3 个场景零失败。该修复不会自动修复已经混装的安装、清理旧资源，也不能证明 #15 存档流程卡顿的原因。#14–#16 调查边界见[分流记录](docs/notes/issues14-16-triage.md)。
+- 针对 Issue #16 的零项 `xf_shd_aniflz.freeze` shader 情况增加窄范围 particle-material 兼容回退；`LoParticleMaterialCompatTest` 已编译并运行且零失败。最终分支 D3D12／亚洲 Disc 3 验证已完成目标冻结过场及后续 map229／菜单流程。Vulkan、其他地区覆盖和玩家验收仍待完成，见[分流记录](docs/notes/issues14-16-triage.md)。
 
 - 发布流程默认使用 PPC 预编译库。`release.yml` 根据输入／编译参数 key 从私有
   不可变的 `ppc/<key>` branch 恢复分片库；手动设置 `rebuild_ppc: true` 仍使用源码编译

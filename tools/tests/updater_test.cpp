@@ -153,6 +153,73 @@ int ParentMode(const fs::path &helper, const fs::path &plan)
 
 int wmain(int argc, wchar_t **argv)
 {
+    if (argc == 3 && std::wstring_view(argv[1]) == L"--manifest-transaction")
+    {
+        const auto root = fs::absolute(argv[2]);
+        if (fs::exists(root)) { std::cerr << "fixture directory must be new\n"; return 1; }
+        const std::string oldManifest = "old manifest bytes\r\n";
+        for (const auto *label : {"success", "rollback", "tampered"})
+        {
+            const auto caseRoot = root / label;
+            const auto install = caseRoot / "install";
+            const auto operation = install / ".update" / "manifest-fixture";
+            Write(caseRoot / "source/LostOdysseyRecomp.exe", "new-game");
+            Write(caseRoot / "source/z-runtime.dll", "new-runtime");
+            Write(install / "LostOdysseyRecomp.exe", "old-game");
+            Write(install / "z-runtime.dll", "old-runtime");
+            Write(install / "manifest.json", oldManifest);
+            fs::create_directories(operation);
+            const auto archive = operation / "download.zip";
+            Expect(CreatePackage(archive, "9.9.9", {
+                {"LostOdysseyRecomp.exe", caseRoot / "source/LostOdysseyRecomp.exe"},
+                {"z-runtime.dll", caseRoot / "source/z-runtime.dll"}}), "create manifest transaction archive");
+            updater::StagedUpdate staged;
+            std::string error;
+            if (!updater::StageArchive(archive, operation, "9.9.9", staged, error))
+            { Expect(false, error.c_str()); continue; }
+            staged.installRoot = install;
+            const auto newManifest = Read(staged.stageRoot / "manifest.json");
+            Expect(!newManifest.empty() && newManifest != oldManifest, "stage new package manifest");
+            Expect(staged.files.size() == 3, "manifest included once alongside two payloads");
+            Expect(updater::WriteApplyPlan(staged, install / "LostOdysseyRecomp.exe", {}, error), error.c_str());
+            const auto plan = updater::ReadApplyPlan(staged.planPath, error);
+            if (!plan) { Expect(false, error.c_str()); continue; }
+            Expect(plan->files.size() == 3 && updater::ValidateApplyPlan(*plan, error),
+                   "serialized plan retains verifiable manifest entry");
+            if (std::string_view(label) == "tampered")
+            {
+                Write(staged.stageRoot / "manifest.json", "tampered identity");
+                Expect(!updater::ApplyWithRollback(*plan, {}, error), "reject tampered staged manifest");
+            }
+            else if (std::string_view(label) == "rollback")
+            {
+                // ReadApplyPlan sorts object keys: inject after manifest was
+                // replaced, not before it, to exercise its backup restoration.
+                size_t afterManifest = 0;
+                for (size_t i = 0; i < plan->files.size(); ++i)
+                    if (plan->files[i].path == "manifest.json") afterManifest = i + 1;
+                Expect(afterManifest > 0, "find manifest replacement in round-tripped plan");
+                Expect(afterManifest && !updater::ApplyWithRollback(*plan, {afterManifest}, error),
+                       "failure after manifest replacement rolls back transaction");
+            }
+            else
+            {
+                Expect(updater::ApplyWithRollback(*plan, {}, error), error.c_str());
+                Expect(Read(install / "manifest.json") == newManifest &&
+                       Read(install / "LostOdysseyRecomp.exe") == "new-game" &&
+                       Read(install / "z-runtime.dll") == "new-runtime", "install new manifest and payload together");
+                const auto installed = updater::ParsePackageManifest(Read(install / "manifest.json"), error);
+                Expect(installed && installed->version == "9.9.9" && installed->files.size() == 2,
+                       "installed manifest remains original package schema without self hash");
+                Expect(updater::RollbackInstalledFiles(*plan, error), "post-apply rollback restores manifest too");
+            }
+            Expect(Read(install / "manifest.json") == oldManifest &&
+                   Read(install / "LostOdysseyRecomp.exe") == "old-game" &&
+                   Read(install / "z-runtime.dll") == "old-runtime", "original identity and payload restored or untouched");
+        }
+        std::cout << "Manifest transaction: 3 scenarios, " << failures << " failures\n";
+        return failures ? 1 : 0;
+    }
     if (argc == 5 && std::wstring_view(argv[1]) == L"--stage-archive")
     {
         updater::StagedUpdate staged;

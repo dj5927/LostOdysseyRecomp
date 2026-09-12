@@ -4976,6 +4976,71 @@
         }
       ],
       "record_type": "backlog"
+    },
+    {
+      "key": "issue14-cage-crash-investigation",
+      "title": "Crash in Cages after Bogimoray boss and Numara soldiers",
+      "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/14",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Gameplay progression",
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Release": null,
+        "Start date": "2026-09-12",
+        "Target date": null,
+        "Evidence": "Investigation active. The original attached log is historical source v0.5.0 (LR 829DFDCC, CTR 829DFEF0). A second reporter log is historical source v0.4.2 (LR 823CB53C, CTR 0), with a virtual call at guest 823CB538 matching a call site discussed in docs/notes/issue12-root-cause.md, but without an object-freeing capture. Neither log establishes a current-version reproduction or a shared root cause. The current gc_render_flush.cpp repair exists at 17e3ab7; no new runtime validation, reporter acceptance, or release evidence is recorded."
+      },
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/14",
+        "docs/notes/issue12-root-cause.md",
+        "17e3ab7",
+        "out/bug-fix-evidence/issue14-analysis.md"
+      ],
+      "source_lines": [],
+      "record_type": "backlog"
+    },
+    {
+      "key": "issue15-save-hang-investigation",
+      "title": "[Bug] Hang after saving",
+      "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/15",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Save & Storage",
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Release": null,
+        "Start date": "2026-09-12",
+        "Target date": null,
+        "Evidence": "Investigation active. Source v0.5.4 log retained 60 fps rendering and audio until user closure; the same save later loaded and a second save did not hang. Two compiler-DLL hashes match the v0.5.4 manifest; other components remain unknown. StageArchive omits manifest.json from ApplyPlan. The associated repair is validated: current-worktree clang-cl /O2 /MT targeted build succeeded and --manifest-transaction completed three scenarios with zero failures, covering plan round trip, post-apply rollback, injected failure after manifest replacement rollback, and manifest-tamper rejection. No helper/game run, commit, release, or player acceptance. The up-to-date path compares only version, so mixed DLL/resource installs remain unexcluded and the Issue #15 hang cause remains unknown."
+      },
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/15",
+        "LostOdysseyRecomp/stage.cpp"
+      ],
+      "source_lines": [],
+      "record_type": "backlog"
+    },
+    {
+      "key": "issue16-train-freeze-investigation",
+      "title": "[Bug] Train cutscene freeze/crash reported as Xenia-like",
+      "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/16",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Gameplay progression",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
+        "Release": null,
+        "Start date": "2026-09-12",
+        "Target date": null,
+        "Evidence": "Implementation and bounded local validation complete; reporter validation pending. Final branch-native-r1 EXE f2015ad76edd48adf7603221c9618804645224c22fd5ca0bcee1471af55d483f passed final-freeze-01 target sequence on D3D12/Asian Disc 3 from user09, without skipping the King freeze. At 1527.792s raw 0A33A8C0 used missing-particle-shader fallback; stable memory matched xf_shd_aniflz.freeze, GUID 0fd4ca6d4bb67581c9c9f5b8f0af62c0, child table count 16 and particle shader 0. 180 PNG captures completed: shot45508 freeze, shot45823 caboose dialogue, shot47673 exterior; at 1733.599s map229 returned, shot52115 menu, and shots53430-53517 show 30-tick down-input movement/camera change. This run has no coordinate telemetry. Both native checkpoints reload and original seed is unchanged. No reporter/player acceptance, Vulkan/other-region coverage, commit, push or release."
+      },
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/16",
+        "out/issue16-investigation/analysis.md"
+      ],
+      "source_lines": [],
+      "record_type": "backlog"
     }
   ]
 }
