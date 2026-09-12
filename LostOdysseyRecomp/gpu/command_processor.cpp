@@ -701,6 +701,7 @@ namespace gpu
             if (captureSwap && swaps == captureSwap) renderer::RequestDebugCapture();
             renderer::FinishDebugCapture(frontbuffer);
             const auto timingFlush = std::chrono::steady_clock::now();
+            renderer::PreparePresent(frontbuffer);
             renderer::Flush();
             const auto timingPace = std::chrono::steady_clock::now();
             const auto fpsCap = GetFrameRateTarget();

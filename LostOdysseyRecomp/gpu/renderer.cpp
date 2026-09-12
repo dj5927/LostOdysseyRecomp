@@ -2832,28 +2832,32 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 auto it = vertexCache.find(key);
                 if (it != vertexCache.end())
                 {
-                    if (it->second.slot == uint8_t(gpuSlot) && it->second.content.Matches(guest, bytes))
+                    if (gpu::render_arena::VertexCacheReusable(it->second.content.Matches(guest, bytes)))
                     {
                         it->second.lastFrame = frame;
                         return it->second.offset;
                     }
-                    // Contents changed, or the cached copy lives in the other slot's
-                    // half. Overwriting in place would corrupt draws already recorded
-                    // into the open command list, so allocate a fresh one.
+                    // Contents changed. Overwriting in place would corrupt draws
+                    // already recorded into an open command list, so allocate fresh.
                     if (it->second.slot == uint8_t(gpuSlot))
                         vertexRevalidations++;
                     vertexCache.erase(it);
                 }
 
                 // Allocate (16-byte aligned, 16 bytes of slack for the shader's
-                // last fetch) inside this slot's half of the shared arena.
+                // last fetch). Prefer the current half; if it is full, append to
+                // the other half without Flush. DrawImpl wraps only when neither
+                // half can hold this copy.
                 const size_t needed = ((bytes + 16 + 15) & ~size_t(15));
-                uint64_t& local = Gpu().arenaOffset;
-                if (local + needed > gpu::render_arena::kSlotArenaSize)
-                    return UINT64_MAX; // DrawImpl wraps this slot between draws
-                const uint64_t offset = gpu::render_arena::SlotBase(gpuSlot) + local;
+                const uint32_t otherSlot = (gpuSlot + 1) % kGpuSlots;
+                const uint32_t allocSlot = gpu::render_arena::VertexAllocSlot(
+                    gpuSlot, Gpu().arenaOffset, gpuSlots[otherSlot].arenaOffset, needed);
+                if (allocSlot == gpu::render_arena::kGpuSlots)
+                    return UINT64_MAX;
+                uint64_t& local = gpuSlots[allocSlot].arenaOffset;
+                const uint64_t offset = gpu::render_arena::SlotBase(allocSlot) + local;
                 local += needed;
-                VertexEntry entry{ offset, {}, frame, uint8_t(gpuSlot) };
+                VertexEntry entry{ offset, {}, frame, uint8_t(allocSlot) };
                 entry.content.Capture(guest, bytes);
                 CopySwapped(arenaMapped + offset, guest, sizeDwords, endian);
                 memset(arenaMapped + offset + bytes, 0, 16);
@@ -2915,11 +2919,16 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     Flush();
                     if (arenaLow)
                     {
-                        RecycleSlot(gpuSlot);
+                        const uint32_t incoming = wrap.incomingSlot;
+                        const auto fences = gpu::render_arena::WrapFenceWaits(wrap);
+                        if (fences.waitIncoming)
+                            RecycleSlot(incoming);
+                        if (fences.waitSubmitted)
+                            RecycleSlot(gpu::render_arena::SubmittedSlotAfterFlush(incoming));
                         if (wrap.resetIncoming)
                         {
-                            ResetSlotArena(gpuSlot);
-                            LOG_INFO("renderer: vertex arena slot {} reset", gpuSlot);
+                            ResetSlotArena(incoming);
+                            LOG_INFO("renderer: vertex arena slot {} reset", incoming);
                         }
                     }
                     Begin();
@@ -4947,6 +4956,17 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
         captureBusy = false;
     }
 
+    void PreparePresent(uint32_t physicalAddress)
+    {
+        if (!g_renderer)
+            return;
+        auto* rs = g_renderer->NewestResolved(physicalAddress & 0x1FFFFFFF);
+        if (!rs || !rs->tex)
+            return;
+        g_renderer->Begin();
+        g_renderer->Transition(*rs->tex, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
+    }
+
     void Flush()
     {
         if (g_renderer)
@@ -5111,9 +5131,6 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
         if (!rs)
             return nullptr;
         HostTexture& tex = *rs->tex;
-        g_renderer->Begin();
-        g_renderer->Transition(tex, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
-        g_renderer->Flush();
         width = tex.width;
         height = tex.height;
         format = uint32_t(tex.format);
@@ -5252,6 +5269,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
     void ScaleResolvedSize(uint32_t, uint32_t&, uint32_t&) {}
     void Draw(const DrawInfo&) {}
     void Flush() {}
+    void PreparePresent(uint32_t) {}
     void InvalidateGuestRange(uint32_t, uint32_t) {}
     bool SceneAAApplied(uint32_t) { return false; }
     plume::RenderTexture* AcquireResolvedSurface(uint32_t, uint32_t&, uint32_t&, uint32_t&) { return nullptr; }
