@@ -11,6 +11,7 @@
 #include "shader_source_capture.h"
 #include "position_evidence_collection.h"
 #include "geometry_prepare.h"
+#include "vertex_cache.h"
 #include "texture_descriptor_cache.h"
 #include "depth_format.h"
 #include "depth_clear_layout.h"
@@ -212,20 +213,6 @@ namespace gpu::renderer
             }
         }
 
-        // Upload heaps are write-combined: never read them back. Swap on the way in.
-        void CopySwapped(void* dst, const void* src, size_t dwords, uint32_t endian)
-        {
-            if ((endian & 3) == 0)
-            {
-                memcpy(dst, src, dwords * 4);
-                return;
-            }
-            const uint32_t* s = static_cast<const uint32_t*>(src);
-            uint32_t* d = static_cast<uint32_t*>(dst);
-            for (size_t i = 0; i < dwords; i++)
-                d[i] = GpuSwap(s[i], endian);
-        }
-
         void SwapBuffer(uint32_t* data, size_t dwords, uint32_t endian)
         {
             if ((endian & 3) == 0)
@@ -374,9 +361,9 @@ namespace gpu::renderer
             // exact sampled guest bytes when it is referenced again.
             std::unique_ptr<RenderBuffer> vertexArena;
             uint8_t* arenaMapped = nullptr;
-            struct VertexEntry { uint64_t offset; geometry_prepare::SampledContent content; uint64_t lastFrame; uint8_t slot = 0; };
+            using VertexEntry = geometry_prepare::VertexEntry;
             std::vector<uint32_t> indexScratch, primitiveScratch;
-            std::unordered_map<uint64_t, VertexEntry> vertexCache;
+            geometry_prepare::VertexCache vertexCache;
             void ResetSlotArena(uint32_t i)
             {
                 gpuSlots[i].arenaOffset = 0;
@@ -515,6 +502,52 @@ namespace gpu::renderer
             bool textureRevalidate = true; // LO_TEXTURE_STATIC=1 disables re-hashing cached textures
             uint32_t textureReuploads = 0;
             uint32_t dummyBindings = 0;
+
+            // Separate opt-in diagnostics: ordinary frame timing must not pay
+            // for a clock read on every vertex-cache operation.
+            const bool vertexTimingEnabled = [] {
+                const char* value = getenv("LO_VERTEX_TIMING");
+                return value && std::string_view(value) == "1";
+            }();
+            struct VertexStage
+            {
+                double totalMs = 0, maxMs = 0;
+                uint64_t calls = 0, bytes = 0;
+                uint32_t maxAddress = 0;
+                size_t maxBytes = 0;
+            };
+            struct VertexStageTimer
+            {
+                VertexStage& stage;
+                bool enabled;
+                uint32_t address;
+                size_t bytes;
+                render_batch::CpuTimer<> timer;
+                VertexStageTimer(VertexStage& stage, bool enabled, uint32_t address, size_t bytes)
+                    : stage(stage), enabled(enabled), address(address), bytes(bytes), timer(enabled) {}
+                ~VertexStageTimer()
+                {
+                    if (!enabled) return;
+                    double ms = 0;
+                    timer.AddTo(ms);
+                    stage.totalMs += ms;
+                    ++stage.calls;
+                    stage.bytes += bytes;
+                    if (ms > stage.maxMs)
+                    {
+                        stage.maxMs = ms;
+                        stage.maxAddress = address;
+                        stage.maxBytes = bytes;
+                    }
+                }
+            };
+            struct VertexTiming
+            {
+                VertexStage find, match, erase, capture, copy, insert;
+                size_t initialSize = 0, initialBuckets = 0;
+                uint64_t initialEvictions = 0;
+                uint32_t rehashes = 0;
+            } vertexTiming;
 
             // Both diagnostic consumers need CPU segments; ordinary play does not.
             const bool cpuTimingEnabled = getenv("LO_GPU_STATS") != nullptr || render_timing::Enabled();
@@ -2829,10 +2862,23 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const size_t bytes = size_t(sizeDwords) * 4;
                 const uint64_t key = (uint64_t(address) << 32) | (uint64_t(sizeDwords) << 2) | endian;
                 const uint8_t* guest = Phys(address);
-                auto it = vertexCache.find(key);
+                if (vertexTimingEnabled && vertexTiming.find.calls == 0)
+                {
+                    vertexTiming.initialSize = vertexCache.size();
+                    vertexTiming.initialBuckets = vertexCache.bucket_count();
+                    vertexTiming.initialEvictions = vertexCache.Evictions();
+                }
+                auto it = [&] {
+                    VertexStageTimer timer(vertexTiming.find, vertexTimingEnabled, address, bytes);
+                    return vertexCache.find(key);
+                }();
                 if (it != vertexCache.end())
                 {
-                    if (gpu::render_arena::VertexCacheReusable(it->second.content.Matches(guest, bytes)))
+                    const bool matches = [&] {
+                        VertexStageTimer timer(vertexTiming.match, vertexTimingEnabled, address, bytes);
+                        return it->second.content.Matches(guest, bytes);
+                    }();
+                    if (gpu::render_arena::VertexCacheReusable(matches))
                     {
                         it->second.lastFrame = frame;
                         return it->second.offset;
@@ -2841,7 +2887,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     // already recorded into an open command list, so allocate fresh.
                     if (it->second.slot == uint8_t(gpuSlot))
                         vertexRevalidations++;
-                    vertexCache.erase(it);
+                    {
+                        VertexStageTimer timer(vertexTiming.erase, vertexTimingEnabled, address, bytes);
+                        vertexCache.erase(it);
+                    }
                 }
 
                 // Allocate (16-byte aligned, 16 bytes of slack for the shader's
@@ -2858,10 +2907,22 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const uint64_t offset = gpu::render_arena::SlotBase(allocSlot) + local;
                 local += needed;
                 VertexEntry entry{ offset, {}, frame, uint8_t(allocSlot) };
-                entry.content.Capture(guest, bytes);
-                CopySwapped(arenaMapped + offset, guest, sizeDwords, endian);
-                memset(arenaMapped + offset + bytes, 0, 16);
-                vertexCache.emplace(key, std::move(entry));
+                {
+                    VertexStageTimer timer(vertexTiming.capture, vertexTimingEnabled, address, bytes);
+                    entry.content.Capture(guest, bytes);
+                }
+                {
+                    VertexStageTimer timer(vertexTiming.copy, vertexTimingEnabled, address, bytes);
+                    geometry_prepare::CopyDwordsSwapped(arenaMapped + offset, guest, sizeDwords, endian);
+                    memset(arenaMapped + offset + bytes, 0, 16);
+                }
+                const size_t bucketsBefore = vertexTimingEnabled ? vertexCache.bucket_count() : 0;
+                {
+                    VertexStageTimer timer(vertexTiming.insert, vertexTimingEnabled, address, bytes);
+                    vertexCache.emplace(key, std::move(entry));
+                }
+                if (vertexTimingEnabled && vertexCache.bucket_count() != bucketsBefore)
+                    ++vertexTiming.rehashes;
                 vertexUploads++;
                 vertexBytesUploaded += bytes;
                 return offset;
@@ -3702,7 +3763,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             uint32_t d0 = Reg(REG_FETCH_CONSTANTS + slot * 2), d1 = Reg(REG_FETCH_CONSTANTS + slot * 2 + 1);
                             uint32_t words = (d1 >> 2) & 0xFFFFFF;
                             std::vector<uint32_t> stream(words);
-                            CopySwapped(stream.data(), Phys(d0 & ~3u), words, d1 & 3);
+                            geometry_prepare::CopyDwordsSwapped(stream.data(), Phys(d0 & ~3u), words, d1 & 3);
                             const std::string name = fmt::format("vb_{:016x}.bin", Fnv1a(stream.data(), stream.size() * 4));
                             const std::string path = std::string(captureDir) + "/" + name;
                             if (!std::filesystem::exists(path)) save(path, stream.data(), stream.size() * 4);
@@ -4974,6 +5035,20 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             static const bool stats = getenv("LO_GPU_STATS") != nullptr;
             static auto lastFrame = std::chrono::steady_clock::now();
             g_renderer->Flush();
+            if (g_renderer->vertexTimingEnabled)
+            {
+                auto& r = *g_renderer;
+                const auto& v = r.vertexTiming;
+                LOG_INFO("vertex timing frame={} calls={} uploads={} bytes={} find_ms={:.6f} match_ms={:.6f} erase_ms={:.6f} capture_ms={:.6f} copy_ms={:.6f} insert_ms={:.6f} find_max_ms={:.6f} match_max_ms={:.6f} capture_max_ms={:.6f} copy_max_ms={:.6f} insert_max_ms={:.6f} copy_max_address={:#x} copy_max_bytes={} capture_max_address={:#x} capture_max_bytes={} cache_before={} cache_after={} buckets_before={} buckets_after={} rehashes={} evictions={} arena0={} arena1={} scope=vertex_cache_cpu_wall_includes_scheduling",
+                    r.frame, v.find.calls, v.copy.calls, v.copy.bytes,
+                    v.find.totalMs, v.match.totalMs, v.erase.totalMs, v.capture.totalMs, v.copy.totalMs, v.insert.totalMs,
+                    v.find.maxMs, v.match.maxMs, v.capture.maxMs, v.copy.maxMs, v.insert.maxMs,
+                    v.copy.maxAddress, v.copy.maxBytes, v.capture.maxAddress, v.capture.maxBytes,
+                    v.initialSize, r.vertexCache.size(), v.initialBuckets, r.vertexCache.bucket_count(), v.rehashes,
+                    v.find.calls ? r.vertexCache.Evictions() - v.initialEvictions : 0,
+                    r.gpuSlots[0].arenaOffset, r.gpuSlots[1].arenaOffset);
+                r.vertexTiming = {};
+            }
             if (g_renderer->cpuTimingEnabled) {
                 auto& r = *g_renderer;
                 if (render_timing::Enabled() || r.frame % 60 == 0)

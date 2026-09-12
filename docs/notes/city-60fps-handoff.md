@@ -27,11 +27,11 @@ This session:
 | `bae54b6` | `PreparePresent` records COPY_SOURCE on the still-open swap list; `AcquireResolvedSurface` is lookup-only (no second Flush). Fixes city `gpu_batches` 2.005 → ~1.00 and fence 8.97 → ~0.005 |
 | `frame_timing` (this wrap-up) | Snapshot under mutex, then skip the 1s `LOG_INFO` pair when `gpu::render_timing::Enabled()`; still logs outside the lock if only `LO_FRAME_TIMING` |
 
-Do **not** commit: `AGENTS.md`, `ROADMAP.md`, `ROADMAP.zh-CN.md`, `docs/project/items.json` (pre-existing docs drift), `.omo/`, `.stignore`, `nul`, dirty submodules.
+Historical session constraint: do **not** commit `AGENTS.md`, `ROADMAP.md`, `ROADMAP.zh-CN.md`, `docs/project/items.json` (pre-existing docs drift), `.omo/`, `.stignore`, `nul`, or dirty submodules. The current commit includes the synchronized roadmaps and Project records; it excludes the pre-existing `AGENTS.md` edit, `.omo/`, `.stignore`, `nul` and dirty submodules. Push remains unauthorized.
 
 ## City harness (reuse, do not invent)
 
-- Script: `out/perf-ring/drive-city.ps1` (not git). Hidden, `LO_BACKGROUND=1`, `LO_AUDIO_MUTE=1`, `LO_RENDER_TIMING=1`, `LO_FRAME_TIMING=1`, `LO_GPU_STATS=1`, `LO_AUTO_BUTTONS=s@120,a@240,a@360,a@480,a@700,a@900`, `LO_AUTO_STICK=0,28000,1400,2800`. Isolated `user01`. 28s `city_hold`. city = draws ≥ 800. `original_saves_changed` vs `D:\Games\LostOdysseyRecomp-windows-x64\save`.
+- Scripts `out/perf-ring/drive-city.ps1` and `out/perf-ring/analyze-city-comparison.py` are version-controlled reproduction tools; their run outputs remain ignored. Hidden, `LO_BACKGROUND=1`, `LO_AUDIO_MUTE=1`, `LO_RENDER_TIMING=1`, `LO_FRAME_TIMING=1`, `LO_GPU_STATS=1`, `LO_AUTO_BUTTONS=s@120,a@240,a@360,a@480,a@700,a@900`, `LO_AUTO_STICK=0,28000,1400,2800`. Isolated `user01`. 28s `city_hold`. city = draws ≥ 800. `original_saves_changed` vs `D:\Games\LostOdysseyRecomp-windows-x64\save`.
 - Game: `D:\Games\LostOdysseyRecomp-windows-x64\game\disc1` (`out/perf-ring/run/game-path.txt`).
 - Copy RelWithDebInfo exe+pdb from `out/build/windows-clang/LostOdysseyRecomp/` into `out/perf-ring/run/` after each link. ninja then fails copying missing `tools/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxcompiler.dll` — ignore, `run/` already has the DLL.
 - Build: git-bash must use `cmd.exe //c "tools\\build_runtime.bat LostOdysseyRecomp"` (`/c` becomes `C:\`).
@@ -40,7 +40,7 @@ Do **not** commit: `AGENTS.md`, `ROADMAP.md`, `ROADMAP.zh-CN.md`, `docs/project/
 - Present line: `sample_valid=true|false frame_ms=N|unknown ...`.
 - Script now: FileStream last-64KB tail; **no tail during `city_hold`**; shot marks 200–1000 + one city-entry shot (not 1800/2200). `last_swap` in `drive-status.json` stays stale after hold starts.
 
-## Latest Hidden city numbers
+## Previous pre-SIMD Hidden city numbers
 
 Log `out/perf-ring/run/logs/runtime-1789233141663996.log` (frame_timing skip, 1 GiB arena, present-merge). 58.4s, `original_saves_changed=false`, city 1743 / menu 851.
 
@@ -60,20 +60,80 @@ Typical stable: draw ~9.4–10.3 ms, present p50 ~16.70 (60 cap). `>16.67` on pr
 
 Four draw over-budget frames: load-in bind/vertex (1279/1335/1466) plus mid-hold **vertex 40.83 ms** at frame 1983 (present 1984 = 54.53 ms).
 
-428 ms stall at present 2548: `flush_ms=413.25`, draw of previous frame 9.59 ms. Swap thread blocked inside `PreparePresent`+`gpu::Flush` (per-frame `LOG_INFO`). Log lives on the Syncthing tree. Same class as earlier 205/263 ms stalls. **Measurement artifact until logs leave Syncthing.**
+428 ms stall at present 2548: `flush_ms=413.25`, draw of previous frame 9.59 ms. Swap thread blocked inside `PreparePresent`+`gpu::Flush` (per-frame `LOG_INFO`). Log lived on the Syncthing tree. Same class as earlier 205/263 ms stalls. **Historical hypothesis: possible measurement artifact from log placement; the later redirected-log runs did not reproduce this 200–400 ms class, but that does not prove Syncthing was the root cause.**
 
-Ring baseline (docs `perf-gpu-ring-compare.md`, pre-item1): heartbeat 57.7 (49–60), fence 1.67, gpu_queue 3.91, gpu_batches 2.00. Present-merge beats that fence; 1% low is now hitch-limited.
+## Current bounded-cache result
+
+The measured vertex-cache diagnosis found a 41.8241 ms insertion during one
+262,144-to-524,288 bucket rehash; all 495 endian copies in that frame took
+0.0254 ms. The bounded cache reserves 65,536 metadata entries and evicts from
+at most 16 rotating candidates when full. `LoVertexCacheTest` passed 3,569,548
+checks once. Three single Hidden Uhra captures used the same 1280x720 D3D12,
+AA=3, 60-cap, muted background setup; the final same-EXE run moved only driver
+input and screenshot-request files to TEMP. The final all-city sample had
+1,790 frames at 59.651 FPS mean, 45.989 FPS 1% low and 43.0117 ms worst
+accepted-present. The fixed 1600–2800 window reached 59.918 FPS mean and
+54.495 FPS 1% low, with draw max 13.162 ms, vertex max 2.2981 ms and zero
+rehashes. The final executable is
+`out/perf-ring/run/LostOdysseyRecomp.exe`, SHA-256
+`9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B`, with
+the matching PDB alongside it. Evidence: `out/perf-ring/vertex-stage/REPORT.md`,
+`comparison.json` and `identity.json`.
+
+The bounded run's 412.9283 ms previous-swap post-present sample fell to
+0.4193 ms after moving the polled controls to TEMP; this does not establish a
+Syncthing filesystem or scheduler root cause. The requested mean threshold is
+met on this route, but this remains near-60 route evidence, not a locked 60 FPS
+result, strict S4 pass, whole-game validation or player acceptance.
+
+## Historical SIMD Hidden city numbers
+
+The earlier SIMD-only build was local and unpublished. Its EXE SHA-256 is
+`AFCC4BE89B42C033FB4041185E35F33CDDFCF7832FEACE2F6FA8328F10BFA7C2`.
+The run used the same Hidden city harness with `LO_LOG_FILE` redirected to
+`%TEMP%\lo-city-logs`; it completed in 57.5 s with 1,801 city frames, 884 menu
+frames and `original_saves_changed=false`. Settings remained 1280x720,
+window_mode=0, backend=0, AA=3 and frame_rate=60. The city summary was draw 8.203 ms
+(p95 10.473, p99 11.547, max 49.265), vertex 1.467 ms, fence 0.003 ms,
+`gpu_batches` 1.001, and four draw frames over 16.67 ms. The stable 1600–2800
+comparison was draw mean 7.838 ms and vertex mean 1.396 ms, versus the same-harness
+no-rebuild baseline's 7.766 ms and 1.436 ms. Present mean was 16.779 ms, with
+51.457% over 16.67 ms and a 36.539 fps 1% low; the baseline was 16.831 ms,
+50.458% and 31.044 fps. Both windows contain 1,201 frames. This is a small stable vertex change, not a
+measured removal of the hitch: the SIMD run still reached vertex 41.736 ms and
+had a 47.467 ms `flush_ms` stall. Separately, its worst accepted-present
+interval was 779.572 ms during load-in, with 778.866 ms in `between_ms`, so that
+interval was not a flush. Neither run reproduced the earlier 200–400 ms flush
+class. The primary runtime log writes were moved out of Syncthing; other run
+inputs, screenshots and status files remained on the tree. This does not
+establish the cause of the remaining stalls.
+
+The implementation moves `CopyDwordsSwapped` into `gpu/geometry_prepare.h`,
+uses SSSE3 for four dwords at a time for endian modes 1/2/3, retains scalar
+tail/fallback behavior and uses `memcpy` for endian 0. The focused fixture
+passed 16,685,865 checks, including unaligned offsets and inaccessible-page
+tail guards (`out/perf-ring/simd-copy/geometry_prepare_test.log`). This is
+implementation and diagnostic evidence only; S4, player acceptance and a
+release remain pending. The local source remains version 0.5.4 and this work
+is absent from the published v0.5.4 package. Full raw evidence is in
+`out/perf-ring/city-simd-comparison.json` and the two runtime logs named there.
+
+Ring baseline (docs `perf-gpu-ring-compare.md`, pre-item1): heartbeat 57.7 (49–60), fence 1.67, gpu_queue 3.91, gpu_batches 2.00. Present-merge beats that fence; 1% low is still hitch-limited.
 
 ## Next attacks (do these first)
 
-1. **Move city logs off Syncthing** — in `drive-city.ps1` set `LO_LOG_FILE` to `%TEMP%\lo-city-logs\runtime.log` (override is `LostOdysseyRecomp/main.cpp` ~100–125). No rebuild. Remeasure. Expected: no 200–400 ms `flush_ms` spikes.
-2. **SIMD `CopySwapped`** — `LostOdysseyRecomp/gpu/renderer.cpp` ~204 `GpuSwap`, ~216 `CopySwapped`: endian 0 is memcpy; else scalar per-dword. Mid-hold 40 ms `vertex_ms` is real `tVertex`/`CopySwapped`, not the 5 KB `SampledContent::Matches`. Prefer extracting `CopyDwordsSwapped` into `LostOdysseyRecomp/gpu/geometry_prepare.h` (already has templated `Convert` / `ConvertIndices`) + `tools/tests/geometry_prepare_test.cpp`. Endian 2: `_mm_shuffle_epi8`. Then RelWithDebInfo remasure.
-3. Only then: remaining DrawImpl (bind/record/sets on p99) and pacer overshoot 0.2–0.5 ms. Do not raise `kGpuSlots` (shrinks vertex halves). Do not `WaitForGpu` on wrap. Do not revert item 1.
+1. Extend bounded-cache coverage to additional scenes and longer sessions, measuring eviction churn and accepted-present variability with the same controls and save-integrity checks. The current evidence is one Hidden Uhra route per configuration.
+2. Investigate remaining short present variability and the 43.0117 ms all-city worst interval. Keep previous-swap, post-present and CP-idle values as diagnostic components; do not add them to frame time twice or treat the TEMP comparison as proof of a Syncthing root cause.
+3. Do not reattribute the resolved vertex hitch to `CopyDwordsSwapped`: the measured cause was one 41.8241 ms map rehash insertion. Keep `LO_VERTEX_TIMING` opt-in and disabled by default. Do not raise `kGpuSlots`, add a wrap wait, or change the GPU arena/offset/slot/wait policy without new evidence.
+
+The requested mean threshold is met on this route, but the strict present ratio,
+remaining short stalls and limited scene scope leave strict S4, whole-game
+validation and player acceptance open.
 
 ## Constraints
 
 - CPU-only. No GPU upscale, resolution drop, quality drop, or hardware-upgrade story.
 - Hidden `LO_BACKGROUND=1`. Never steal focus. Report `original_saves_changed`; non-zero invalidates the run.
-- Version 0.5.4 until the user changes it. No commit/push unless asked (this wrap-up is the asked commit).
+- Version 0.5.4 until the user changes it. This commit is local and unpublished; push remains unauthorized.
 - Do not treat menu FPS or mean-only as S4. Item 3 timers are locate-only (~0.39 ms), not savings.
 - `tools/benchmark_city.ps1` does not exist; use `out/perf-ring/drive-city.ps1`.

@@ -4,9 +4,59 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#if defined(__SSSE3__)
+#include <tmmintrin.h>
+#endif
 
 namespace gpu::geometry_prepare
 {
+    template<unsigned Endian>
+    inline void CopyDwordsSwappedImpl(uint8_t* dst, const uint8_t* src, size_t dwords)
+    {
+#if defined(__SSSE3__)
+        // The runtime targets Sandy Bridge. Unaligned loads/stores also support
+        // guest buffers and upload offsets without introducing destination reads.
+        const __m128i order = Endian == 1
+            ? _mm_setr_epi8(1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14)
+            : Endian == 2
+            ? _mm_setr_epi8(3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12)
+            : _mm_setr_epi8(2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13);
+        while (dwords >= 4)
+        {
+            const __m128i value = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src));
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(dst), _mm_shuffle_epi8(value, order));
+            src += 16;
+            dst += 16;
+            dwords -= 4;
+        }
+#endif
+        while (dwords--)
+        {
+            uint32_t value;
+            std::memcpy(&value, src, 4);
+            if constexpr (Endian == 1) value = ((value & 0xFF00FF00u) >> 8) | ((value & 0x00FF00FFu) << 8);
+            if constexpr (Endian == 2) value = (value >> 24) | ((value >> 8) & 0xFF00u) | ((value << 8) & 0xFF0000u) | (value << 24);
+            if constexpr (Endian == 3) value = (value >> 16) | (value << 16);
+            std::memcpy(dst, &value, 4);
+            src += 4;
+            dst += 4;
+        }
+    }
+
+    // Source and destination must not overlap. Upload heaps are write-combined:
+    // swap on the way in, never read the destination, and never touch tail bytes.
+    inline void CopyDwordsSwapped(void* dst, const void* src, size_t dwords, uint32_t endian)
+    {
+        if (!dwords) return;
+        switch (endian & 3)
+        {
+        case 0: std::memcpy(dst, src, dwords * 4); return;
+        case 1: return CopyDwordsSwappedImpl<1>(static_cast<uint8_t*>(dst), static_cast<const uint8_t*>(src), dwords);
+        case 2: return CopyDwordsSwappedImpl<2>(static_cast<uint8_t*>(dst), static_cast<const uint8_t*>(src), dwords);
+        case 3: return CopyDwordsSwappedImpl<3>(static_cast<uint8_t*>(dst), static_cast<const uint8_t*>(src), dwords);
+        }
+    }
+
     // Preserve the old large-buffer sampling coverage, using exact comparisons
     // instead of serial hash arithmetic. Small buffers include trailing bytes.
     class SampledContent
