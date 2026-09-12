@@ -37,6 +37,7 @@
 #include <os/shader_log.h>
 #include "render_timing.h"
 #include "render_batch_policy.h"
+#include "render_arena_policy.h"
 #include <os/log_file.h>
 #include <os/capture_archive.h>
 #include <version.h>
@@ -155,9 +156,7 @@ namespace gpu::renderer
         constexpr uint32_t REG_LOOP_CONSTANTS = 0x4908;
 
         constexpr uint32_t kUploadRingSize = 96u << 20;
-        constexpr uint32_t kVertexArenaSize = 256u << 20;   // persistent, byte-swapped copies of guest vertex buffers
         constexpr uint32_t kUploadHeadroom = 24u << 20;     // per-draw slack checked before a draw records anything
-        constexpr uint32_t kArenaHeadroom = 32u << 20;
         constexpr uint32_t kReadbackSize = 128u << 20;
         constexpr uint32_t kVertexFetchSlots = 96;
         constexpr uint32_t kTextureSlots = 32;
@@ -330,6 +329,7 @@ namespace gpu::renderer
             std::unique_ptr<RenderDescriptorSet> staticSamplerSet;
             RenderCommandQueue* queue = nullptr;
             static constexpr uint32_t kGpuSlots = 2;
+            static_assert(kGpuSlots == gpu::render_arena::kGpuSlots, "slot count must match arena policy");
             using TextureSetCache = texture_descriptors::BatchCache<RenderTexture, RenderDescriptorSet, kTextureSlots>;
             struct GpuSlot {
                 std::unique_ptr<RenderCommandList> list;
@@ -338,6 +338,7 @@ namespace gpu::renderer
                 std::unique_ptr<RenderBuffer> uploadRing;
                 uint8_t* uploadMapped = nullptr;
                 uint64_t uploadOffset = 0;
+                uint64_t arenaOffset = 0;
                 std::vector<std::unique_ptr<RenderDescriptorSet>> setPools[4];
                 uint32_t setPoolUsed[4] = {};
                 TextureSetCache textureSetCache[3];
@@ -373,10 +374,20 @@ namespace gpu::renderer
             // exact sampled guest bytes when it is referenced again.
             std::unique_ptr<RenderBuffer> vertexArena;
             uint8_t* arenaMapped = nullptr;
-            uint64_t arenaOffset = 0;
-            struct VertexEntry { uint64_t offset; geometry_prepare::SampledContent content; uint64_t lastFrame; };
+            struct VertexEntry { uint64_t offset; geometry_prepare::SampledContent content; uint64_t lastFrame; uint8_t slot = 0; };
             std::vector<uint32_t> indexScratch, primitiveScratch;
             std::unordered_map<uint64_t, VertexEntry> vertexCache;
+            void ResetSlotArena(uint32_t i)
+            {
+                gpuSlots[i].arenaOffset = 0;
+                for (auto it = vertexCache.begin(); it != vertexCache.end(); )
+                {
+                    if (it->second.slot == uint8_t(i))
+                        it = vertexCache.erase(it);
+                    else
+                        ++it;
+                }
+            }
             uint32_t vertexUploads = 0, vertexRevalidations = 0;
             size_t vertexBytesUploaded = 0;
             std::unique_ptr<RenderBuffer> readback;
@@ -904,7 +915,7 @@ namespace gpu::renderer
                     if (!g.uploadMapped) return false;
                 }
                 BindGpuSlot();
-                vertexArena = device->createBuffer(RenderBufferDesc::UploadBuffer(kVertexArenaSize, RenderBufferFlag::STORAGE));
+                vertexArena = device->createBuffer(RenderBufferDesc::UploadBuffer(gpu::render_arena::kVertexArenaSize, RenderBufferFlag::STORAGE));
                 if (!vertexArena) return false;
                 arenaMapped = static_cast<uint8_t*>(vertexArena->map());
                 readback = device->createBuffer(RenderBufferDesc::ReadbackBuffer(kReadbackSize));
@@ -967,7 +978,7 @@ namespace gpu::renderer
                 staticSet0 = setBuilders[0].create(device);
                 if (!dummyBuffer || !pipelineLayout || !staticSet0 || (vulkan && !staticSamplerSet)) return false;
                 for (uint32_t i = 0; i < (vulkan?1:kVertexFetchSlots); i++)
-                    staticSet0->setBuffer(vfetchDescriptorBase + i, vertexArena.get(), kVertexArenaSize);
+                    staticSet0->setBuffer(vfetchDescriptorBase + i, vertexArena.get(), gpu::render_arena::kVertexArenaSize);
                 RenderSampler* defaultSampler = GetSampler(0x2 | (0x2 << 2) | (0x1 << 4)); // linear, wrap
                 if (!defaultSampler) return false;
                 for (uint32_t i = 0; i < kSamplerPalette; i++)
@@ -2820,26 +2831,28 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 auto it = vertexCache.find(key);
                 if (it != vertexCache.end())
                 {
-                    if (it->second.content.Matches(guest, bytes))
+                    if (it->second.slot == uint8_t(gpuSlot) && it->second.content.Matches(guest, bytes))
                     {
                         it->second.lastFrame = frame;
                         return it->second.offset;
                     }
-                    // Contents changed. Overwriting in place would corrupt draws
-                    // already recorded into the open command list from this slot, so
-                    // allocate a fresh one; the old bytes die with the arena reset.
-                    vertexRevalidations++;
+                    // Contents changed, or the cached copy lives in the other slot's
+                    // half. Overwriting in place would corrupt draws already recorded
+                    // into the open command list, so allocate a fresh one.
+                    if (it->second.slot == uint8_t(gpuSlot))
+                        vertexRevalidations++;
                     vertexCache.erase(it);
                 }
 
                 // Allocate (16-byte aligned, 16 bytes of slack for the shader's
-                // last fetch); when the arena is full, drain the GPU and start over.
+                // last fetch) inside this slot's half of the shared arena.
                 const size_t needed = ((bytes + 16 + 15) & ~size_t(15));
-                if (arenaOffset + needed > kVertexArenaSize)
-                    return UINT64_MAX; // DrawImpl resets the arena between draws
-                const uint64_t offset = arenaOffset;
-                arenaOffset += needed;
-                VertexEntry entry{ offset, {}, frame };
+                uint64_t& local = Gpu().arenaOffset;
+                if (local + needed > gpu::render_arena::kSlotArenaSize)
+                    return UINT64_MAX; // DrawImpl wraps this slot between draws
+                const uint64_t offset = gpu::render_arena::SlotBase(gpuSlot) + local;
+                local += needed;
+                VertexEntry entry{ offset, {}, frame, uint8_t(gpuSlot) };
                 entry.content.Capture(guest, bytes);
                 CopySwapped(arenaMapped + offset, guest, sizeDwords, endian);
                 memset(arenaMapped + offset + bytes, 0, 16);
@@ -2887,7 +2900,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const bool poolsFull = Gpu().setPoolUsed[1] >= descriptorBatchLimit ||
                     Gpu().setPoolUsed[2] >= descriptorBatchLimit || Gpu().setPoolUsed[3] >= descriptorBatchLimit;
                 const bool ringLow = Gpu().uploadOffset + kUploadHeadroom > kUploadRingSize;
-                const bool arenaLow = arenaOffset + kArenaHeadroom > kVertexArenaSize;
+                const auto wrap = gpu::render_arena::EvaluateWrap(
+                    gpuSlot, Gpu().arenaOffset, gpuSlots[(gpuSlot + 1) % kGpuSlots].arenaOffset);
+                const bool arenaLow = wrap.action == gpu::render_arena::WrapAction::FlushAndRecycleIncoming;
                 if (poolsFull || ringLow || arenaLow)
                 {
                     render_batch::CpuTimer<> nestedFlushTimer(cpuTimingEnabled);
@@ -2899,10 +2914,12 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     Flush();
                     if (arenaLow)
                     {
-                        WaitForGpu();
-                        arenaOffset = 0;
-                        vertexCache.clear();
-                        LOG_INFO("renderer: vertex arena reset");
+                        RecycleSlot(gpuSlot);
+                        if (wrap.resetIncoming)
+                        {
+                            ResetSlotArena(gpuSlot);
+                            LOG_INFO("renderer: vertex arena slot {} reset", gpuSlot);
+                        }
                     }
                     Begin();
                     nestedFlushTimer.AddTo(tNestedFlush);
@@ -4947,7 +4964,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 if (frameMs > 150.0 || (r.frame % 60) == 0)
                     LOG_INFO("renderer frame {}: {:.0f} ms, draws {} ({:.0f} ms: const {:.0f} sets {:.0f} vertex {:.0f} bind {:.0f} index {:.0f} record {:.0f} rt {:.0f} taa {:.0f} nested_flush {:.0f}), shaders {} ({:.0f} ms), pipelines {} ({:.0f} ms), textures {} ({:.0f} ms, {} KB), vertex uploads {}+{} ({} KB, arena {} MB), resolves {} ({:.0f} ms), gpu wait {:.0f} ms",
                         r.frame, frameMs, r.drawsThisFrame, r.tDraw, r.tConst, r.tSets, r.tVertex, r.tBind, r.tIndex, r.tRecord, r.tRt, r.tTaa, r.tNestedFlush, r.nShader, r.tShader, r.nPipeline, r.tPipeline, r.nTexture, r.tTexture, r.texBytes / 1024,
-                        r.vertexUploads, r.vertexRevalidations, r.vertexBytesUploaded / 1024, r.arenaOffset >> 20, r.nResolve, r.tResolve, r.tFlush);
+                        r.vertexUploads, r.vertexRevalidations, r.vertexBytesUploaded / 1024, r.Gpu().arenaOffset >> 20, r.nResolve, r.tResolve, r.tFlush);
                 if (stats && r.transfers)
                     LOG_INFO("renderer frame {}: {} EDRAM ownership transfers", r.frame, r.transfers);
                 r.transfers = 0;
