@@ -4,12 +4,13 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## Unreleased / 未发布
+## v0.5.6 — Unreleased / 未发布
 
 ### English
 
 - Fix updater manifest staging for subsequent transactions using the new `StageArchive`; the focused manifest transaction check passed three scenarios with zero failures. This does not repair already mixed installations, remove old resources or establish the unresolved Issue #15 save-flow hang. See [Issue #14–#16 triage](docs/notes/issues14-16-triage.md) for the #14–#16 investigation boundaries.
 - For Issue #16, add a narrow particle-material compatibility fallback for the zero-entry `xf_shd_aniflz.freeze` shader case; `LoParticleMaterialCompatTest` compiled and ran with zero failures. Final-branch D3D12/local Asia Disc 3 validation completed the target freeze sequence and subsequent map229/menu progression. Vulkan, other-region coverage and player acceptance remain pending. See the [triage record](docs/notes/issues14-16-triage.md).
+- Build and validate the merged local `main` at source version 0.5.6 with normal CMake Release configuration: the D3D12/local Asia Disc 3 target freeze sequence, map229/menu progression and visible movement all passed on the new binary. Release CI selects the matching PPC artifact by fingerprint; the matching 0.5.6 PPC cache entry is uploaded, with hosted verification in progress. Detailed hashes and boundaries are in [current status](docs/STATUS.md).
 - Bound the renderer's vertex metadata cache to 65,536 reserved entries. Full
   caches evict from at most 16 rotating candidates, eliminating the old
   `unordered_map` growth path: the diagnostic capture measured a 41.8241 ms
@@ -22,8 +23,9 @@ One record of completed changes, with unpublished work separated from verified r
   1600–2800 window reached 59.918 FPS mean and 54.495 FPS 1% low, with zero
   draw over-budget samples and zero rehashes. This meets the requested mean
   threshold on the route, but is not a locked 60 FPS result, strict S4 pass,
-  whole-game validation or player acceptance. The local 0.5.4 source remains
-  unpublished. See [city vertex-cache follow-up](docs/notes/city-60fps-handoff.md).
+  whole-game validation or player acceptance. The current release target is
+  v0.5.6 and remains unpublished; the measurement build is source version
+  0.5.4. See [city vertex-cache follow-up](docs/notes/city-60fps-handoff.md).
 
 - Keep `LO_VERTEX_TIMING` disabled by default; the added previous-swap,
   post-present and command-processor-idle fields are diagnostic measurements,
@@ -96,14 +98,15 @@ One record of completed changes, with unpublished work separated from verified r
 
 - 修复使用新版 `StageArchive` 的后续更新事务中的 manifest staging；manifest 事务定向检查 3 个场景零失败。该修复不会自动修复已经混装的安装、清理旧资源，也不能证明 #15 存档流程卡顿的原因。#14–#16 调查边界见[分流记录](docs/notes/issues14-16-triage.md)。
 - 针对 Issue #16 的零项 `xf_shd_aniflz.freeze` shader 情况增加窄范围 particle-material 兼容回退；`LoParticleMaterialCompatTest` 已编译并运行且零失败。最终分支 D3D12／亚洲 Disc 3 验证已完成目标冻结过场及后续 map229／菜单流程。Vulkan、其他地区覆盖和玩家验收仍待完成，见[分流记录](docs/notes/issues14-16-triage.md)。
+- 使用普通 CMake Release 配置成功构建并验证合入本地 `main` 的 0.5.6 源码：新二进制已通过 D3D12／亚洲 Disc 3 目标冻结过场、map229／菜单流程和可见移动。Release CI 按 fingerprint 选择匹配的 PPC artifact；匹配的 0.5.6 PPC 缓存已上传，托管核验仍在进行。详细 hash 和边界见[当前状态](docs/STATUS.md)。
 - 将渲染器顶点 metadata cache 限制为预留 65,536 项。缓存满时最多检查 16 个轮转候选并淘汰，消除了旧
   `unordered_map` 扩容路径：诊断捕获中一次 262,144 到 524,288 bucket 的 rehash 插入耗时 41.8241 ms，
   而该帧全部 495 次 endian copy 合计仅 0.0254 ms。`LoVertexCacheTest` 一次通过 3,569,548 项检查。
   三次单独 Hidden 乌拉住宅区捕获（旧 map、有界缓存、以及将输入／截图控制移到 TEMP 的同一 EXE）均为
   `original_saves_changed=false`；最终全城市样本平均 59.651 FPS、1% low 45.989 FPS，最差 accepted-present
   间隔 43.0117 ms。固定 1600–2800 窗口平均 59.918 FPS、1% low 54.495 FPS，draw 超预算为 0、rehash 为 0。
-  这满足该路线请求的平均帧率门槛，但不能称为全程锁 60 FPS、严格 S4 通过、全游戏验证或玩家验收。本地
-  0.5.4 源码仍未发布。见[城市 vertex-cache 后续记录](docs/notes/city-60fps-handoff.md)。
+  这满足该路线请求的平均帧率门槛，但不能称为全程锁 60 FPS、严格 S4 通过、全游戏验证或玩家验收。
+  当前发布目标为 0.5.6，仍未发布；测量构建仍为 source version 0.5.4。见[城市 vertex-cache 后续记录](docs/notes/city-60fps-handoff.md)。
 
 - `LO_VERTEX_TIMING` 默认关闭；新增的 previous-swap、post-present 和 command-processor-idle 字段是诊断测量，
   不是优化收益。有界缓存运行中的 412.9283 ms post-present 样本，在将驱动输入／截图控制移到 TEMP 后降至

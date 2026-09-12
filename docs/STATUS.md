@@ -24,7 +24,15 @@ The standalone updater retains the behavior validated for [v0.5.1](https://githu
 
 ## Current validation and limits
 
-The bug-fix implementation and its recorded local validation are committed as `2019cd017ab939d0b728cec340f7835c2082e615`. The local source integration with `main` retains its existing city-performance work; these fixes have not been pushed or released.
+The bug-fix implementation and its recorded local validation are committed as `2019cd017ab939d0b728cec340f7835c2082e615` and are included in the local `main` alongside its existing city-performance work. These fixes have not been pushed or released.
+
+### Main 0.5.6 build and PPC provenance — local, unpublished
+
+The merged local `main` at source version 0.5.6 built successfully with the normal CMake Release configuration in 173.782 seconds. The runtime executable SHA-256 is `d50c240d24bcd6cda7a1abc23107fa97f11d18dc5a68167310da6e6f892fe0ed`; the updater SHA-256 is `732681bf2a1c74106bb1ea90b32912b3269304dea3abe8ba351f6e1d5b94cc3e`. The build used no diagnostic object overlay or battle bridge. Evidence: `out/main-bugfix-0.5.6/REPORT.md`, `artifacts.json` and `build-result.json`.
+
+The 0.5.6 PPC key is `50b8ad415be405b302252558e0fd960913c3ce6a15d991ae3607142f1a3821a5`. The imported library is byte-identical to the verified library with SHA-256 `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`; only the source-version fingerprint was re-exported and no PPC recompilation occurred. The remote private cache lacked the current key at the audit; the exact upload has since completed at private commit `6a6ed03152431a232165e35b19b7f94f09bbbda9`. `lo.ppcAutoSync=false` remains unchanged. Hosted CI and release verification remain pending. Evidence: `out/main-bugfix-0.5.6/ppc-bundle/REPORT.md`, `upload-plan.md` and `out/v0.5.6/release/ppc-upload.json`.
+
+The main-binary target-scene replay passed on D3D12/local Asia Disc 3 using the new 0.5.6 executable (SHA-256 `d50c240d24bcd6cda7a1abc23107fa97f11d18dc5a68167310da6e6f892fe0ed`). It completed the unsuppressed freeze sequence, subsequent map229/menu progression and visible movement. This remains bounded scene validation, not whole-game, Vulkan, other-region or player acceptance; do not substitute the retained source-0.5.4 gameplay evidence for validation of this executable.
 
 ### Issue #14–#16 triage — 2026-09-12
 
@@ -36,11 +44,21 @@ GitHub Issues [#14](https://github.com/freefrank/LostOdysseyRecomp/issues/14), [
 
 Detailed evidence and boundaries are recorded in [Issue #14–#16 triage](notes/issues14-16-triage.md). No new release inclusion is claimed.
 
-### PPC auto-sync and key-resolved prebuilt — pushed, unpublished
+### Issue #6 startup allocation — current diagnosis — 2026-09-12
+
+GitHub Issue [#6](https://github.com/freefrank/LostOdysseyRecomp/issues/6) is **OPEN** as of 2026-09-12. Three source-0.5.4 logs from 2026-09-11 consistently fail during the preferred and fallback `VirtualAlloc2` reservations with error 6 (`ERROR_INVALID_HANDLE`), before `CreateFileMapping` or `MapViewOfFile3` is reached: [log 1](https://github.com/user-attachments/files/32122228/runtime-1789145203661201.log), [log 2](https://github.com/user-attachments/files/32124989/runtime-1789146389573701.log) and [log 3](https://github.com/user-attachments/files/32125052/runtime-1789146749477451.log). The second log records `available_physical=14880874496` and `available_commit=33202167808` bytes at the delayed error report; those values do not support a RAM-exhaustion conclusion.
+
+The 2026-09-12 follow-up reports that a clean extraction still fails ([comment](https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343)). The current [`guest_address_space.cpp`](../LostOdysseyRecomp/kernel/guest_address_space.cpp#L54) passes `nullptr` for the process handle in both `VirtualAlloc2` calls, which is permitted by Microsoft's API contract; this is not a confirmed source defect. No code change, new local validation, recovery acceptance or root-cause determination is recorded. The historical v0.4.2 closure and its request to reopen on recurrence remain provenance, not evidence that the current path is resolved. The maintainer has requested the Windows version/build, architecture and compatibility environment, plus a complete current clean-extraction log ([comment](https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559)); these remain pending.
+
+Issue #6 therefore remains an unresolved startup-allocation diagnosis. The current evidence does not establish whether the failure is caused by the OS, compatibility environment, API behavior or another condition, and does not establish shared causation with Issue #5.
+
+Pending diagnostic improvements (not implemented): retain the OS build, process/native architecture and build identity; preserve allocation-time API, flags, process-handle and memory context before logging initializes; and retain the original WinHTTP initialization error codes currently discarded at [`windows_http.cpp:62/65/69`](../LostOdysseyRecomp/updater/windows_http.cpp#L62). These are diagnostic suggestions, not implementation commitments.
+
+### PPC auto-sync and key-resolved prebuilt — historical upload, current auto-sync off
 
 Opt-in local PPC auto-sync is pushed to github/main as [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c). Enable it with `git config --local lo.ppcAutoSync true`; CMake `LO_PPC_AUTO_SYNC` reads that setting. After a successful PPC library build, the post-build hook runs `ppc_sync.py sync --already-built`. It is not a file watcher. A matching input/compiler key reuses the immutable private `ppc/<key>` branch; a changed key publishes a new branch with shards of at most 40 MiB. CI, imported libraries and `LO_PPC_SYNC_ACTIVE` never upload. The release workflow resolves the library by key from `ppc/<key>` instead of a pinned private SHA; `rebuild_ppc: true` still compiles from source.
 
-Nineteen synthetic sync cases in `tools/tests/test_ppc_sync.py` pass. Built-library roundtrip and change-during-build checks passed. The real `LoPpcAutoSync` hook uploaded an existing library only to private commit `5e80263491b39dc0012146dd3a31cf5eea533225` on branch `ppc/4d21302a4eef224c82691878fbcb6cd2f427b60d676b3e692e78598257b5d1b4`; a subsequent same-key sync was unchanged and produced no PPC C++ compile or game run. Sparse-clone restore/check and a simulated-CI Release contract key match passed. Evidence: `out/ppc-auto-sync-evidence/build-sync.log`, `github-output.txt`, `github-output-second.txt` and `out/ppc-sync/receipt.json`. The earlier manual prebuilt path remains historical at commit [`2b5b1d1`](https://github.com/freefrank/LostOdysseyRecomp/commit/2b5b1d1) and CI [34553414428](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34553414428). See [release packaging](notes/release-packaging.md).
+Nineteen synthetic sync cases in `tools/tests/test_ppc_sync.py` pass. Built-library roundtrip and change-during-build checks passed. Historically, the real `LoPpcAutoSync` hook uploaded an existing library only to private commit `5e80263491b39dc0012146dd3a31cf5eea533225` on branch `ppc/4d21302a4eef224c82691878fbcb6cd2f427b60d676b3e692e78598257b5d1b4`; a subsequent same-key sync was unchanged and produced no PPC C++ compile or game run. The current local setting is `lo.ppcAutoSync=false`, and the new 0.5.6 key is recorded above as absent from the remote cache. Sparse-clone restore/check and a simulated-CI Release contract key match passed. Evidence: `out/ppc-auto-sync-evidence/build-sync.log`, `github-output.txt`, `github-output-second.txt` and `out/ppc-sync/receipt.json`. The earlier manual prebuilt path remains historical at commit [`2b5b1d1`](https://github.com/freefrank/LostOdysseyRecomp/commit/2b5b1d1) and CI [34553414428](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34553414428). See [release packaging](notes/release-packaging.md).
 
 This work is Unreleased and is not in published v0.5.4. Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964) passed for `2c0456c`. A new Release, hosted release end-to-end validation and user gameplay acceptance remain pending.
 
@@ -119,10 +137,14 @@ The final executable is `out/perf-ring/run/LostOdysseyRecomp.exe` with SHA-256
 `9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B`; its PDB
 is alongside it. Compilation, linking and provenance completed; the known
 post-build `dxcompiler.dll` copy failure was reused because the run directory
-already contained the DLL. This local 0.5.4 work is unpublished and absent
+already contained the DLL. This v0.5.6-targeted work is unpublished and absent
 from the published v0.5.4 package. It establishes neither whole-game behavior,
 player acceptance nor a new release. Evidence: [city vertex-cache follow-up](notes/city-60fps-handoff.md),
 `out/perf-ring/vertex-stage/{REPORT.md,comparison.json,identity.json,vertex-cache-test-evidence.json}`.
+
+The current source and next release target are v0.5.6. The executable and
+performance evidence above remain from the measured source-0.5.4 runtime; no
+rebuild or test rerun was performed for this version increment.
 
 The implementation is recorded in code commit
 `ae287f2a43a73c6f6bea61c40822c37f40afe052`. The measured executable was built

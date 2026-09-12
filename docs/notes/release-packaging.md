@@ -177,6 +177,22 @@ output directory according to its normal merge/replace behavior. The PPC flow,
 local validation and private upload are complete. Hosted release end-to-end
 validation, a new release, and user acceptance remain pending.
 
+## Current v0.5.6 release preparation — 2026-09-12
+
+The merged local `main` at source version 0.5.6 built successfully with normal CMake
+Release configuration. Its runtime executable SHA-256 is
+`d50c240d24bcd6cda7a1abc23107fa97f11d18dc5a68167310da6e6f892fe0ed`, and the updater
+SHA-256 is `732681bf2a1c74106bb1ea90b32912b3269304dea3abe8ba351f6e1d5b94cc3e`.
+The matching PPC key `50b8ad415be405b302252558e0fd960913c3ce6a15d991ae3607142f1a3821a5`
+was uploaded to the private cache at commit
+`6a6ed03152431a232165e35b19b7f94f09bbbda9`; the library remains byte-identical to
+the verified `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`
+artifact and was not recompiled. Hosted Release CI verification and publication are
+in progress. The local auto-sync setting remains `lo.ppcAutoSync=false`.
+Evidence: `out/main-bugfix-0.5.6/REPORT.md`, `out/main-bugfix-0.5.6/ppc-bundle/REPORT.md`,
+`out/main-bugfix-0.5.6/ppc-bundle/upload-plan.md` and
+`out/v0.5.6/release/ppc-upload.json`.
+
 
 ## Verification
 

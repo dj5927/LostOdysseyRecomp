@@ -1,6 +1,8 @@
 # City 60 FPS handoff — 2026-09-12
 
-Diagnostic work, not player acceptance and not a new Release. Version stays **0.5.4**. Do not push unless asked.
+Diagnostic work, not player acceptance and not a new Release. The current
+source and next release target are **0.5.6**; the measured executable remains
+from source version **0.5.4**. Do not push unless asked.
 
 Session: `ses_f6c1d11f0ffeuJGmPTH4jjhMvK`. Goal: city exploration 60 FPS via CPU efficiency only (no GPU/quality/resolution fallback). S4 gate: mean + `>16.67 ms` ratio + 1% low on the same Hidden city path.
 
@@ -120,8 +122,9 @@ tail/fallback behavior and uses `memcpy` for endian 0. The focused fixture
 passed 16,685,865 checks, including unaligned offsets and inaccessible-page
 tail guards (`out/perf-ring/simd-copy/geometry_prepare_test.log`). This is
 implementation and diagnostic evidence only; S4, player acceptance and a
-release remain pending. The local source remains version 0.5.4 and this work
-is absent from the published v0.5.4 package. Full raw evidence is in
+release remain pending. The current source and next release target are version
+0.5.6; the measured build remains source version 0.5.4. This work is absent
+from the published v0.5.4 package. Full raw evidence is in
 `out/perf-ring/city-simd-comparison.json` and the two runtime logs named there.
 
 Ring baseline (docs `perf-gpu-ring-compare.md`, pre-item1): heartbeat 57.7 (49–60), fence 1.67, gpu_queue 3.91, gpu_batches 2.00. Present-merge beats that fence; 1% low is still hitch-limited.
@@ -140,6 +143,6 @@ validation and player acceptance open.
 
 - CPU-only. No GPU upscale, resolution drop, quality drop, or hardware-upgrade story.
 - Hidden `LO_BACKGROUND=1`. Never steal focus. Report `original_saves_changed`; non-zero invalidates the run.
-- Version 0.5.4 until the user changes it. This commit is local and unpublished; push remains unauthorized.
+- Current source and next release target: version 0.5.6. The measured source-0.5.4 executable and evidence are retained; this version increment did not trigger a rebuild or rerun. This commit is local and unpublished; push remains unauthorized.
 - Do not treat menu FPS or mean-only as S4. Item 3 timers are locate-only (~0.39 ms), not savings.
 - `tools/benchmark_city.ps1` does not exist; use `out/perf-ring/drive-city.ps1`.
