@@ -80,6 +80,12 @@ rehashes. The final executable is
 the matching PDB alongside it. Evidence: `out/perf-ring/vertex-stage/REPORT.md`,
 `comparison.json` and `identity.json`.
 
+The implementation source is recorded in code commit
+`ae287f2a43a73c6f6bea61c40822c37f40afe052`. The measured executable was built
+from the same runtime source before that commit; recording the commit did not
+trigger a rebuild or rerun, so the executable hash and performance figures are
+unchanged.
+
 The bounded run's 412.9283 ms previous-swap post-present sample fell to
 0.4193 ms after moving the polled controls to TEMP; this does not establish a
 Syncthing filesystem or scheduler root cause. The requested mean threshold is

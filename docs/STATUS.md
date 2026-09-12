@@ -112,6 +112,12 @@ from the published v0.5.4 package. It establishes neither whole-game behavior,
 player acceptance nor a new release. Evidence: [city vertex-cache follow-up](notes/city-60fps-handoff.md),
 `out/perf-ring/vertex-stage/{REPORT.md,comparison.json,identity.json,vertex-cache-test-evidence.json}`.
 
+The implementation is recorded in code commit
+`ae287f2a43a73c6f6bea61c40822c37f40afe052`. The measured executable was built
+from the same runtime source before that commit; the commit did not trigger a
+rebuild or rerun, so its hash and the reported performance figures are
+unchanged.
+
 The earlier SIMD conversion run remains historical context: its 41.736 ms
 vertex hitch did not identify the cause. Current follow-up should focus on
 broader-scene and longer-session coverage of bounded-cache eviction and on

@@ -4959,7 +4959,7 @@
         "Release": "v0.5.4",
         "Start date": "2026-09-11",
         "Target date": null,
-        "Evidence": "Bounded city segment implemented and diagnostically validated, locally only: 41.8241ms vertex spike was unordered_map insert/rehash, not CopySwapped. A 65,536-entry reserved dense metadata cache with 16-candidate LRU eviction passed LoVertexCacheTest once (3,569,548 checks); it preserves quality, 1280x720 D3D12 AA3, two slots and arena/wait policy. Same-EXE TEMP control files reduced observed post-present max 412.9283->0.4193ms without proving a filesystem cause. Final Hidden route: 1790 frames, mean 59.651463 FPS; fixed 1201-frame window mean 59.918376, 1% low 54.494611, >16.67ms 50.374688%, max frame 22.5913ms, max vertex 2.2981ms, zero rehashes and zero stable draw overruns. Mean>=58 target is met. All-city 1% low 45.989346 and max frame 43.0117 retain entry/load tail. Saves unchanged; final local EXE 9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B. No strict S4, whole-game result, player acceptance, commit, push or release."
+        "Evidence": "Bounded city segment implemented and diagnostically validated in local main commit ae287f2a43a73c6f6bea61c40822c37f40afe052, not pushed or released: 41.8241ms vertex spike was unordered_map insert/rehash, not CopySwapped. A 65,536-entry reserved dense metadata cache with 16-candidate LRU eviction passed LoVertexCacheTest once (3,569,548 checks); it preserves quality, 1280x720 D3D12 AA3, two slots and arena/wait policy. Same-EXE TEMP control files reduced observed post-present max 412.9283->0.4193ms without proving a filesystem cause. Final Hidden route: 1790 frames, mean 59.651463 FPS; fixed 1201-frame window mean 59.918376, 1% low 54.494611, >16.67ms 50.374688%, max frame 22.5913ms, max vertex 2.2981ms, zero rehashes and zero stable draw overruns. Mean>=58 target is met. All-city 1% low 45.989346 and max frame 43.0117 retain entry/load tail. Saves unchanged; final local EXE 9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B. No strict S4, whole-game result or player acceptance."
       },
       "source_refs": [
         "docs/notes/perf-gpu-ring-compare.md",
@@ -4971,6 +4971,7 @@
         "out/perf-ring/vertex-stage/comparison.json",
         "out/perf-ring/vertex-stage/identity.json",
         "out/perf-ring/vertex-stage/vertex-cache-test-evidence.json",
+        "ae287f2a43a73c6f6bea61c40822c37f40afe052",
         "b91d279fe6a4b02ee05eb72e48b5952e142decdb",
         "ed90fe95149a25c7ae594e53606b13be07062aec",
         "54b861981969fc0da06b15b80b22a44c63bccfae",
