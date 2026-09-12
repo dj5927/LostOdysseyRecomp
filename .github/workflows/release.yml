@@ -71,6 +71,22 @@ jobs:
           call tools\setup_windows.bat || exit /b 1
           cmake -S . -B out/build/ppc-contract -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DLO_BUILD_RUNTIME=OFF -DLO_PREBUILT_PPC_DIR= -DLO_PPC_AUTO_SYNC=OFF || exit /b 1
           python tools\release\ppc_sync.py key --build-dir out/build/ppc-contract --github-output "%GITHUB_OUTPUT%" || exit /b 1
+      - name: Record PPC cache identity
+        if: ${{ !inputs.rebuild_ppc }}
+        run: |
+          @'
+          import json
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, str(Path('tools/release').resolve()))
+          import ppc_sync
+          root = Path.cwd()
+          key, evidence = ppc_sync.identity(root, root / 'out/build/ppc-contract')
+          Path('out/ppc-cache-identity.json').write_text(
+              json.dumps({'key': key, **evidence}, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps({'key': key, 'contract': evidence['contract']}, indent=2))
+          '@ | python
+          if ($LASTEXITCODE -ne 0) { throw 'Could not record PPC cache identity.' }
       - name: Retrieve synchronized PPC library
         if: ${{ !inputs.rebuild_ppc }}
         uses: actions/checkout@v4
@@ -106,6 +122,13 @@ jobs:
           path: |
             out/releases/LostOdysseyRecomp-*.zip
             out/releases/LostOdysseyRecomp-*.sha256
+          if-no-files-found: error
+      - name: Upload PPC cache identity
+        if: ${{ always() && steps.ppc.outputs.key != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: PPC-cache-identity
+          path: out/ppc-cache-identity.json
           if-no-files-found: error
       - name: Create draft release
         if: env.RELEASE_TAG != ''
