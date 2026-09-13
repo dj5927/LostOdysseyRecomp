@@ -1,5 +1,13 @@
 # Project status
 
+## v0.5.8 — pending release
+
+The v0.5.8 source change set includes the seven current-scene TAA `PositionVPSlot` mappings, the bounded sampled-content SIMD comparison, the `LO_QUERY_TRACE` presence cache and the synchronized private PPC cache `main` state. The TAA and CPU evidence is reused from the repository-relative records under `out/`; no source-0.5.7 gameplay result is presented as v0.5.8 package validation.
+
+The reused checks include the 33,927-case Clang 19.1.5/22.1.8 fixtures, the original WPR diagnosis and limited fixed-scene 40 W comparisons (4K about 47 FPS; 1080p about 59.98 FPS). These do not establish stable whole-game performance, power benefit or original-scene TAA visual acceptance. Release CI, package hashes and final provenance for v0.5.8 remain pending.
+
+Evidence: `out/cpu-query-runtime-20260913/REPORT.md`, `out/taa-live-20260913/` and the detailed [CPU diagnostic note](notes/cpu-live-profile-2026-09-13.md).
+
 ## Published v0.5.6 — 2026-09-13
 
 Source version **0.5.6** is published at [GitHub](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6), with Release CI [34726533463](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34726533463) succeeding for source commit `7124f4b3912df715167acf01f469974045cc3e08` and publication at `2026-09-13T00:05:47Z`. The Windows ZIP is 44,255,182 bytes with SHA-256 `ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9`; the standalone updater is 849,920 bytes with SHA-256 `d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74` and is byte-identical to the copy extracted from the ZIP. All 50 manifest files passed hash and CRC checks with clean source-version provenance. The four public assets passed anonymous HTTP 200 and hash/size verification. The release includes the updater manifest transaction fix, Issue #16 particle-material compatibility fallback, PPC prebuilt CI path and the city renderer work; bounded gameplay validation remains separate.
