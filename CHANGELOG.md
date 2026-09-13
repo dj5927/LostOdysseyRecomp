@@ -6,7 +6,7 @@ One record of completed changes, with unpublished work separated from verified r
 
 ## Unreleased / 未发布
 
-## v0.5.9 — Pending publication / 待发布
+## v0.5.9 — 2026-09-13 / Published / 已发布
 
 ### English
 
@@ -19,6 +19,8 @@ One record of completed changes, with unpublished work separated from verified r
 - 增加保守的 Vulkan 深度清除合并，将 720 个 EDRAM tile rectangle 合并为一个，同时保留 D3D12 映射输出、空洞和未清除区域。在 60 W、固定视角、4K Vulkan 的配对 45 秒观测中，平均 FPS 从 7.49638 提升到 43.47614，GPU 时间从 132.91221 ms 降至 21.06364 ms；这仍是有界候选证据，不是干净 Release 构建基准，也不代表 4K60、1080p60 或 15 W 验收。
 - 增加 texture-key avalanche、captured-shader identity 缓存、同 handle graphics descriptor 绑定抑制、同 framebuffer 的 Plume rebind 抑制和每个 `GpuSlot` 的 immutable descriptor 复用，同时保留双 slot/fence 契约。binding-cache fixture 已通过重复、替换、不兼容前缀和 fence 后场景。
 - 保留 v0.5.8 的 TAA 行为，不改变现有映射。玩家验收和 15 W 下 1080p60 仍待完成。详见 [Vulkan 深度清除性能记录](docs/notes/vulkan-depth-clear-performance-2026-09-13.md)。
+
+Published at [GitHub Release v0.5.9](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.9) on 2026-09-13 19:50:00 UTC. Release CI [34778434518](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34778434518) succeeded for source/tag commit `d26ee8b021784d7232b5319d816227867f98050d`. The clean package is 44,269,995 bytes with SHA-256 `fd71bf65f92b242f81a350b5b6e97ea7f1991107a2c30e91ece2dd261bac0591`; all 50 manifest payload hashes and CRCs passed, and the runtime hash is `ef93c01db40433fb6d463357ea3e6979b3a1f45cf0d2d3f81be2fcf3f8885faa`. Four public assets matched anonymous HTTP, size, hash and API-digest checks. CI consumed PPC key `ab194913725bd44df7ea9e248d4e60c561ac4d73f7b87d4c5bb080613bc5567a` from private commit `6433064e547a9460249b1162b938ac0b2c332688`; no PPC recompile was performed.
 
 ## v0.5.8 — 2026-09-13 / Published / 已发布
 

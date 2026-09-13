@@ -2432,18 +2432,17 @@
     "performance-and-shader-startup": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6qLPE",
       "fields": {
-        "Title": "Investigate remaining stalls and shader-startup compiler failures",
+        "Evidence": "Published v0.5.9 Latest on 2026-09-13T19:50:00Z from d26ee8b021784d7232b5319d816227867f98050d. CI34778434518 succeeded, using matching PPC metadata and the existing library. ZIP44269995bytes SHA256 fd71bf65f92b242f81a350b5b6e97ea7f1991107a2c30e91ece2dd261bac0591; all50 payload hashes and all4 anonymous public asset downloads verified. Vulkan depth-clear and cache/binding optimizations shipped; prior diagnostic7.49638->43.47614FPS is bounded4K/60W evidence, not this clean release benchmark. Binding-only had no overallFPS/CPU gain. TAA unchanged fromv0.5.8; 4K60,1080p60at15W and playeracceptance remain pending. No new runtime tests.",
         "Kind": "Feature",
         "Area": "Runtime performance",
         "Status": "In Progress",
         "Delivery": "In progress",
         "Release": "v0.5.6",
         "Start date": "2026-09-11",
-        "Source key": "performance-and-shader-startup",
-        "Evidence": "v0.5.8 was publicly published 2026-09-13T15:11:11Z from 6e6f11cf56ef69082f5be5b049e5d48d58154415; Release CI 34764115203 passed. The clean source-0.5.8 package runtime SHA-256 is 89f1ec23c3d6a7c16b9f7fc8f66e38a3059cc90132cf80f071eb671322ac106d; ZIP CRC, all 50 manifest payload hashes and four anonymous public asset bytes/SHA/sidecars/API digests passed. It includes the SIMD and LO_QUERY_TRACE presence-cache fixes. Historical v0.5.6 bounded-city provenance remains the Release milestone. Performance and shader-startup work remain In Progress: earlier 40-W windows are not v0.5.8 runtime acceptance, and no player acceptance is recorded."
+        "Source key": "performance-and-shader-startup"
       },
       "title": "Investigate remaining stalls and shader-startup compiler failures",
-      "body_sha256": "41489dbefd4270a8d81d104fb1050e126ecb5703dd059ab4cd8a3972b0fb1184"
+      "body_sha256": "8b613c84a2395d5f8661eee2779a12f871f3d987ca50680bbd5802456c3259ad"
     },
     "vulkan-ps-loopend-predicate-exit": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6sV44",

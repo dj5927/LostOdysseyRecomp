@@ -19,9 +19,9 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
-## v0.5.9 新增（待发布）
+## v0.5.9 新增
 
-- 发布候选增加保守的 Vulkan 深度清除合并、texture-key avalanche、captured-shader identity 缓存、Plume 绑定抑制和每 slot descriptor 复用，同时保留双 slot/fence 契约。
+- 已发布 Windows x64 包：[v0.5.9](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.9)。增加保守的 Vulkan 深度清除合并、texture-key avalanche、captured-shader identity 缓存、graphics descriptor 绑定抑制、Plume 绑定抑制和每 slot descriptor 复用，同时保留双 slot/fence 契约。
 - 60 W 固定视角 4K Vulkan 观测中的平均 FPS 从 7.49638 提升到 43.47614。这是有界候选证据，不代表 4K60、15 W 下 1080p60、全游戏行为或玩家验收。详见 [Vulkan 深度清除性能记录](docs/notes/vulkan-depth-clear-performance-2026-09-13.md)。
 
 ## v0.5.8 新增
