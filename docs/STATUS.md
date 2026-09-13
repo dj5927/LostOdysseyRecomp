@@ -1,12 +1,12 @@
 # Project status
 
-## v0.5.8 — pending release
+## Published v0.5.8 — 2026-09-13
 
-The v0.5.8 source change set includes the seven current-scene TAA `PositionVPSlot` mappings, the bounded sampled-content SIMD comparison, the `LO_QUERY_TRACE` presence cache and the synchronized private PPC cache `main` state. The TAA and CPU evidence is reused from the repository-relative records under `out/`; no source-0.5.7 gameplay result is presented as v0.5.8 package validation.
+The v0.5.8 source change set includes the seven current-scene TAA `PositionVPSlot` mappings, the bounded sampled-content SIMD comparison, the `LO_QUERY_TRACE` presence cache and the synchronized private PPC cache `main` state. Release CI `34764115203` passed for source/tag commit `6e6f11cf56ef69082f5be5b049e5d48d58154415`; the package was published at GitHub on 2026-09-13. The TAA and CPU evidence is reused from the repository-relative records under `out/`; no source-0.5.7 gameplay result is presented as v0.5.8 package validation.
 
-The reused checks include the 33,927-case Clang 19.1.5/22.1.8 fixtures, the original WPR diagnosis and limited fixed-scene 40 W comparisons (4K about 47 FPS; 1080p about 59.98 FPS). These do not establish stable whole-game performance, power benefit or original-scene TAA visual acceptance. Release CI, package hashes and final provenance for v0.5.8 remain pending.
+The reused checks include the 33,927-case Clang 19.1.5/22.1.8 fixtures, the original WPR diagnosis and limited fixed-scene 40 W comparisons (4K about 47 FPS; 1080p about 59.98 FPS). These do not establish stable whole-game performance, power benefit or original-scene TAA visual acceptance. ZIP verification covered all 50 manifest files, CRCs, version 0.5.8 and clean commit provenance.
 
-Evidence: `out/cpu-query-runtime-20260913/REPORT.md`, `out/taa-live-20260913/` and the detailed [CPU diagnostic note](notes/cpu-live-profile-2026-09-13.md).
+Evidence: `out/v0.5.8/release-verification.{json,md}`, `out/cpu-query-runtime-20260913/REPORT.md`, `out/taa-live-20260913/` and the detailed [CPU diagnostic note](notes/cpu-live-profile-2026-09-13.md). Anonymous downloads of all four published assets matched bytes, hashes, sidecars and API digests. The PPC key `ec7f34708ff870d6ec940a7a4fe83686d4ec5802344934c9084b85e2cf113c3d` matched private commit `65a6869ea7ec36987f1ca7026c0588d4fa6c40d7`; no new v0.5.8 gameplay or player visual acceptance is claimed.
 
 ## Published v0.5.6 — 2026-09-13
 

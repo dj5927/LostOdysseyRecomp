@@ -6,19 +6,21 @@ One record of completed changes, with unpublished work separated from verified r
 
 ## Unreleased / 未发布
 
-## v0.5.8 — pending release / 待发布
+## v0.5.8 — 2026-09-13 / Published / 已发布
 
 ### English
 
 - Extend current-scene TAA jitter coverage with seven reviewed main-camera vertex-shader paths; bounded CPU evidence and static discovery are retained, while original-scene visual acceptance remains pending.
 - Add the bounded 64-byte sampled-content SIMD comparison and cache `LO_QUERY_TRACE` presence across query hooks. Focused fixtures passed on Clang 19.1.5 and 22.1.8; limited 40 W comparisons remain around 47 FPS at 4K and do not establish stable whole-game performance or power gains.
-- Synchronize the private PPC cache `main` branch with its verified input and compile contract; Release CI and package provenance are pending for v0.5.8.
+- Synchronize the private PPC cache `main` branch with its verified input and compile contract; Release CI and package provenance passed for v0.5.8.
 
 ### 简体中文
 
 - 扩展当前场景 TAA jitter 覆盖，加入七条已审阅的主相机顶点 shader 路径；保留限定 CPU 证据和静态扫描结果，原场景画面验收仍待完成。
 - 增加有界的 64 字节 sampled-content SIMD 比较，并在 query hook 间缓存 `LO_QUERY_TRACE` presence。Clang 19.1.5 和 22.1.8 的定向夹具均通过；有限 40 W 对照在 4K 仍约 47 FPS，不能证明稳定的全游戏性能或功耗收益。
-- 同步带有已核验输入和编译契约的私有 PPC cache `main` 分支；v0.5.8 的 Release CI 与包 provenance 待核验。
+- 同步带有已核验输入和编译契约的私有 PPC cache `main` 分支；v0.5.8 的 Release CI 与包 provenance 已通过。
+
+Published at [GitHub Release v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8) on 2026-09-13. Release CI `34764115203` passed for source/tag commit `6e6f11cf56ef69082f5be5b049e5d48d58154415`; ZIP verification covered all 50 manifest files, CRCs, version 0.5.8 and clean commit provenance. PPC key `ec7f34708ff870d6ec940a7a4fe83686d4ec5802344934c9084b85e2cf113c3d` matched private commit `65a6869ea7ec36987f1ca7026c0588d4fa6c40d7`. Anonymous downloads of all four published assets matched bytes, hashes, sidecars and API digests. The 40 W benchmark and TAA visual-acceptance limits remain separate from package validation.
 
 ## v0.5.7 — 2026-09-13 / Published / 已发布
 

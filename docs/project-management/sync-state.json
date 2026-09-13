@@ -2316,13 +2316,15 @@
     "4k-taa-ground-shadow-diagnosis": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6K5Kg",
       "fields": {
+        "Title": "Diagnose reported 4K TAA ground and shadow blacking",
         "Kind": "Bug",
         "Area": "TAA and shadows",
-        "Status": "In Progress",
-        "Delivery": "In progress",
-        "Release": "v0.5.0",
-        "Evidence": "Prior Map16 fcbb/c7/e8c0+576d/c8 scope remains accepted. Frozen source-0.5.2 candidate 2f1cea96cd08cb7cfcbd0369e7eee8618e13c169d885a4c6caeaf60953416624 added 11 confirmed position VS; build/provenance and one 10,658-check affected suite passed. Four D3D12 1280x720 TAA scenes recorded 2,566 applications without rejection; White Boa gate/Valley Road variation fell, while forest/effect residuals remain. Static pattern research found two unimplemented PS compensation gaps: 99c2+fa9c9d4fe29fc6ce and 99c2+67b10ad6a0e3d811; WorldMap lacks same-draw camera and Valley ROI does not prove a brightness flip. Four local F1 ZIP/source checks passed; automatic immediate upload pending. Local commit 3c825ce23234a6f16ccad25e40fe4c6e7b820b65 records this bounded repair; it is unpushed on trail/updater and is not a release. No new acceptance. Evidence: out/save-temporal-survey-20260910/repair/VALIDATION.md; pattern-research/REPORT.md.",
-        "Source key": "4k-taa-ground-shadow-diagnosis"
+        "Status": "Awaiting validation",
+        "Delivery": "Released",
+        "Release": "v0.5.8",
+        "Evidence": "v0.5.8 was publicly published 2026-09-13T15:11:11Z from 6e6f11cf56ef69082f5be5b049e5d48d58154415; Release CI 34764115203 passed. The clean source-0.5.8 runtime SHA-256 is 89f1ec23c3d6a7c16b9f7fc8f66e38a3059cc90132cf80f071eb671322ac106d; ZIP CRC, all 50 manifest payload hashes and four anonymous public asset bytes/SHA/sidecars/API digests passed. It includes cde8b50, retaining the published three paths with the local seven-path repair. The reported scene still lacks visual/player acceptance; the F1 capture and unreviewed static candidates are not defects.",
+        "Source key": "4k-taa-ground-shadow-diagnosis",
+        "Start date": "2026-09-13"
       },
       "title": "Diagnose reported 4K TAA ground and shadow blacking",
       "body_sha256": "8cf69c098fcb77953d34ad9e4dbd4b2abeb833accd45020b0e055c8a0cda46e4"
@@ -2430,14 +2432,15 @@
     "performance-and-shader-startup": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6qLPE",
       "fields": {
-        "Evidence": "The bounded city-performance work is included in published v0.5.6 and package/public-download checks passed. Historical local route evidence remains bounded (mean >=58 met), not strict S4, full-game or player acceptance. Remaining shader-startup/performance investigation stays In Progress.",
+        "Title": "Investigate remaining stalls and shader-startup compiler failures",
         "Kind": "Feature",
         "Area": "Runtime performance",
         "Status": "In Progress",
-        "Delivery": "Released",
+        "Delivery": "In progress",
         "Release": "v0.5.6",
         "Start date": "2026-09-11",
-        "Source key": "performance-and-shader-startup"
+        "Source key": "performance-and-shader-startup",
+        "Evidence": "v0.5.8 was publicly published 2026-09-13T15:11:11Z from 6e6f11cf56ef69082f5be5b049e5d48d58154415; Release CI 34764115203 passed. The clean source-0.5.8 package runtime SHA-256 is 89f1ec23c3d6a7c16b9f7fc8f66e38a3059cc90132cf80f071eb671322ac106d; ZIP CRC, all 50 manifest payload hashes and four anonymous public asset bytes/SHA/sidecars/API digests passed. It includes the SIMD and LO_QUERY_TRACE presence-cache fixes. Historical v0.5.6 bounded-city provenance remains the Release milestone. Performance and shader-startup work remain In Progress: earlier 40-W windows are not v0.5.8 runtime acceptance, and no player acceptance is recorded."
       },
       "title": "Investigate remaining stalls and shader-startup compiler failures",
       "body_sha256": "41489dbefd4270a8d81d104fb1050e126ecb5703dd059ab4cd8a3972b0fb1184"
