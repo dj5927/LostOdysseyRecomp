@@ -12,6 +12,7 @@ One record of completed changes, with unpublished work separated from verified r
 - After a successful update, the local helper asks whether to launch the game and defaults to **No**. Silent mode performs the update without launching; failed updates do not restart the game, and a requested launch failure preserves the installed update. The updater copies the locally installed helper into the handoff runner so this completion policy remains active even when the downloaded package contains an older helper.
 - Focused checks recorded before the suffix-only version metadata change passed on source version 0.5.6: `LoUpdaterStandaloneTest` 44/44, updater version/asset/integrity/staging/rollback/helper/preservation checks, and the Unicode caller-CWD helper-context check. These are synthetic hidden-process checks; no real game, public download or visible Yes/No dialog interaction was performed.
 - Remove inactive shadow-loop iterations where safety can be proved, and skip identical adjacent color-resolve copies within one command batch. Shader cache version 22 rejects older binaries and startup bundles. Local shader and GPU pixel checks passed; gameplay validation and publication remain pending.
+- Add a guarded TAA bloom prefilter candidate for the identified HDR16 bloom inputs larger than 1280x720 and within the supported 8x extent, with linear reconstruction after the area filter and a `LoBloomPrefilterTest` fixture. The measured 3840x2160-to-1280x720 case is conditionally enabled for AA3 and the matching scene draw, with `LO_DISABLE_BLOOM_PREFILTER=1` available for comparison. D3D12 and Vulkan fixture runs, captured-input checks and the linear response checks passed. The user's upper large robot is confirmed stable, but the lower enemy eyes still flicker. Add bounded AA3/jitter/history/bloom controls and geometry tracing for the follow-up diagnosis. These changes remain unpublished and do not establish a complete visual fix.
 
 ### 简体中文
 
@@ -19,6 +20,7 @@ One record of completed changes, with unpublished work separated from verified r
 - 更新成功后，当前本地 helper 会询问是否启动游戏，默认选择**否**。silent 模式只执行更新而不启动游戏；更新失败不会自动重启游戏；用户请求启动但启动失败时保留已安装的更新。交接 runner 使用本地已安装的 helper，因此即使下载包内含较旧 helper，也会保留当前完成策略。
 - 后缀版本 metadata 改动前，以 source version 0.5.6 记录的定向检查已通过：`LoUpdaterStandaloneTest` 44/44、更新器版本／asset／完整性／staging／回滚／helper／保留行为检查，以及 Unicode 调用方工作目录的 helper context 检查。这些是隐藏的合成进程检查，未运行真实游戏、公开下载或可见 Yes/No 对话框交互。
 - 在可证明安全的条件下消除阴影循环空转，并跳过同一提交批次内相邻、完全相同的颜色 resolve 复制。shader cache 版本 22 拒绝旧二进制和启动 bundle。本地 shader 与 GPU 像素检查已通过；游戏实景验证和发布仍待完成。
+- 为已定位的、大于 1280x720 且不超过 8 倍尺寸的 HDR16 bloom 输入增加有条件启用的 TAA bloom prefilter 候选，并在面积滤波后使用线性重建，同时增加 `LoBloomPrefilterTest` 夹具。实测的 3840x2160 到 1280x720 场景仅在 AA3 和匹配的 scene draw 命中时启用，并可用 `LO_DISABLE_BLOOM_PREFILTER=1` 做对照。D3D12／Vulkan 夹具、捕获输入检查和线性响应检查均已通过。用户已确认上方大型机器人的画面稳定，但下方敌人的眼睛仍会闪烁。增加有限范围的 AA3／jitter／history／bloom 控制和 geometry trace 供后续诊断。这些改动尚未发布，也不能称为完整的画面修复。
 
 ## v0.5.6 — 2026-09-13 / 已发布
 

@@ -51,9 +51,10 @@
 | [标题动态背景恢复（2026-09-04）](title-packed-mips.md) |
 | [攻略路线与后台推进测试（2026-09-04）](walkthrough-testing.md) |
 | [Xenia 实机画面对照（2026-09-04）](xenia-render-comparison.md) |
-| [4K Vulkan shadow loop GPU 审查（2026-09-12；实施、测试与实景边界）](gpu-shadow-loop-audit-2026-09-12.md) |
 | [性能分析完整报告（2026-09-11；诊断，未改运行时）](perf-complete-analysis.md) |
 | [GPU 环缓冲实测对比（2026-09-11；user01 城市，非验收）](perf-gpu-ring-compare.md) |
+| [4K Vulkan shadow loop GPU 审查（2026-09-12；实施、测试与实景边界）](gpu-shadow-loop-audit-2026-09-12.md) |
+| [TAA bloom prefilter 候选与 geometry trace（2026-09-12；部分改善，实景验证待完成）](taa-bloom-prefilter.md) |
 | [ReBlue vs Lost Odyssey GPU 对照（2026-09-11）](reblue-gpu-comparison.md) |
 | [游戏数据来源与 XEX](xex.md) |
 

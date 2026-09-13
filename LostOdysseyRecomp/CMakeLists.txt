@@ -437,6 +437,13 @@ if(WIN32)
         target_compile_features(LoTemporalAATest PRIVATE cxx_std_20)
         target_compile_definitions(LoTemporalAATest PRIVATE LO_GPU_PLUME NOMINMAX)
         target_link_libraries(LoTemporalAATest PRIVATE plume d3d12 dxgi)
+        add_executable(LoBloomPrefilterTest EXCLUDE_FROM_ALL
+            ${CMAKE_SOURCE_DIR}/tools/tests/bloom_prefilter_test.cpp
+            ${LO_RUNTIME_ROOT}/gpu/shader/dxc_compiler.cpp)
+        target_include_directories(LoBloomPrefilterTest PRIVATE ${LO_RUNTIME_ROOT} ${CMAKE_SOURCE_DIR}/thirdparty/plume)
+        target_compile_features(LoBloomPrefilterTest PRIVATE cxx_std_20)
+        target_compile_definitions(LoBloomPrefilterTest PRIVATE LO_GPU_PLUME NOMINMAX)
+        target_link_libraries(LoBloomPrefilterTest PRIVATE plume d3d12 dxgi fmt::fmt)
     endif()
 endif()
 

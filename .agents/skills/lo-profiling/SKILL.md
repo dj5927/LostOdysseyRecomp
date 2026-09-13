@@ -1,6 +1,6 @@
 ---
 name: lo-profiling
-description: Profile LostOdysseyRecomp using CPU/thread, frame-time and assembly evidence; collect or interpret hotspots and compare controlled baselines. Use for Lost Odyssey profiling, 性能分析, CPU 热点 or 汇编级性能定位. Not for visual flicker audits or unrelated projects.
+description: Profile LostOdysseyRecomp CPU/thread, assembly and GPU hotspots using native sampling and RenderDoc capture/replay. Use for 性能分析, GPU 高占用, shader/pass 耗时 or controlled performance A/B. Not for visual flicker audits or unrelated projects.
 ---
 
 # Lost Odyssey Profiling
@@ -12,10 +12,11 @@ description: Profile LostOdysseyRecomp using CPU/thread, frame-time and assembly
 先复用当前任务的采集、构建身份和已通过验证，核实易变的进程与运行条件。明确要解释的是帧卡顿、CPU 执行、线程等待、GPU 时间还是具体指令热点；不把一种测量冒充另一种。
 
 - 已有 capture：先离线分析，只有缺失的证据会改变结论时才补采。
+- GPU 高占用、shader/pass 耗时或已有 RDC：读取 [RenderDoc 采集与离线 A/B](references/renderdoc.md)，使用本技能 `scripts/` 的采集、事件分析、API 参数提取和单 shader ABBA 工具。
 - CPU 执行热点：优先使用环境已有的 on-CPU 采样和符号能力。wall-clock 线程快照用于定位停留位置，包含睡眠／等待。
 - 帧卡顿：关联帧间隔分布与同一时间窗口的 CPU／GPU／提交等待；平均 FPS 不能解释尾部卡顿。
 - 汇编热点：结合运行中的 host 指令、模块、符号和构建身份。优化后的源码行号是近似归因，静态汇编不能证明运行耗时。
-- LostOdysseyRecomp：读取 [专用采样流程](references/lost-odyssey.md)，复用仓库 `tools/asm-profiler`；不要再写一套临时采集器。
+- CPU/线程/汇编采样：读取 [专用采样流程](references/lost-odyssey.md)，复用仓库 `tools/asm-profiler`；不要再写一套临时采集器。
 - 其他项目：遵循其已有工具和构建流程，不假定存在 LO 工具或可用的 ETW、硬件计数器、GPU 分析器。
 
 ## 测量与归因

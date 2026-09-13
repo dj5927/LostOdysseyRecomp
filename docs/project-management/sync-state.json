@@ -2471,6 +2471,20 @@
       },
       "title": "Eliminate redundant adjacent resolve copies",
       "body_sha256": "a6742aa94b4e3e164462e842bf58407564079d23ba879a79fab96c4ba50db6f1"
+    },
+    "kanto-red-eye-flicker-v056": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6sKMY",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "TAA and graphics",
+        "Status": "In Progress",
+        "Delivery": "Validated",
+        "Start date": "2026-09-12",
+        "Evidence": "AA3 Bloom candidates passed D3D12/Vulkan fixtures and captured-input GPU references. User confirms the third candidate stabilizes the upper large robot; lower enemy eyes still flicker. Four f7208 84-index eye pairs are bit-identical in CPU/D3D replay and Vulkan strict-EQUAL coverage through 32 jitter phases. No invariant, threshold or shader-map change. Process-scoped live diagnostic control validation, lower-eye repair and player acceptance are pending. Not included in a release.",
+        "Source key": "kanto-red-eye-flicker-v056"
+      },
+      "title": "Investigate Kanto armored-soldier red-eye flicker",
+      "body_sha256": "7bf42c00b53aa5245b27d98216e42a2419c77609d6f7e64743efbc0bf4e7e90b"
     }
   }
 }

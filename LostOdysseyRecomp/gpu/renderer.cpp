@@ -2,6 +2,7 @@
 #include "taa_binding_producer.h"
 #include "temporal_evidence.h"
 #include "scene_aa_provenance.h"
+#include "bloom_prefilter.h"
 #include <stdafx.h>
 #include "renderer.h"
 #include "render_resolution.h"
@@ -331,6 +332,10 @@ namespace gpu::renderer
                 uint32_t setPoolUsed[4] = {};
                 TextureSetCache textureSetCache[3];
                 std::vector<std::unique_ptr<HostTexture>> retiredTextures;
+                // Reused only after this slot's fence completes. Each draw gets
+                // a distinct output while commands in the slot remain in flight.
+                std::vector<std::unique_ptr<HostTexture>> bloomPrefilterTextures;
+                size_t bloomPrefilterUsed = 0;
                 bool submitted = false;
             };
             GpuSlot gpuSlots[kGpuSlots];
@@ -708,7 +713,32 @@ namespace gpu::renderer
                 uint32_t address, occurrence, width, height, bpp, pitch, offset;
                 RenderFormat format;
             };
-            uint64_t resolveTraceSerial = 0;
+            uint64_t taaDiagnosticSerial = 0;
+            int taaDiagnosticAA = -1, taaDiagnosticJitter = -1, taaDiagnosticHistory = -1, taaDiagnosticBloom = -1;
+            void PollTaaDiagnostic()
+            {
+                static const char* path = getenv("LO_TAA_DIAGNOSTIC_REQUEST");
+                if (!path) return;
+                std::ifstream input(path);
+                std::string serialText, extra;
+                int aa, jitter, history, bloom;
+                if (!(input >> serialText >> aa >> jitter >> history >> bloom) || input >> extra ||
+                    serialText.empty() || serialText.find_first_not_of("0123456789") != std::string::npos) return;
+                uint64_t serial = 0;
+                for (char digit : serialText) {
+                    if (serial > (UINT64_MAX - uint64_t(digit - '0')) / 10) return;
+                    serial = serial * 10 + uint64_t(digit - '0');
+                }
+                if (!serial || serial == taaDiagnosticSerial || (aa != -1 && aa != 0 && aa != 3) ||
+                    jitter < -1 || jitter > 1 || history < -1 || history > 1 || bloom < -1 || bloom > 1) return;
+                taaDiagnosticSerial = serial;
+                taaDiagnosticAA = aa; taaDiagnosticJitter = jitter; taaDiagnosticHistory = history; taaDiagnosticBloom = bloom;
+                if (temporalHistory) temporalHistory->Reset();
+                temporalSupportedFrame = ~0ull; ++temporalEpoch;
+                LOG_INFO("renderer: TAA diagnostic serial={} frame={} aa={} jitter={} history={} bloom={}",
+                    serial, frame, aa, jitter, history, bloom);
+            }
+            uint64_t resolveTraceSerial = 0, resolveTraceFirstFrame = ~0ull;
             uint32_t resolveTraceRemaining = 0, resolveTraceBytes = 0;
             std::vector<ResolveTraceTarget> resolveTraceTargets;
             std::vector<ResolveTraceCopy> resolveTraceCopies;
@@ -755,6 +785,7 @@ namespace gpu::renderer
                 }
                 if (targets.empty()) return;
                 resolveTraceSerial = serial;
+                resolveTraceFirstFrame = frame + 1;
                 resolveTraceRemaining = frames;
                 resolveTraceTargets = std::move(targets);
                 LOG_INFO("renderer: resolve trace request {} next-frame={} frames={} targets={}",
@@ -964,6 +995,7 @@ namespace gpu::renderer
                 resolveReadback = getenv("LO_RESOLVE_READBACK") != nullptr;
                 textureRevalidate = getenv("LO_TEXTURE_STATIC") == nullptr;
                 auto enabled=[](const char* key){const char* value=getenv(key);return value&&strcmp(value,"1")==0;};
+                bloomPrefilterEnabled = !enabled("LO_DISABLE_BLOOM_PREFILTER");
                 temporalExperiment = enabled("LO_TEMPORAL_EXPERIMENT");
                 temporalAllowHistory = enabled("LO_TEMPORAL_CAMERA_HISTORY");
                 temporalJitter = enabled("LO_TEMPORAL_JITTER_EXPERIMENT");
@@ -1096,6 +1128,10 @@ namespace gpu::renderer
             // constants and the viewport alone selects the rectangle.
             std::unique_ptr<RenderShader> blitVs, blitPs;
             std::map<uint32_t, std::unique_ptr<RenderPipeline>> blitPipelines;
+            bool bloomPrefilterEnabled = true;
+            uint32_t bloomPrefilterLogs = 0;
+            std::unique_ptr<RenderShader> bloomPrefilterPs;
+            std::unique_ptr<RenderPipeline> bloomPrefilterPipeline;
 
             // Reinterprets one EDRAM class as another: pack the source value into the
             // guest's 32-bit word, then unpack it the way the new class reads it.
@@ -1257,6 +1293,70 @@ namespace gpu::renderer
                 }
                 blitVs = device->createShader(v.bytecode.data(), v.bytecode.size(), "main", renderFormat);
                 blitPs = device->createShader(f.bytecode.data(), f.bytecode.size(), "main", renderFormat);
+                if (bloomPrefilterEnabled || getenv("LO_TAA_DIAGNOSTIC_REQUEST")) {
+                    auto bloom = xenos::CompileCachedHlsl(bloom_prefilter::PixelShader, "main", "ps_6_0", binaryFormat);
+                    if (bloom.ok)
+                        bloomPrefilterPs = device->createShader(bloom.bytecode.data(), bloom.bytecode.size(), "main", renderFormat);
+                    else LOG_WARNING("renderer: bloom prefilter compilation failed: {}", bloom.errors);
+                }
+            }
+
+            HostTexture* PrefilterBloom(HostTexture& src)
+            {
+                if (!bloomPrefilterPs || !blitVs) return nullptr;
+                if (!bloomPrefilterPipeline) {
+                    RenderGraphicsPipelineDesc desc;
+                    desc.pipelineLayout = pipelineLayout.get();
+                    desc.vertexShader = blitVs.get();
+                    desc.pixelShader = bloomPrefilterPs.get();
+                    desc.depthEnabled = false;
+                    desc.depthWriteEnabled = false;
+                    desc.depthFunction = RenderComparisonFunction::ALWAYS;
+                    desc.depthTargetFormat = RenderFormat::UNKNOWN;
+                    desc.renderTargetFormat[0] = RenderFormat::R16G16B16A16_FLOAT;
+                    desc.renderTargetBlend[0] = RenderBlendDesc::Copy();
+                    desc.renderTargetBlend[0].renderTargetWriteMask = 0xF;
+                    desc.renderTargetCount = 1;
+                    desc.cullMode = RenderCullMode::NONE;
+                    desc.primitiveTopology = RenderPrimitiveTopology::TRIANGLE_LIST;
+                    bloomPrefilterPipeline = device->createGraphicsPipeline(desc);
+                    if (!bloomPrefilterPipeline) return nullptr;
+                }
+                Begin();
+                auto& slot = Gpu();
+                if (slot.bloomPrefilterUsed == slot.bloomPrefilterTextures.size()) {
+                    auto dst = std::make_unique<HostTexture>();
+                    dst->width = dst->guestWidth = 1280;
+                    dst->height = dst->guestHeight = 720;
+                    dst->format = RenderFormat::R16G16B16A16_FLOAT;
+                    dst->texture = device->createTexture(RenderTextureDesc::Texture2D(1280, 720, 1,
+                        dst->format, RenderTextureFlag::RENDER_TARGET));
+                    if (!dst->texture) return nullptr;
+                    slot.bloomPrefilterTextures.push_back(std::move(dst));
+                }
+                HostTexture& dst = *slot.bloomPrefilterTextures[slot.bloomPrefilterUsed++];
+                Transition(src, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
+                Transition(dst, RenderTextureLayout::COLOR_WRITE, RenderBarrierStage::GRAPHICS);
+                auto* set = AcquireSet(1); // Does not submit or change GPU slots.
+                set->setTexture(0, src.texture.get(), RenderTextureLayout::SHADER_READ);
+                commandList->setFramebuffer(GetFramebuffer(&dst, nullptr));
+                RenderViewport viewport(0.0f, 0.0f, 1280.0f, 720.0f);
+                RenderRect scissor{0, 0, 1280, 720};
+                commandList->setViewports(&viewport, 1);
+                commandList->setScissors(&scissor, 1);
+                commandList->setPipeline(bloomPrefilterPipeline.get());
+                commandList->setGraphicsPipelineLayout(pipelineLayout.get());
+                SetConstantBuffer(0, 0);
+                SetConstantBuffer(0, 1);
+                SetConstantBuffer(0, 2);
+                commandList->setGraphicsDescriptorSet(staticSet0.get(), 0);
+                commandList->setGraphicsDescriptorSet(set, 1);
+                commandList->setGraphicsDescriptorSet(AcquireSet(2), 2);
+                commandList->setGraphicsDescriptorSet(AcquireSet(3), 3);
+                if (vulkan) commandList->setGraphicsDescriptorSet(staticSamplerSet.get(), 4);
+                commandList->drawInstanced(3, 1, 0, 0);
+                Transition(dst, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
+                return &dst;
             }
 
             RenderPipeline* GetBlitPipeline(RenderFormat targetFormat)
@@ -1377,6 +1477,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             ++fb;
                 for (auto& cache : s.textureSetCache) cache.Clear();
                 s.retiredTextures.clear();
+                s.bloomPrefilterUsed = 0;
                 if(temporalHistory)temporalHistory->ReleaseCompleted();
                 else if(sparseCollector)sparseCollector->ReleaseCompleted();
                 sceneAABusy=false;
@@ -3203,7 +3304,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 // limited to the path verified in the captured Map2 scene.
                 render_batch::CpuTimer<> taaInit(cpuTimingEnabled);
                 if(sceneAAConfigFrame!=frame) {
-                    sceneAAConfigFrame=frame;const auto mode=settings::GetConfig().antialiasing;
+                    sceneAAConfigFrame=frame;
+                    PollTaaDiagnostic();
+                    const auto mode=taaDiagnosticAA >= 0 ? uint32_t(taaDiagnosticAA) : uint32_t(settings::GetConfig().antialiasing);
                     if(sceneAAMode!=mode) {if(temporalHistory)temporalHistory->Reset();temporalSupportedFrame=~0ull;++temporalEpoch;}
                     sceneAAMode=mode;
                     const bool selected=mode==3&&!resolveReadback;
@@ -3211,6 +3314,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     temporalAllowHistory=temporalForcedHistory||selected;
                     temporalJitter=temporalForcedJitter||(selected&&temporalSupportedFrame!=~0ull&&temporalSupportedFrame+1==frame);
                     temporalStableGrid=temporalForcedStable||selected;
+                    if (taaDiagnosticAA == 0) temporalExperiment = false;
+                    if (taaDiagnosticJitter >= 0) temporalJitter = taaDiagnosticJitter == 1;
+                    if (taaDiagnosticHistory >= 0) temporalAllowHistory = taaDiagnosticHistory == 1;
                     if(temporalExperiment&&!temporalHistory&&!temporalInitFailed) {
                         temporalHistory=std::make_unique<temporal::HistoryOwner>();
                         if(!temporalHistory->Init(device,sparseCollector)) {temporalHistory.reset();temporalInitFailed=true;LOG_ERROR("renderer: TAA initialization failed; SMAA fallback");}
@@ -3221,7 +3327,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 if (trackTemporalScene && temporalScene.Frame() != frame) {
                     temporalScene.Reset(frame);
                     if(temporalHistory&&std::chrono::steady_clock::now()-temporalFrameTime>std::chrono::milliseconds(250)) {
-                        temporalHistory->Reset();temporalSupportedFrame=~0ull;temporalJitter=temporalForcedJitter;++temporalEpoch;
+                        temporalHistory->Reset();temporalSupportedFrame=~0ull;temporalJitter=taaDiagnosticJitter >= 0 ? taaDiagnosticJitter == 1 : temporalForcedJitter;++temporalEpoch;
                     }
                 }
                 if(temporalExperiment&&temporalHistory) {
@@ -3581,6 +3687,37 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                     source->writeWidth == tex->width && source->writeHeight == tex->height &&
                                     source->tex->width == tex->width && source->tex->height == tex->height};
                         }
+                        HostTexture* bloomFiltered = nullptr;
+                        // Keep bloom reconstruction stable while temporal history
+                        // resets or temporarily suspends jitter (including capture stalls).
+                        if ((taaDiagnosticBloom >= 0 ? taaDiagnosticBloom == 1 : bloomPrefilterEnabled && sceneAAMode == 3) && s == ps && slot == 0 &&
+                            key.vs == 0x2f6bbed8149a7804ull && key.ps == 0x7c260eacff1d681dull &&
+                            declared == 1 && dimension == 1 && tex != color &&
+                            tex->format == RenderFormat::R16G16B16A16_FLOAT &&
+                            tex->guestWidth == 1280 && tex->guestHeight == 720 &&
+                            (fetch[2] & 0x1FFF) + 1 == 1280 && ((fetch[2] >> 13) & 0x1FFF) + 1 == 720 &&
+                            tex->width > 1280 && tex->height > 720 && tex->width <= 1280 * 8 && tex->height <= 720 * 8 &&
+                            ((fetch[3] >> 19) & 0x3F) == 0 && // Nearest min/mag/mip, as captured.
+                            (((fetch[0] >> 10) & 7) == 2 || ((fetch[0] >> 10) & 7) == 4) &&
+                            (((fetch[0] >> 13) & 7) == 2 || ((fetch[0] >> 13) & 7) == 4)) {
+                            auto* source = FindResolved((fetch[1] >> 12) << 12, fetch[1] & 0x3F);
+                            if (source && source->tex.get() == tex && source->frame == frame && source->writeOrdinal &&
+                                source->writeX == 0 && source->writeY == 0 &&
+                                source->writeWidth == tex->width && source->writeHeight == tex->height) {
+                                bloomFiltered = PrefilterBloom(*tex);
+                                if (bloomFiltered) {
+                                    if (bloomPrefilterLogs++ < 4)
+                                        LOG_INFO("renderer: bloom prefilter frame={} vs={:016x} ps={:016x} source={}x{} filtered=1280x720 HDR area linear",
+                                            frame, key.vs, key.ps, tex->width, tex->height);
+                                    if (!debugCaptureDir.empty())
+                                        debugTrace << fmt::format("bloom_prefilter frame={} vs={:016x} ps={:016x} source={}x{} filtered=1280x720 resolve={} HDR_area=1 linear=1\n",
+                                            frame, key.vs, key.ps, tex->width, tex->height, source->writeOrdinal);
+                                }
+                            }
+                        }
+                        const bool diagnosticFullSceneCopy = fullSceneCopy && s == ps && slot == 0 &&
+                            tex->format == RenderFormat::R8G8B8A8_UNORM && rasterViewport.width == tex->width && rasterViewport.height == tex->height;
+                        if (diagnosticFullSceneCopy) QueueResolveTrace(*tex, 0xffff0020u);
                         RenderTexture* temporalDisplay=nullptr;
                         bool temporalDisplayFromHistory = false;
                         if(temporalSceneCopy && fullSceneCopy && s==ps && slot==0 &&
@@ -3622,6 +3759,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             }
                             taaResolve.AddTo(tTaa);
                         }
+                        if (diagnosticFullSceneCopy)
+                            QueueResolveTrace(temporalDisplay ? temporalDisplay : tex->texture.get(), tex->format,
+                                tex->width, tex->height, RenderTextureLayout::SHADER_READ, 0xffff0021u);
                         uint32_t d3 = fetch[3];
                         shared.textureInfo[slot] = ((fetch[0] >> 2) & 0xFF) | (((d3 >> 1) & 0xFFF) << 8);
                         shared.textureSize[slot] = tex->guestWidth | (tex->guestHeight << 16);
@@ -3632,17 +3772,33 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             if (rs->swapRedBlue) shared.textureInfo[slot] |= 1u << 20;
                         uint64_t samplerKey = ((d3 >> 19) & 3) | (((d3 >> 21) & 3) << 2) | (((d3 >> 23) & 3) << 4)
                             | (((fetch[0] >> 10) & 7) << 6) | (((fetch[0] >> 13) & 7) << 9) | (((fetch[0] >> 16) & 7) << 12);
+                        // The area-filtered guest grid still needs continuous
+                        // reconstruction at the bloom shader's fractional UVs.
+                        if (bloomFiltered && !temporalDisplay)
+                            samplerKey = (samplerKey & ~uint64_t(0xF)) | 0x5;
                         shared.samplerIndex[slot] = GetSamplerIndex(samplerKey);
-                        textureBindings[bank][slot] = temporalDisplay ? temporalDisplay : tex->texture.get();
+                        textureBindings[bank][slot] = temporalDisplay ? temporalDisplay :
+                            bloomFiltered ? bloomFiltered->texture.get() : tex->texture.get();
                         if (selectedBinding) {
                             selectedBinding->bank = bank;
-                            if (temporalDisplay) {
-                                selectedBinding->kind = temporalDisplayFromHistory ? binding::TextureKind::TemporalDisplay : binding::TextureKind::SpatialAA;
+                            if (temporalDisplay || bloomFiltered) {
+                                // No bloom-filtered TextureKind exists. Unknown
+                                // avoids reporting a filtered texture as a direct resolve.
+                                selectedBinding->kind = temporalDisplay ?
+                                    (temporalDisplayFromHistory ? binding::TextureKind::TemporalDisplay : binding::TextureKind::SpatialAA) :
+                                    binding::TextureKind::Unknown;
                                 // This output combines/filter samples; its source's matrix is not its producer proof.
                                 selectedBinding->producerState = binding::ProducerState::Unknown;
                                 selectedBinding->producer = {};
                                 selectedBinding->producerFrameAge = -1;
                                 selectedBinding->producerDraws = 0;
+                                if (bloomFiltered && !temporalDisplay) {
+                                    selectedBinding->hostExtent = {1280, 720};
+                                    selectedBinding->parentExtent = {1280, 720};
+                                    selectedBinding->resolveRect = {};
+                                    selectedBinding->resolveFrameAge = -1;
+                                    selectedBinding->resolveGap = -1;
+                                }
                             }
                             bindingRecord->texture = *selectedBinding;
                         }
@@ -3746,46 +3902,6 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
 
                 tIndex0.AddTo(tIndex);
-
-                // Offline vertex replay: capture one frame of relative-addressed
-                // draws with their constants, indices and current guest streams.
-                // Stream files are swapped CPU snapshots, not upload-heap reads.
-                const auto& captureEnvironment = GetHotCaptureEnvironment();
-                if (captureEnvironment.geometryCaptureEnabled)
-                {
-                    const char* captureDir = captureEnvironment.geometryCaptureDir.c_str();
-                    static const uint32_t captureFrame = getenv("LO_GEOMETRY_CAPTURE_FRAME")
-                        ? strtoul(getenv("LO_GEOMETRY_CAPTURE_FRAME"), nullptr, 10) : 2400;
-                    static uint32_t captureDraw = 0;
-                    if (frame == captureFrame && vs->info.usesRelativeConstants)
-                    {
-                        std::filesystem::create_directories(captureDir);
-                        const std::string prefix = fmt::format("{}/{:04}", captureDir, captureDraw++);
-                        auto save = [](const std::string& path, const void* data, size_t size)
-                        {
-                            std::ofstream(path, std::ios::binary).write(static_cast<const char*>(data), size);
-                        };
-                        save(prefix + ".constants.bin", vsConstants, sizeof(vsConstants));
-                        save(prefix + ".shared.bin", &shared, sizeof(shared));
-                        save(prefix + ".indices.bin", indices.data(), indices.size() * sizeof(uint32_t));
-                        std::ofstream meta(prefix + ".txt");
-                        meta << fmt::format("vs={:016x}\nps={:016x}\nmode={}\ncount={}\nbase_vertex={}\nindexed={}\nviewport={} {} {} {}\n",
-                            key.vs, key.ps, modeControl, indexCount, int32_t(Reg(REG_VGT_INDX_OFFSET)), useIndices,
-                            rasterViewport.x, rasterViewport.y, rasterViewport.width, rasterViewport.height);
-                        for (uint32_t slot = 0; slot < kVertexFetchSlots; ++slot)
-                        {
-                            if (!((vs->info.vertexFetchSlotMask[slot >> 6] >> (slot & 63)) & 1)) continue;
-                            uint32_t d0 = Reg(REG_FETCH_CONSTANTS + slot * 2), d1 = Reg(REG_FETCH_CONSTANTS + slot * 2 + 1);
-                            uint32_t words = (d1 >> 2) & 0xFFFFFF;
-                            std::vector<uint32_t> stream(words);
-                            geometry_prepare::CopyDwordsSwapped(stream.data(), Phys(d0 & ~3u), words, d1 & 3);
-                            const std::string name = fmt::format("vb_{:016x}.bin", Fnv1a(stream.data(), stream.size() * 4));
-                            const std::string path = std::string(captureDir) + "/" + name;
-                            if (!std::filesystem::exists(path)) save(path, stream.data(), stream.size() * 4);
-                            meta << fmt::format("fetch{}={} address={:#x} words={} endian={}\n", slot, name, d0 & ~3u, words, d1 & 3);
-                        }
-                    }
-                }
 
                 // Record.
                 ScopedTimer recordTimer{ tRecord, cpuTimingEnabled };
@@ -3966,6 +4082,61 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     commandList->drawInstanced(indexCount, 1, uint32_t(baseVertex), 0);
                 }
                 drawsThisFrame++;
+                // Offline vertex replay: capture one frame of relative-addressed
+                // draws with their constants, indices and current guest streams.
+                // Stream files are swapped CPU snapshots, not upload-heap reads.
+                const auto& captureEnvironment = GetHotCaptureEnvironment();
+                if (captureEnvironment.geometryCaptureEnabled)
+                {
+                    const char* captureDir = captureEnvironment.geometryCaptureDir.c_str();
+                    static const uint32_t captureFrame = getenv("LO_GEOMETRY_CAPTURE_FRAME")
+                        ? strtoul(getenv("LO_GEOMETRY_CAPTURE_FRAME"), nullptr, 10) : 2400;
+                    static const bool captureWithResolveTrace = getenv("LO_GEOMETRY_CAPTURE_WITH_RESOLVE_TRACE") &&
+                        strcmp(getenv("LO_GEOMETRY_CAPTURE_WITH_RESOLVE_TRACE"), "1") == 0;
+                    static const uint64_t captureVs = getenv("LO_GEOMETRY_CAPTURE_VS")
+                        ? strtoull(getenv("LO_GEOMETRY_CAPTURE_VS"), nullptr, 16) : 0;
+                    static const uint64_t captureVs2 = getenv("LO_GEOMETRY_CAPTURE_VS2")
+                        ? strtoull(getenv("LO_GEOMETRY_CAPTURE_VS2"), nullptr, 16) : 0;
+                    static const uint32_t captureIndexCount = getenv("LO_GEOMETRY_CAPTURE_INDEX_COUNT")
+                        ? strtoul(getenv("LO_GEOMETRY_CAPTURE_INDEX_COUNT"), nullptr, 10) : 0;
+                    static const uint32_t captureIndexCount2 = getenv("LO_GEOMETRY_CAPTURE_INDEX_COUNT2")
+                        ? strtoul(getenv("LO_GEOMETRY_CAPTURE_INDEX_COUNT2"), nullptr, 10) : 0;
+                    static uint32_t captureDraw = 0;
+                    const bool captureThisFrame = captureWithResolveTrace
+                        ? resolveTraceRemaining && frame == resolveTraceFirstFrame : frame == captureFrame;
+                    const bool captureThisVs = (!captureVs && !captureVs2) || key.vs == captureVs || key.vs == captureVs2;
+                    if (captureThisFrame && captureThisVs && ((!captureIndexCount && !captureIndexCount2) || info.indexCount == captureIndexCount || info.indexCount == captureIndexCount2) &&
+                        vs->info.usesRelativeConstants)
+                    {
+                        std::filesystem::create_directories(captureDir);
+                        const std::string prefix = fmt::format("{}/{:04}", captureDir, captureDraw++);
+                        auto save = [](const std::string& path, const void* data, size_t size)
+                        {
+                            std::ofstream(path, std::ios::binary).write(static_cast<const char*>(data), size);
+                        };
+                        save(prefix + ".constants.bin", vsConstants, sizeof(vsConstants));
+                        save(prefix + ".shared.bin", &shared, sizeof(shared));
+                        save(prefix + ".indices.bin", indices.data(), indices.size() * sizeof(uint32_t));
+                        std::ofstream meta(prefix + ".txt");
+                        meta << fmt::format("vs={:016x}\nps={:016x}\nmode={}\ncount={}\nbase_vertex={}\nindexed={}\nviewport={} {} {} {}\n",
+                            key.vs, key.ps, modeControl, indexCount, int32_t(Reg(REG_VGT_INDX_OFFSET)), useIndices,
+                            rasterViewport.x, rasterViewport.y, rasterViewport.width, rasterViewport.height);
+                        meta << fmt::format("frame={}\nsubmitted={}\n", frame, drawsThisFrame);
+                        for (uint32_t slot = 0; slot < kVertexFetchSlots; ++slot)
+                        {
+                            if (!((vs->info.vertexFetchSlotMask[slot >> 6] >> (slot & 63)) & 1)) continue;
+                            uint32_t d0 = Reg(REG_FETCH_CONSTANTS + slot * 2), d1 = Reg(REG_FETCH_CONSTANTS + slot * 2 + 1);
+                            uint32_t words = (d1 >> 2) & 0xFFFFFF;
+                            std::vector<uint32_t> stream(words);
+                            geometry_prepare::CopyDwordsSwapped(stream.data(), Phys(d0 & ~3u), words, d1 & 3);
+                            const std::string name = fmt::format("vb_{:016x}.bin", Fnv1a(stream.data(), stream.size() * 4));
+                            const std::string path = std::string(captureDir) + "/" + name;
+                            if (!std::filesystem::exists(path)) save(path, stream.data(), stream.size() * 4);
+                            meta << fmt::format("fetch{}={} address={:#x} words={} endian={}\n", slot, name, d0 & ~3u, words, d1 & 3);
+                        }
+                    }
+                }
+
                 if (trackBinding) {
                     if (key.colorMask) {
                         if (fullSceneCopy && boundSceneProducer)
@@ -3986,6 +4157,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     strtoull(getenv("LO_TEMPORAL_DRAW_LOG_START_FRAME"), nullptr, 10) : ~0ull;
                 static const uint64_t jitterLogVs = getenv("LO_TEMPORAL_DRAW_LOG_VS") ?
                     strtoull(getenv("LO_TEMPORAL_DRAW_LOG_VS"), nullptr, 16) : 0;
+                static const uint64_t jitterLogVs2 = getenv("LO_TEMPORAL_DRAW_LOG_VS2") ?
+                    strtoull(getenv("LO_TEMPORAL_DRAW_LOG_VS2"), nullptr, 16) : 0;
                 // Optional geometry-focused logging keeps same-mesh base/light
                 // pairs and one shadow/character sample per frame, reducing IO.
                 static const uint32_t jitterLogIndexCount = getenv("LO_TEMPORAL_DRAW_LOG_INDEX_COUNT") ?
@@ -4006,7 +4179,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 if (((frame >= jitterLogStart && frame - jitterLogStart < 32) ||
                     (jitterLogWithResolveTrace && resolveTraceRemaining)) &&
                     jitterLogGeometry &&
-                    (jitterLogVs ? key.vs == jitterLogVs :
+                    ((jitterLogVs || jitterLogVs2) ? key.vs == jitterLogVs || key.vs == jitterLogVs2 :
                         jitterLogStaticMesh || jitterLogSkinned ||
                         key.vs == 0x3148f81d65d3b5f4ull || key.vs == 0x99c2b4b0960a9ccdull))
                 {

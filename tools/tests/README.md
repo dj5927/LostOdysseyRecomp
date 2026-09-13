@@ -172,6 +172,62 @@ The standalone CPU fixtures `taa_binding_collection_test.cpp` and `taa_binding_p
 ### TAA crowd coverage follow-up
 
 
+### Bloom prefilter candidate
+
+`LoBloomPrefilterTest` is an explicit GPU fixture for the bloom input filter
+used by the TAA path. Build and run it from a configured build directory:
+
+```powershell
+cmake --build out/build/release --target LoBloomPrefilterTest
+.\out\build\release\LostOdysseyRecomp\LoBloomPrefilterTest.exe
+.\out\build\release\LostOdysseyRecomp\LoBloomPrefilterTest.exe --vulkan
+```
+
+The D3D12 and Vulkan runs passed the HDR16 negative-value and alpha checks,
+1.5x and 3x exact-area weighting checks, and nine subpixel bright-point phase
+checks. The optional `--filter INPUT.bin WIDTH HEIGHT OUTPUT.f32` mode runs
+the production filter against packed little-endian HDR16 RGBA input and writes
+1280x720 float32 RGBA output. Three captured frame inputs (frames 10170–10172)
+passed an independent 3x3 area-average reference within half-precision output
+error; this validates filter math on those exports and does not establish a
+live visual fix. The candidate is persistently gated to AA3 and the identified
+scene draw; it can be disabled with `LO_DISABLE_BLOOM_PREFILTER=1` for an A/B
+comparison.
+
+The first candidate received partial same-scene user feedback: the flicker was
+reduced but remained visible. Its runtime log recorded a matching 3840x2160 to
+1280x720 guard hit. The follow-up candidate applies linear minification and
+magnification sampling only to the filtered bloom source before the existing
+linear blur passes. Its game build is available for the next scene comparison;
+the new linear-only fixture now exits successfully on both D3D12 and Vulkan.
+It covers 65 horizontal, vertical and diagonal phase responses, HDR negative
+RGB and alpha preservation, and adjacent red-step bounds of at most 0.0625 for
+a full-scale step of 2. The bound includes texture-filter weight quantization
+and HDR16 output rounding; a very weak diagonal tail may quantize to zero.
+These checks validate filter response only; same-scene user visual acceptance
+of the second candidate remains pending. The earlier area-filter checks remain
+the validated coverage. Evidence: `out/taa-bloom-fix/gpu-linear-d3d12.log` and
+`out/taa-bloom-fix/gpu-linear-vulkan.log`.
+
+The third candidate retains the AA3 condition and removes the transient
+`temporalJitter` gate. Captures 1653–1655 hit it on every frame; the upper
+robot is user-confirmed stable, while the lower enemy eyes still flicker. An
+asynchronous eight-frame trace (2687–2694) reports history reuse and no gaps;
+lower red-eye draws have valid depth and mostly accept history, so no history
+threshold change was made. The optional diagnostic build adds
+`LO_GEOMETRY_CAPTURE_WITH_RESOLVE_TRACE=1` with `LO_RESOLVE_TRACE_REQUEST`,
+`LO_GEOMETRY_CAPTURE_VS`, `LO_GEOMETRY_CAPTURE_VS2`,
+`LO_GEOMETRY_CAPTURE_INDEX_COUNT`, and `LO_TEMPORAL_DRAW_LOG_VS2` controls.
+It captures frame/submitted-draw metadata to identify actual uploaded geometry.
+This diagnostic build and its launcher are investigation tooling; they do not
+establish a lower-eye visual fix. The actual frame-7208 geometry capture found
+four draw pairs with identical VP, world, active-bone, vertex-buffer and index
+data, excluding a CPU upload mismatch for those pairs. D3D12 compute replay and
+Vulkan offscreen rasterization then matched clip-coordinate bits and color/depth
+coverage across all 32 jitter phases for those four 84-index pairs. A later
+report included additional 144-index eyes outside that capture, so complete
+scene coverage remains unestablished. Existing GPU fixture results are reused.
+
 ### Compact diagnostic receiver fixture
 
 The compact receiver checks are run from `tools/taa-collector` with `node --test collection-diagnostics.test.js`. The recorded 9/9 run covers schema 4 bounds, canonicalization, privacy allowlists, backend capabilities, references, receipt handling, deduplication, HTTP failures and compatibility with older receipts. The C++ fixture passed 68 checks with zero allocations, and the ledger/archive checks passed separately. These checks do not launch the game or establish visual acceptance.
