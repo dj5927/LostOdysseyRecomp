@@ -44,14 +44,18 @@ namespace gpu::renderer
 
     // Called on XE_SWAP before the frontbuffer is presented: finishes all work.
     void Flush();
+    // Record the frontbuffer COPY_SOURCE barrier on the still-open swap list.
+    // Must run before Flush so Present does not submit a second command list.
+    void PreparePresent(uint32_t physicalAddress);
 
     // Guest memory range was written by the GPU (resolve) or is known dirty.
     void InvalidateGuestRange(uint32_t physicalAddress, uint32_t size);
 
     // Resolves stay on the GPU: the surface last resolved to a guest physical
-    // address lives in a host texture. AcquireResolvedSurface flushes pending
-    // work and hands that texture over in COPY_SOURCE layout (format is a
-    // plume::RenderFormat), or returns nullptr when nothing was resolved there.
+    // address lives in a host texture. PreparePresent records the COPY_SOURCE
+    // barrier on the swap list; AcquireResolvedSurface then hands that texture
+    // over (format is a plume::RenderFormat) without a second Flush, or returns
+    // nullptr when nothing was resolved there.
     plume::RenderTexture* AcquireResolvedSurface(uint32_t physicalAddress, uint32_t& width, uint32_t& height, uint32_t& format);
     // Same renderer/presentation thread, after XE_SWAP Flush and acquisition.
     // True only for a full resolve of the actual processed scene target in the

@@ -151,15 +151,6 @@ bool Download(std::string_view url, const std::filesystem::path &destination, ui
 }
 #endif
 
-std::optional<PackageManifest> ReadInstalledManifest(const std::filesystem::path &path, std::string &error)
-{
-    std::ifstream input(path, std::ios::binary);
-    if (!input) return std::nullopt;
-    std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    if (text.size() > 4 * 1024 * 1024) { error = "installed manifest exceeds size limit"; return std::nullopt; }
-    return ParsePackageManifest(text, error);
-}
-
 } // namespace
 
 StartupResult PrepareAtStartup(const StartupOptions &options)
@@ -180,21 +171,9 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
         return result;
     }
     std::string error;
-    auto installed = ReadInstalledManifest(options.installRoot / "manifest.json", error);
-    if (!installed)
-    {
-        result.status = StartupStatus::UnmanagedBuild;
-        result.detail = error.empty() ? "no adjacent release manifest" : error;
-        return result;
-    }
-    const auto current = ParseVersion(options.currentVersion);
-    const auto package = ParseVersion(installed->version);
-    if (installed->developmentBuild || !current || !package || CompareVersions(*current, *package) != 0)
-    {
-        result.status = StartupStatus::CurrentPackageMismatch;
-        result.detail = installed->developmentBuild ? "development package" : "source/package version mismatch";
-        return result;
-    }
+    // The running game's version is sufficient; local package provenance is
+    // unrelated to whether a newer release can replace this installation.
+    const auto current = ParseVersion(options.currentVersion).value_or(*ParseVersion("0.0.0"));
 #ifdef _WIN32
     std::string releaseText;
     if (!ReadResponse(options.releaseApiUrl, 2 * 1024 * 1024, releaseText, error))
@@ -211,7 +190,7 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
         return result;
     }
     auto remote = ParseVersion(release->tag);
-    if (!remote || !ShouldUpdateToLatest(*current, *remote))
+    if (!remote || !ShouldUpdateToLatest(current, *remote))
     {
         result.status = StartupStatus::UpToDate;
         result.detail = release->tag;
@@ -263,14 +242,15 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
         return result;
     }
     update.installRoot = std::filesystem::absolute(options.installRoot);
-    const auto stagedHelper = update.stageRoot / "LostOdysseyUpdater.exe";
+    // Keep this updater's completion policy when installing an older release package.
+    const auto stagedHelper = options.installRoot / "LostOdysseyUpdater.exe";
     if (!std::filesystem::is_regular_file(stagedHelper) ||
         !std::filesystem::copy_file(stagedHelper, update.runnerPath, std::filesystem::copy_options::overwrite_existing,
                                     filesystemError))
     {
         std::filesystem::remove_all(operationRoot, filesystemError);
         result.status = StartupStatus::IntegrityFailed;
-        result.detail = "update package does not contain a usable helper";
+        result.detail = "installation folder does not contain a usable updater";
         return result;
     }
     if (!WriteApplyPlan(update, std::filesystem::absolute(options.executable), options.launchArguments, error))

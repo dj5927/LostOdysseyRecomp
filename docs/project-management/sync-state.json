@@ -846,7 +846,7 @@
         "Source key": "startup-allocation-error-context"
       },
       "title": "Report actionable guest allocation failure context",
-      "body_sha256": "61efab9a44c356e5d9ea6b74c5d4554c5a64abfb21d971baea0cf50577b38d56"
+      "body_sha256": "07c6554efa1f9e62821e2a784cc949021d1ea8b0b5c15c5fb12e1cd37ef4b058"
     },
     "temporal-upscaling-feasibility": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56dwE",
@@ -1296,11 +1296,11 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Release engineering",
-        "Status": "In Progress",
-        "Delivery": "In progress",
+        "Status": "Done",
+        "Delivery": "Released",
         "Release": "v0.5.0",
         "Source key": "pc-backend-release-readiness",
-        "Evidence": "Local formal v0.5.0 ZIP completed from clean source/tag/package commit 86ba2c1641bb9a8324e0b1710783bead0c39bf23: 44,080,866 bytes, SHA256 100e6491548579e3a13aa60564bc760bca121113915842f73817d1b943482ce4, source identity 896317f1a0ed86cea58fe353a2cb2104b4aa757efff4b72147e4da8ba2b82f7c. It used 1 PCH, 4 TUs, 2 links and 1 package; manifest/payload/hash/license checks passed; no functional tests, game runs or CI. Local tag v0.5.0 exists, but no remote push, public Release or anonymous download verification has occurred; public latest remains v0.4.2. Source 0.4.22/0.4.23 packages remain historical. Cross-GPU feedback is not a v0.5.0 pre-release gate."
+        "Evidence": "Public latest v0.5.0 Release 385591785, non-draft/non-prerelease, published 2026-09-09T22:18:20Z from main/source 0.5.0/tag f78f64fea8707b1447ada044abec2e0da4e6e9bc. LostOdysseyRecomp-windows-x64-v0.5.0.zip: 44,137,866 bytes, SHA256 1767dd1ab6cf675e48f28e00c64c8ce48b2f6dabd9706a3ee699f8039d60387b; anonymous download matched. Publication does not establish real-scene verification of the formal binary, player acceptance, whole-game/cross-GPU coverage, unknown-shader coverage, or c230 enemy-death repair."
       },
       "title": "Prepare v0.5.0 backend packages and documentation",
       "body_sha256": "fa280da894321f4db778bb3059c1bef149f5db1d2285df5db5e78a2d1904dde2"
@@ -1346,8 +1346,8 @@
       "fields": {
         "Kind": "Bug",
         "Area": "TAA",
-        "Status": "In Progress",
-        "Delivery": "In progress",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
         "Source key": "enemy-disappearance-flicker",
         "Evidence": "Accepted bounded c7 repair: candidate SHA256 1c9911a3ad6dc91acc5ac1a2cffd7503031b12a81b82b19dd526ce28345ca87a classifies four capture 2813–2815 VS paths (48 draws/frame) while retaining exact matrix, viewport and depth guards. In the same D-drive slot 02 Ghost Town — City of Ruins scene, six presented frames spanning about 11.37 seconds showed no flicker; the user accepts this scoped repair as successful. The sample is not continuous video; broader scene regression remains pending. Release evidence is unchanged."
       },
@@ -1435,7 +1435,7 @@
         "Area": "Content import",
         "Status": "Done",
         "Delivery": "Implemented",
-        "Evidence": "v0.5.0 target. Existing real three-package import and duplicate preservation are reused. The directory-filter repair prevents spa.bin entering *.fpi; fixed native 30-call evidence and frozen source-0.4.18 runtime02 read complete header/index/payload data for LODLC002/001/003, with zero spa.bin matches or crashes and a normal main menu. Thirteen imported files and isolated save/config remained unchanged; both games exited. Reward collection, dungeon play, user acceptance and publication remain untested. Current local source 0.4.21 is uncommitted.",
+        "Evidence": "Prior import evidence is retained. The completed 2026-09-10 four-save survey loaded and moved in the DLC Underground Research Division Lowest Level; runtime selected disc4 and logged LODLC003.fpi. This establishes the bounded room/resource path, not a DLC boss encounter, DLC completion, player acceptance, version change, or publication. Follow-up product F1 capture ZIPs are complete for all four slots; each has three consecutive frames, screenshot, temporal JSON, runtime/shader logs and source manifest, with CRC and included-source hashes matching. Evidence: out/save-temporal-survey-20260910/REPORT.md; F1-REPORT.md; f1-zip-audit.json.",
         "Source key": "dlc-import-support",
         "Release": "v0.5.0"
       }
@@ -1529,9 +1529,10 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Game progression",
-        "Status": "Todo",
-        "Delivery": "Not started",
-        "Source key": "chapter-disc-save-regression"
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Source key": "chapter-disc-save-regression",
+        "Evidence": "The completed 2026-09-10 four-save survey loaded and moved in four 3D scenes. user17 naturally entered Ipsilon Valley Road and the runtime opened sibling disc4, establishing bounded cross-disc save loading/resource availability. Follow-up product F1 capture ZIPs are complete for all four slots; each has three consecutive frames, screenshot, temporal JSON, runtime/shader logs and source manifest, with CRC and included-source hashes matching. A story-driven disc-change boundary, further save/restart behavior, player acceptance and publication remain untested. Evidence: out/save-temporal-survey-20260910/REPORT.md; F1-REPORT.md; f1-zip-audit.json."
       },
       "title": "Validate chapter and disc transitions on both editions",
       "body_sha256": "8d475698ffdea8dcac36c388be7a07968aae2138ae78ac8b846739a9d6198a9a"
@@ -1746,9 +1747,10 @@
       "fields": {
         "Kind": "Research",
         "Area": "Temporal rendering",
-        "Status": "Todo",
-        "Delivery": "Not started",
-        "Source key": "native-object-motion"
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Source key": "native-object-motion",
+        "Evidence": "Four-save survey complete: 288 renderer frames/864 stage traces, all 32 jitter phases. 24 unregistered scene/viewport VS candidates include at least 3 pass-through paths, so no 24-target TAA claim. Offline camera-only MV works; native object/skinned MV, palette producer/history and object generation remain open. Four product F1 ZIPs each contain 3 consecutive frames, screenshot, temporal JSON, logs and manifest; CRC/source hashes match. Static anchors: skeletal 823CB350→823C87D8; material 8258A958/823CB538; atoms 822B5938; camera current/previous/velocity. No repair, FG, build, release or acceptance. Evidence: out/save-temporal-survey-20260910/REPORT.md, analysis-summary.json, submission-research.md, F1-REPORT.md, f1-zip-audit.json."
       },
       "title": "Develop native object and skeletal motion vectors",
       "body_sha256": "8d1455d9f1eac1b553a4c033fb945b6a2b4ae02e277b54c7fd35a970c76e917e"
@@ -1883,19 +1885,23 @@
         "Source key": "startup-allocation-reporter-validation"
       },
       "title": "Confirm Issue 6 recovery on the original machine",
-      "body_sha256": "e83be5b09142fc54eef6375b11eaa46e8f59d522ac590f81ef6ec1fab68be12a"
+      "body_sha256": "5aaa17a6f5aa48e49a324d90cd5d8ccb814cd56cf905942592f476a9b75ac028"
     },
     "recompiler-remaining-contracts": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56fO0",
       "fields": {
         "Kind": "Research",
         "Area": "Recompiler",
-        "Status": "Todo",
-        "Delivery": "Not started",
-        "Source key": "recompiler-remaining-contracts"
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Source key": "recompiler-remaining-contracts",
+        "Evidence": "Generated-source guard sub-scope: ppc_codegen generate produced 247 C++ units with 843 .u32/zero .u64 selectors and unchanged instruction-stream hashes for 246 units; seven guard fixtures and CMake/LoPpcCodegenCheck dependency checks passed. Historical 3,258/109/843-table-44,523 evidence was reused without rerun. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. Its 44,237,061-byte ZIP SHA-256 is 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218; 50 file hash/CRC/version/clean-provenance and four anonymous 200-download asset checks passed. Remaining PPC contracts, game run, Issue #14 root cause and player acceptance remain open.",
+        "Start date": "2026-09-10",
+        "Release": "v0.5.4",
+        "Target date": null
       },
-      "title": "Audit remaining PPC translation contracts",
-      "body_sha256": "07cf309a3e521f4f16f8e1edd0d1475f6a728d1e9801f44ac3a4369a118c58be"
+      "title": "Maintain PPC generated-source provenance guard and remaining contracts",
+      "body_sha256": "2577fdb1ded0bcf386a72617fed62f59815d21aa49fa2a5c7fa0b77c42efc522"
     },
     "embsec-segment-research": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56fPQ",
@@ -1976,12 +1982,11 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Runtime",
-        "Status": "Done",
-        "Delivery": "Awaiting validation",
-        "Release": "v0.4.2",
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Release": "v0.5.6",
         "Start date": "2026-09-07",
-        "Target date": "2026-09-08",
-        "Evidence": "The maintainer closed the issue as fixed in v0.4.2. A fresh original-machine diagnostic log and reporter confirmation are still absent. The separately recorded v0.4.0 allocation-diagnostics enhancement is not itself proof of recovery. https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598",
+        "Evidence": "Issue #6 is OPEN. Three v0.5.4 logs on 2026-09-11 each record reserve any address with Win32/preferred error 6; on 2026-09-12 the reporter stated that the same failure persists after a clean extraction. The historic v0.4.0 diagnostic enhancement is implemented, but no repair, root cause or reporter recovery is established. Requested environment details (Windows build, architecture, compatibility layer, RAM/pagefile, ZIP version and older-build result) and the latest complete clean-extraction log are pending. https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559",
         "Source key": "issue-6-report"
       }
     },
@@ -1991,15 +1996,15 @@
         "Kind": "Feature",
         "Area": "Installation",
         "Status": "Done",
-        "Delivery": "Validated",
-        "Release": "v0.5.0",
+        "Delivery": "Released",
+        "Release": "v0.5.4",
         "Source key": "qol-installer-input-layout",
         "Start date": "2026-09-08",
         "Target date": "2026-09-08",
-        "Evidence": "Installer modernization refinement implemented and validated in bounded offscreen UI scope: nine direct UI checks and two affected controller checks passed. The final reduced-copy normal/narrow renders were inspected. No manual foreground GUI acceptance, installer EXE build, package, commit, or release is claimed."
+        "Evidence": "The locally accepted PostMessageW installer drag repair is released in v0.5.4. Its message-only HWND DragDispatch case passed 1/1; the legacy UI fixture remains limited by an unchanged foreground setup assertion. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. User acceptance remains limited to the reported drag path."
       },
       "title": "Expand installer recognition for supported game inputs",
-      "body_sha256": "d4a94b25547fca47b7fad343475484952b0748533df0218a244ad1e6954234e0"
+      "body_sha256": "42dd11e1a69aea54e92b70663b7cda94a884434c554ec7f09a9d0256733393f0"
     },
     "qol-empty-game-path-default": {
       "id": "PVTI_lAHOAAsUY84Biy1azg5630U",
@@ -2150,11 +2155,11 @@
         "Kind": "Feature",
         "Area": "Updates and packaging",
         "Status": "Awaiting validation",
-        "Delivery": "Validated",
-        "Release": "v0.5.3",
+        "Delivery": "Implemented",
+        "Release": "v0.5.6-hotfix1",
         "Source key": "qol-github-binary-updater",
         "Target date": "2026-09-08",
-        "Evidence": "v0.5.3 is published Latest from 6fa9adc281c5693ac0af8a47fec815b20c29ff50; CI 34505504344, package verification and four anonymous public-asset checks passed. The updater repair remains host-validated; no full update transaction, game run or player acceptance is recorded. The 848,896 B standalone updater SHA256 is 1ad8a0b6e605f050376d59050bf94d598bbd9ec2965610df30cd5e6083fcc5a2.",
+        "Evidence": "Implemented locally, unpublished and awaiting validation; user-declared source/release target v0.5.6-hotfix1. A newer release downloads and overwrites without requiring an installed release manifest or executable hash, retaining safe extraction, rollback and exit-before-replace. Standalone and game startup treat a missing game installation as version 0.0.0; after a successful install the helper asks before launch (default No), while silent, failed and launch-failed paths do not launch automatically. Retained source-0.5.6 hidden synthetic evidence: standalone 44/44; LoUpdaterTest PASS version/asset/integrity/staging/rollback/helper/preservation; HelperContext PASS Unicode-cwd empty-install path without unsolicited launch. The locally copied helper preserves consent when an older package is fetched. No rebuild or test rerun is recorded because behavior evidence is unchanged. No real game, public download, visible prompt interaction, player acceptance or release is recorded.",
         "Start date": null
       },
       "title": "Add safe GitHub binary update checks",
@@ -2243,8 +2248,8 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Desktop windowing",
-        "Status": "In Progress",
-        "Delivery": "In progress",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
         "Evidence": "Source 0.5.6 corrected the failing legacy DPI144 fixture. Final actual D3D12 DPI144 evidence reports an SDL client of 3840x2160, raw output 2560x1440, physical output and swapchain 3840x2160 at 363.065s, and a 3840x2160 normal-ground screenshot. The intermediate 3846x2177 observation is retained as non-final. Vulkan and player acceptance remain pending; release remains pending.",
         "Source key": "render-output-dpi-presentation-diagnosis",
         "Release": "v0.5.0"
@@ -2297,10 +2302,10 @@
       "fields": {
         "Kind": "Research",
         "Area": "Runtime performance",
-        "Status": "In Progress",
-        "Delivery": "Validated",
-        "Release": "v0.5.0",
-        "Evidence": "Source/release fixed at 0.5.0 by user correction. Content-checked shader reuse, exact vertex sample comparison, reused index/primitive scratch, endian loop specialization and precise Windows deadline waits implemented. Focused geometry/timer checks passed. Fixed Map16 D3D12 4K/TAA3/cap60: RTSS 54.05 to 58.33 to 59.76 FPS; final mean 16.7238 ms/p95 17.1576 ms/1196 consecutive valid frames. Vertex/index 1.5741/1.9266 to 0.6519/0.2914 ms. Output normal, no new shader/pipeline/texture or in-window captures. External load and collector cost differ; bounded near-60 result, not whole-game acceptance. Saves/settings unchanged, all games closed. No commit/push/release.",
+        "Status": "Awaiting validation",
+        "Delivery": "Implemented",
+        "Release": "v0.5.4",
+        "Evidence": "Implemented: seven VS paths and the exact 99c2/67b10 PS pair for the new captures. CPU contract checks passed (500,868 retained plus 299,256 additional); they do not establish scene or player behavior. Final source-0.5.4 build exited 0: 83,400,192 B, SHA256 504f08ac86b83edf5bddc10ed66c19aa19f0e7a2d03a3f991dd1c9e4c8cc4f30, staged under out/releases/LostOdysseyRecomp-v0.5.4-taa-new-scenes-local. Local commit e2e93bc records this TAA mapping/reconstruction, fixtures, offline audit and notes. The separately named game-directory copy did not replace v0.5.3; no launch or player acceptance. FPS renderer work remains unstaged except the shared-pair line. Push, tag and release are pending; 8d977/02d8 remain unimplemented and nine-path acceptance is retained.",
         "Source key": "4k-runtime-performance-diagnosis"
       },
       "title": "Diagnose observed 4K runtime performance",
@@ -2311,14 +2316,129 @@
       "fields": {
         "Kind": "Bug",
         "Area": "TAA and shadows",
-        "Status": "Awaiting validation",
-        "Delivery": "Validated",
+        "Status": "In Progress",
+        "Delivery": "In progress",
         "Release": "v0.5.0",
-        "Evidence": "The Map16 three-slot fcbb/c7/e8c0+576d/c8 repair passed 20,635 CPU checks and a 3840x2160 continuous 32-phase run: all summaries ready/completed/reused, no gap or jitter miss, with 160 material/depth VP uploads bit-identical. Accepted bounded follow-up: candidate SHA256 1c9911a3ad6dc91acc5ac1a2cffd7503031b12a81b82b19dd526ce28345ca87a classifies four c7 VS paths from captures 2813–2815 (48 draws/frame) with exact matrix, viewport and depth guards retained. In the same D-drive slot 02 Ghost Town — City of Ruins scene, six intermittent presented frames spanning about 11.37 seconds showed no flicker; the user accepted this scope. This does not validate broader shader families or release.",
+        "Evidence": "Prior Map16 fcbb/c7/e8c0+576d/c8 scope remains accepted. Frozen source-0.5.2 candidate 2f1cea96cd08cb7cfcbd0369e7eee8618e13c169d885a4c6caeaf60953416624 added 11 confirmed position VS; build/provenance and one 10,658-check affected suite passed. Four D3D12 1280x720 TAA scenes recorded 2,566 applications without rejection; White Boa gate/Valley Road variation fell, while forest/effect residuals remain. Static pattern research found two unimplemented PS compensation gaps: 99c2+fa9c9d4fe29fc6ce and 99c2+67b10ad6a0e3d811; WorldMap lacks same-draw camera and Valley ROI does not prove a brightness flip. Four local F1 ZIP/source checks passed; automatic immediate upload pending. Local commit 3c825ce23234a6f16ccad25e40fe4c6e7b820b65 records this bounded repair; it is unpushed on trail/updater and is not a release. No new acceptance. Evidence: out/save-temporal-survey-20260910/repair/VALIDATION.md; pattern-research/REPORT.md.",
         "Source key": "4k-taa-ground-shadow-diagnosis"
       },
       "title": "Diagnose reported 4K TAA ground and shadow blacking",
       "body_sha256": "8cf69c098fcb77953d34ad9e4dbd4b2abeb833accd45020b0e055c8a0cda46e4"
+    },
+    "assembly-level-performance-analysis-tool": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6bCMw",
+      "fields": {
+        "Kind": "Infrastructure",
+        "Area": "Performance tooling",
+        "Status": "Awaiting validation",
+        "Delivery": "Released",
+        "Release": "v0.5.4",
+        "Start date": "2026-09-10",
+        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Actual-game sampling and player acceptance remain pending.",
+        "Source key": "assembly-level-performance-analysis-tool",
+        "Target date": "2026-09-10"
+      },
+      "title": "Build an assembly-level performance analysis tool",
+      "body_sha256": "f1331bf308c8b20faac0f59028eb2b4baade896668af26744770c3331e826bb7"
+    },
+    "f1-capture-archive-timeout": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6bP_I",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Diagnostics",
+        "Status": "Awaiting validation",
+        "Delivery": "Released",
+        "Release": "v0.5.4",
+        "Start date": "2026-09-10",
+        "Evidence": "The archive wait is 60000 to 180000 ms with existing cleanup and Optimal compression retained. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. No timeout recovery test, game run or player acceptance is recorded.",
+        "Source key": "f1-capture-archive-timeout",
+        "Target date": null
+      },
+      "title": "Extend the F1 capture archive timeout",
+      "body_sha256": "a5e3ec8239de4cab8074f0f62859a8fa6078d06f08df6a73d4100721277b529a"
+    },
+    "release-reuse-local-ppc-static-library": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6bw2g",
+      "fields": {
+        "Kind": "Infrastructure",
+        "Area": "Release Engineering",
+        "Status": "In Progress",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
+        "Start date": "2026-09-10",
+        "Evidence": "Hosted PPC consumption passed in published v0.5.6: CI 34726533463 retrieved runner key d8919775 from immutable private commit a6cd91ea, restored and checked library ba3e4c4d without generated PPC compilation or a new library link. Producer 50b8ad/6a6ed031 and the representation proof remain historical. lo.ppcAutoSync=false; source-layer key normalization is not implemented.",
+        "Source key": "release-reuse-local-ppc-static-library"
+      },
+      "title": "Reuse a locally built PPC static library in release workflows",
+      "body_sha256": "065ef4da44558a36989d7bf71907938794bd31346d8dadea61ae3990237703be"
+    },
+    "issue14-cage-crash-investigation": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6qSZo",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Gameplay progression",
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Start date": "2026-09-12",
+        "Evidence": "Investigation active. The original attached log is historical source v0.5.0 (LR 829DFDCC, CTR 829DFEF0). A second reporter log is historical source v0.4.2 (LR 823CB53C, CTR 0), with a virtual call at guest 823CB538 matching a call site discussed in docs/notes/issue12-root-cause.md, but without an object-freeing capture. Neither log establishes a current-version reproduction or a shared root cause. The current gc_render_flush.cpp repair exists at 17e3ab7. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records this task's current work and is integrated with main locally, unpushed and unreleased; no new runtime validation or reporter acceptance is recorded.",
+        "Source key": "issue14-cage-crash-investigation"
+      }
+    },
+    "issue15-save-hang-investigation": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6qSbc",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Save & Storage",
+        "Status": "In Progress",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
+        "Start date": "2026-09-12",
+        "Evidence": "The StageArchive manifest repair is included in published v0.5.6 and package/public-download checks passed. Investigation remains active: the original source-v0.5.4 log retained 60 fps/audio until closure; mixed installs remain unknown because up-to-date compares only version. No helper/game rerun or player acceptance; Issue #15 hang root cause remains unknown.",
+        "Source key": "issue15-save-hang-investigation"
+      }
+    },
+    "issue16-train-freeze-investigation": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6qSc8",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Gameplay progression",
+        "Status": "Awaiting validation",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
+        "Start date": "2026-09-12",
+        "Evidence": "The particle compatibility repair is included in published v0.5.6; CI/package/public-download evidence verifies delivery only. Historical bounded local main d50c240d target replay passed on D3D12/local Asian Disc 3 from user09 and was not repeated against the release package. Reporter/player acceptance, Vulkan, other-region and full-game coverage remain pending.",
+        "Source key": "issue16-train-freeze-investigation"
+      }
+    },
+    "release-v0-5-6": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6rqyg",
+      "fields": {
+        "Kind": "Release",
+        "Area": "Release Engineering",
+        "Status": "Done",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
+        "Start date": "2026-09-12",
+        "Evidence": "Published v0.5.6 at 2026-09-13T00:05:47Z from source 7124f4b3912df715167acf01f469974045cc3e08. CI 34726533463 (workflow fe37c1a4e3be20ce6bc3e339ecadb187b80329cf) succeeded. Delivery verification passed: 44,255,182-byte ZIP SHA-256 ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9, 50 manifest files and CRC/member hashes; updater SHA-256 d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74. All four public assets passed anonymous HTTP 200, size and hash checks.",
+        "Source key": "release-v0-5-6"
+      },
+      "title": "Publish v0.5.6 bug-fix release",
+      "body_sha256": "2d7d4058207dfecdc74659948f1c6e6df446acc2c45b908a2a23e16f3181cc8e"
+    },
+    "performance-and-shader-startup": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6qLPE",
+      "fields": {
+        "Evidence": "The bounded city-performance work is included in published v0.5.6 and package/public-download checks passed. Historical local route evidence remains bounded (mean >=58 met), not strict S4, full-game or player acceptance. Remaining shader-startup/performance investigation stays In Progress.",
+        "Kind": "Feature",
+        "Area": "Runtime performance",
+        "Status": "In Progress",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
+        "Start date": "2026-09-11",
+        "Source key": "performance-and-shader-startup"
+      },
+      "title": "Investigate remaining stalls and shader-startup compiler failures",
+      "body_sha256": "41489dbefd4270a8d81d104fb1050e126ecb5703dd059ab4cd8a3972b0fb1184"
     },
     "vulkan-ps-loopend-predicate-exit": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6sV44",

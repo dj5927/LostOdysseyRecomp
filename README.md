@@ -19,11 +19,16 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
-## New in v0.5.3
+## New in v0.5.6
 
-- Add compact opt-in TAA diagnostics collected in bounded CPU windows, with delivery receipts and no game-thread upload wait.
-- Record bounded TAA consumer and texture-producer binding evidence for shader review.
-- Improve updater ZIP staging for packages with an explicit root-directory entry.
+- Fix updater manifest transactions, add the narrow Issue #16 particle-material fallback, and include the PPC prebuilt release path with bounded renderer performance improvements.
+- Published Windows x64 package: [v0.5.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6). The Issue #16 fix passed the target scene on a local main build using D3D12/Asia Disc 3; the formal package passed integrity checks. Whole-game, Vulkan, other-region and player acceptance remain unverified.
+
+## New in v0.5.4
+
+- Guard PPC source generation against stale inputs, incomplete output and obsolete 64-bit jump-table switches.
+- Add an optional Win64 external assembly profiler with offline reports.
+- Extend the F1 menu ZIP archive wait for large captures and fix installer drag dispatch.
 
 Earlier release details are maintained in the [changelog](CHANGELOG.md).
 
@@ -35,7 +40,7 @@ Earlier release details are maintained in the [changelog](CHANGELOG.md).
 
 No Python or Visual Studio installation is needed for the release package. Later launches reuse the shader cache. Keep your save and profile folders when updating.
 
-The updater checks GitHub's latest Release. A higher numeric version updates normally; an equal numeric version with a different `-suffix`, such as `0.5.0-hotfix1`, also triggers an update. The installed build must contain this updater policy before it can take effect.
+The published updater checks GitHub's latest Release: a higher numeric version updates, and an equal numeric version with a different `-suffix` also triggers an update. The unreleased local `v0.5.6-hotfix1` target additionally permits recovery from an empty updater-only folder and stale or malformed local metadata. After a successful update, that local helper asks whether to launch the game and defaults to **No**; silent runs complete without launching. Download integrity checks, safe extraction and rollback remain enabled.
 
 | Requirement | Supported configuration |
 | :--- | :--- |
@@ -119,7 +124,7 @@ Rumble is disabled by default; `LO_CONTROLLER_RUMBLE=1` enables it. For Ring act
 | :--- | :--- |
 | `LostOdysseyRecomp/` | Host kernel, graphics, audio, input and debugging |
 | `LostOdysseyRecompLib/` | Configuration; ignored `private/` game data and generated `ppc/` code |
-| `tools/` | Recompilers, dependency patches and Ghidra scripts |
+| `tools/` | Recompilers, dependency patches, Ghidra scripts and the optional [assembly profiler](tools/asm-profiler/README.md) |
 | `thirdparty/` | Rendering, audio and other dependencies |
 | `docs/` | Current status, guides, research and historical archives |
 

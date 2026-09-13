@@ -9,6 +9,9 @@ struct PacingSample
     // Previous present end -> current final flush start. Includes post-present
     // diagnostics, PM4 production/execution and waits; this is NOT CPU time.
     double betweenMs = 0;
+    // Diagnostics after the previous swap, within the following betweenMs
+    // when swaps/presents are one-to-one. Never add these to frame_ms.
+    double previousSwapLogMs = 0, previousSwapPostMs = 0;
     bool hasPrevious = false;
     // The swapchain accepted this present API call; this does not imply scanout.
     bool presentAccepted = false;

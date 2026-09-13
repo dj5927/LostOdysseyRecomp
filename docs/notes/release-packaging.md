@@ -66,6 +66,142 @@ applies the checked-in dependency patches, builds Release, then packages the run
 It requires no ISO or archive assets on the runner. A successful local build is not evidence
 that the hosted workflow has run; check the actual Actions result before publishing.
 
+## Local prebuilt PPC library — historical checkpoint
+
+The release workflow adds a `rebuild_ppc` boolean input, defaulting to `false`.
+The default path restores the PPC static library and receipts from the immutable
+private `ppc/<key>` branch selected by the input/compiler key. The XEX input still
+comes from the separately pinned private input commit and is checked against its
+pinned SHA256. Both paths
+run the existing checkout and `Generate game code` step with its validation; the
+prebuilt path skips only generated PPC C++ compilation. Setting `rebuild_ppc: true`
+selects the retained source compilation path, which is needed when an old version
+tag does not contain `ppc_prebuilt.py`.
+
+Locally, `LO_PREBUILT_PPC_DIR` is optional and points CMake at the restored bundle.
+CMake imports `LostOdysseyRecompLib.lib` and omits generated PPC C++ compilation;
+clearing the variable selects the normal source build. The contract is x64
+clang-cl, Release, `/MT` static CRT and non-LTO. Retain codegen input/output
+receipts, simde/mmio and CMake hashes, compile flags/includes, shard metadata and
+SHA256 for shards and the restored library.
+
+For offline bundle diagnostics, from `cmd` or an x64 Developer Command Prompt,
+initialize the compiler environment and export to the new empty directory:
+
+```cmd
+call tools\setup_windows.bat
+python tools\release\ppc_prebuilt.py export --build-dir out\build\fps-0.5.4 --output out\ppc-export
+```
+
+Then restore and check the fresh export from PowerShell:
+
+```powershell
+python tools/release/ppc_prebuilt.py restore --bundle out/ppc-export --output out/ppc-prebuilt
+python tools/release/ppc_prebuilt.py check --bundle out/ppc-prebuilt --build-dir out/build/fps-0.5.4
+```
+
+`export` only incrementally builds the PPC library and is retained for offline
+diagnostics. The current upload path is the post-build hook or
+`ppc_sync.py sync`; it resolves PPC by immutable `ppc/<key>` branch and does not
+require a PPC workflow SHA update. Do not place bundles in the public checkout or
+release assets.
+
+The standalone `test-ppc-prebuilt.yml` workflow runs the 13 synthetic bundle
+checks separately from release packaging; those checks pass, and actionlint
+1.7.12 passes for both workflows. The real Release/x64 clang-cl PPC-only export
+also succeeded: four shards, 138,454,798 bytes, SHA256
+`ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`. Restore and
+the isolated CMake `LoPpcPrebuiltCheck` passed with the `/MT` non-LTO contract.
+The runtime Ninja dependency/link graph has zero PPC compile commands and
+references the imported library; the runtime was not relinked or launched.
+
+The four shards were uploaded to the existing private repository at commit
+`77f076e0e03966736cbf8919ce793bafadce82d9`, and API readback matched the local
+manifest and all four blob IDs. Evidence is retained in
+`out/ppc-evidence/upload-verification.json` and `runtime-graph.json`.
+
+The implementation was pushed to `main` at commit
+[`2b5b1d1d0d3c0a1a2d5404cdc29bbf9f3aa75e4e`](https://github.com/freefrank/LostOdysseyRecomp/commit/2b5b1d1d0d3c0a1a2d5404cdc29bbf9f3aa75e4e).
+The standalone synthetic PPC workflow completed successfully in
+[run 34553414428](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34553414428).
+That historical checkpoint predates the published v0.5.6 release.
+
+Historical status, 2026-09-10: resolving the library by `ppc/<key>` instead of a
+pinned private SHA is pushed to github/main as
+[`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c).
+Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
+passed; the v0.5.6 hosted Release CI and publication subsequently passed.
+At that checkpoint, this work was Unreleased and was not in published v0.5.4.
+
+## Local PPC auto-sync — historical checkpoint
+
+Historical status, 2026-09-10: the auto-sync source is pushed to github/main as
+[`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c).
+Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
+passed; the v0.5.6 Release subsequently passed. At the historical checkpoint, the
+workflow was absent from published v0.5.4 and had no hosted release end-to-end run.
+User gameplay acceptance remains separate.
+
+The local post-build hook requires `git config --local lo.ppcAutoSync true`.
+The CMake option reads that setting; if an existing cache is `OFF`, reconfigure
+with `-DLO_PPC_AUTO_SYNC=ON` as needed, while `OFF` disables the hook. CMake alone
+does not grant the script's upload authorization. After a successful source PPC library build, it invokes
+`ppc_sync.py sync --already-built`. A matching input and compiler-argument SHA256
+key reuses the existing immutable private branch without compilation or upload;
+a changed key creates `ppc/<key>` with dynamically sized shards of at most 40 MiB
+and retains older branches.
+
+The hook is excluded for CI, imported libraries and `LO_PPC_SYNC_ACTIVE`. Release
+callers reuse the already-built library. Other configurations may create the
+independent `out/build/ppc-sync-Release` configuration for a one-time Release PPC
+build with the hook disabled, preventing recursion. Sync failures surface as a
+build or retry failure and do not silently fall back. The `key` command is
+read-only and does not use the network; `--force` is a one-run manual override,
+while `--already-built` is for the internal hook.
+
+Nineteen synthetic sync cases pass. Separately, the built-library roundtrip and
+change-during-build cases pass. The real CMake `LoPpcAutoSync` target passed after
+re-archiving the library, with zero PPC C++ compilation and no runtime build or
+launch. It created private branch `ppc/4d21302a4eef224c82691878fbcb6cd2f427b60d676b3e692e78598257b5d1b4`
+at commit `5e80263491b39dc0012146dd3a31cf5eea533225`; the subsequent same-key
+sync reported unchanged. Sparse-clone restore and `check` passed against the
+isolated Release contract, whose key matched. Evidence is retained in
+`out/ppc-auto-sync-evidence/build-sync.log`, `github-output.txt`,
+`github-output-second.txt` and `out/ppc-sync/receipt.json`. The auto-sync source is pushed to github/main as
+[`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c);
+hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
+passed, and a new Release remains pending.
+
+`export` requires a new empty output directory; `restore` may use an existing
+output directory according to its normal merge/replace behavior. At the historical
+checkpoint, the PPC flow, local validation and private upload were complete. Hosted release end-to-end
+validation, a new release, and user acceptance remained pending at that checkpoint.
+
+## Published v0.5.6 release — 2026-09-13
+
+The merged `main` source version 0.5.6 was built by Release CI `34726533463` for
+source commit `7124f4b3912df715167acf01f469974045cc3e08`; publication completed at
+`2026-09-13T00:05:47Z`. The producer PPC key
+`50b8ad415be405b302252558e0fd960913c3ce6a15d991ae3607142f1a3821a5` was uploaded at
+private commit `6a6ed03152431a232165e35b19b7f94f09bbbda9`. The CI-compatible key
+`d89197759478260d7e135b654993d57cff30127f1d41cf30c410fd0ae4be27f4` was consumed
+from private commit `a6cd91ea35261dd202b78e93b4acb65973369d07`. The library SHA-256
+remained `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`; no
+generated PPC C++ compilation or new PPC static-library link occurred. The existing
+library was linked into the runtime. The 19 input representation differences
+were explained by five line-ending and fourteen symlink placeholder/target-content
+differences; generated outputs, PPC headers and the Release contract remained
+identical. `lo.ppcAutoSync=false` remains unchanged. This records CI compatibility,
+not source-level key normalization.
+
+The published ZIP is 44,255,182 bytes with SHA-256
+`ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9`; all 50
+manifest files passed hash/CRC and clean source-version provenance checks. The
+standalone updater is 849,920 bytes with SHA-256
+`d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74` and matches
+the ZIP copy. All four anonymous downloads returned HTTP 200 with verified hashes
+and sizes. Evidence: `out/v0.5.6/release/{published-release.json,public-download-check.json,delivery-verification.json,ci-run.json,ci-ppc-consumption.json,ppc-ci-upload.json,release-source.json}`.
+
 ## Verification
 
 Hosted build 34010819664 completed successfully for commit `2a3ffcc` and supplied v0.1.

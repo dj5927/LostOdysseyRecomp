@@ -19,11 +19,16 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
-## v0.5.3 新增
+## v0.5.6 新增
 
-- 增加有界 CPU 窗口的 opt-in TAA compact 诊断，提供投递回执且上传不等待游戏线程。
-- 记录有界的 TAA 消费者与纹理生产者绑定证据，供 shader 审阅使用。
-- 改进带显式根目录条目的 ZIP 包暂存处理。
+- 修复更新器 manifest 事务，增加 Issue #16 的窄范围 particle-material 回退，并加入 PPC 预编译发布路径及有界的渲染性能改进。
+- Windows x64 发布包：[v0.5.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6)。#16 修复已在本地 main 构建上通过 D3D12／亚洲 Disc 3 目标场景；正式发布包已通过完整性检查。全游戏、Vulkan、其他区域及玩家验收仍未覆盖。
+
+## v0.5.4 新增
+
+- 防止 PPC 源码生成使用过期输入、残缺输出或旧式 64 位跳转表 switch。
+- 增加可选的 Win64 外部汇编分析器，支持离线报告。
+- 延长大体积捕获的 F1 菜单 ZIP 归档等待时间，并修复安装器拖动分发。
 
 更早版本的改动见[更新日志](CHANGELOG.md)。
 
@@ -35,7 +40,7 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 
 发布包不需要安装 Python 或 Visual Studio。后续启动会复用着色器缓存；更新程序时请保留存档和档案文件夹。
 
-更新器会检查 GitHub 最新 Release。数字版本更高时按通常规则更新；数字版本相同但 `-后缀` 不同（例如 `0.5.0-hotfix1`）时也会触发更新。已安装的程序必须先包含这项更新器逻辑，策略才会生效。
+已发布的更新器会检查 GitHub 最新 Release：数字版本更高时更新，数字版本相同但 `-后缀` 不同时也会触发更新。尚未发布的本地 `v0.5.6-hotfix1` 目标另外允许从只有 updater 的空目录以及过期或损坏的本地 metadata 恢复。更新成功后，该本地 helper 会询问是否启动游戏，默认选择**否**；silent 运行会完成更新但不启动游戏。下载完整性校验、安全解压和回滚仍然保留。
 
 | 要求 | 支持范围 |
 | :--- | :--- |
@@ -119,7 +124,7 @@ SDL 已映射手柄与键盘可同时用于玩家 1。未映射摇杆需要 SDL 
 | :--- | :--- |
 | `LostOdysseyRecomp/` | 宿主内核、图形、音频、输入与调试 |
 | `LostOdysseyRecompLib/` | 配置；Git 忽略的 `private/` 游戏数据和 `ppc/` 生成代码 |
-| `tools/` | 重编译工具、依赖补丁、Ghidra 脚本 |
+| `tools/` | 重编译工具、依赖补丁、Ghidra 脚本，以及可选的[汇编采样分析器](tools/asm-profiler/README.zh-CN.md) |
 | `thirdparty/` | 渲染、音频及其他依赖 |
 | `docs/` | 当前状态、指南、逆向记录与历史归档 |
 

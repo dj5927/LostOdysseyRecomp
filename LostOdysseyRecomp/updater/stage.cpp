@@ -81,7 +81,6 @@ bool StageArchive(const std::filesystem::path &archivePath, const std::filesyste
     std::map<std::string, mz_uint> entries;
     std::string root;
     mz_uint manifestIndex = UINT32_MAX;
-    std::string manifestArchivePath;
     for (mz_uint index = 0; index < count; ++index)
     {
         mz_zip_archive_file_stat stat{};
@@ -113,7 +112,7 @@ bool StageArchive(const std::filesystem::path &archivePath, const std::filesyste
         }
         const auto key = Lower(relative);
         if (!entries.emplace(key, index).second) { error = "ZIP contains duplicate payload paths"; return false; }
-        if (key == "manifest.json") { manifestIndex = index; manifestArchivePath = name; }
+        if (key == "manifest.json") manifestIndex = index;
     }
     if (manifestIndex == UINT32_MAX) { error = "ZIP does not contain a root manifest.json"; return false; }
     size_t manifestSize = 0;
@@ -156,6 +155,14 @@ bool StageArchive(const std::filesystem::path &archivePath, const std::filesyste
             return false;
         }
     }
+    // Keep the original package identity alongside its payload. The manifest
+    // cannot hash itself in files, but must participate in apply and rollback
+    // so the next startup validates the newly installed executable.
+    const auto manifestDestination = stageRoot / "manifest.json";
+    if (!WriteExtracted(archive, manifestIndex, manifestDestination, error)) return false;
+    const auto manifestHash = Sha256File(manifestDestination, error);
+    if (manifestHash.empty()) return false;
+    manifest->files.push_back({"manifest.json", manifestHash});
     update.version = manifest->version;
     update.operationRoot = operationRoot;
     update.stageRoot = stageRoot;

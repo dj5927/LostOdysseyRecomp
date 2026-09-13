@@ -123,24 +123,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     {
         std::ofstream result(plan->installRoot / ".update" / "last-result.txt", std::ios::trunc);
         result << "failed=" << error << "\n";
-        std::string launchError;
-        Launch(*plan, launchError);
-        return Fail(L"The update could not be installed. The previous files were restored and restarted.\n\n" +
+        return Fail(L"The update could not be installed. Previous files were restored where possible.\n\n" +
                     std::filesystem::path(error).wstring());
-    }
-    if (!Launch(*plan, error))
-    {
-        const auto updateLaunchError = error;
-        std::string rollbackError, oldLaunchError;
-        const bool rolledBack = updater::RollbackInstalledFiles(*plan, rollbackError);
-        const bool relaunched = rolledBack && Launch(*plan, oldLaunchError);
-        std::string detail = updateLaunchError;
-        if (!rolledBack) detail += "; rollback failed: " + rollbackError;
-        else if (!relaunched) detail += "; previous version relaunch failed: " + oldLaunchError;
-        std::ofstream result(plan->installRoot / ".update" / "last-result.txt", std::ios::trunc);
-        result << "failed=" << detail << "\n";
-        return Fail(L"The updated game could not be launched. The updater restored the previous version.\n\n" +
-                    std::filesystem::path(detail).wstring());
     }
     std::ofstream result(plan->installRoot / ".update" / "last-result.txt", std::ios::trunc);
     result << "updated=" << plan->version << "\n";
@@ -154,5 +138,15 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
     wchar_t module[MAX_PATH]{};
     if (GetModuleFileNameW(nullptr, module, DWORD(std::size(module))))
         MoveFileExW(module, nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
+    wchar_t silent[2]{};
+    const bool ask = !GetEnvironmentVariableW(L"LO_UPDATER_SILENT", silent, DWORD(std::size(silent)));
+    if (ask && MessageBoxExW(nullptr, L"The update is complete. Open Lost Odyssey now?",
+                            L"Lost Odyssey Updater", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2,
+                            MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US)) == IDYES)
+    {
+        if (!Launch(*plan, error))
+            return Fail(L"The update was installed, but the game could not be opened.\n\n" +
+                        std::filesystem::path(error).wstring());
+    }
     return 0;
 }

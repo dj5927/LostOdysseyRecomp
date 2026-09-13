@@ -701,6 +701,7 @@ namespace gpu
             if (captureSwap && swaps == captureSwap) renderer::RequestDebugCapture();
             renderer::FinishDebugCapture(frontbuffer);
             const auto timingFlush = std::chrono::steady_clock::now();
+            renderer::PreparePresent(frontbuffer);
             renderer::Flush();
             const auto timingPace = std::chrono::steady_clock::now();
             const auto fpsCap = GetFrameRateTarget();
@@ -738,6 +739,7 @@ namespace gpu
             g_workerStage = "window event pump";
             video::PumpEvents();
             g_completedSwaps = swaps;
+            static double previousSwapLogMs = 0, previousSwapPostMs = 0;
             if (timingEnabled)
             {
                 const auto timingEnd = std::chrono::steady_clock::now();
@@ -746,11 +748,16 @@ namespace gpu
                 if (pacing.hasPrevious)
                     pacing.betweenMs = std::chrono::duration<double, std::milli>(timingFlush - previousEnd).count();
                 if (pacing.presentAccepted) previousEnd = timingEnd;
+                pacing.previousSwapLogMs = previousSwapLogMs;
+                pacing.previousSwapPostMs = previousSwapPostMs;
                 frame_timing::Present(swaps, fpsCap,
                     std::chrono::duration<double, std::milli>(timingPace - timingFlush).count(),
                     std::chrono::duration<double, std::milli>(timingPresent - timingPace).count(),
                     std::chrono::duration<double, std::milli>(timingEnd - timingPresent).count(), pacing);
+                previousSwapLogMs = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - timingEnd).count();
             }
+            const auto timingPostStart = timingEnabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
             g_workerStage = "post-present capture/statistics";
             {
                 static const uint32_t shotSwap = getenv("LO_SCREENSHOT_SWAP") ? strtoul(getenv("LO_SCREENSHOT_SWAP"), nullptr, 10) : 0;
@@ -808,6 +815,9 @@ namespace gpu
             g_frame = FrameStats{};
             if (swaps == 118 && getenv("LO_GPU_TRACE"))
                 g_traceBudget = 400;
+            if (timingEnabled)
+                previousSwapPostMs = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - timingPostStart).count();
             return true;
         }
 

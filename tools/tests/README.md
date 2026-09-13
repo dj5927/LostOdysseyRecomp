@@ -1,6 +1,86 @@
 # Test suites
 
+## Render batch policy and descriptor cache
+
+Header fixtures for the D3D12/Vulkan descriptor batch limit and per-batch texture-set reuse. They do not launch the game or open a GPU device:
+
+```powershell
+clang-cl /std:c++20 /EHsc /I LostOdysseyRecomp tools/tests/render_batch_policy_test.cpp
+clang-cl /std:c++20 /EHsc /I LostOdysseyRecomp tools/tests/texture_descriptor_cache_test.cpp
+```
+
+CMake targets `LoRenderBatchPolicyTest` and `LoTextureDescriptorCacheTest` match `LoPollWaitTest`. The recorded local run passed 22 batch-policy checks and 11 descriptor-cache checks (including 2000 repeated hits). They do not prove a game frame, GPU heap layout or 60 fps.
+
+## Bounded vertex metadata cache
+
+`LoVertexCacheTest` is a native CPU-only fixture for the renderer's bounded
+vertex metadata cache. Its recorded run passed 3,569,548 checks once. It
+covers small capacities, recent-use retention, dense erase iteration during
+slot reset, refill/churn, and sample/key/offset/slot ownership after movement
+and replacement. At the default capacity, 196,645 unique insertions retained
+65,536 entries with 131,072 buckets and 131,109 evictions. It creates no GPU
+device and does not launch the game. Evidence: `out/perf-ring/vertex-stage/vertex-cache-test-evidence.json`.
+
+## Assembly profiler report
+
+The offline report fixture is a focused check for `tools/asm-profiler/report.py`; it does not launch the game or collect a native process sample. Install the pinned Capstone dependency, then run:
+
+```powershell
+python -m venv out\asm-profiler\venv
+out\asm-profiler\venv\Scripts\python.exe -m pip install -r tools\asm-profiler\requirements.txt
+out\asm-profiler\venv\Scripts\python.exe tools\asm-profiler\test_report.py
+```
+
+The seven checks cover x64 disassembly, hotspot/function aggregation, `--tid` selection, unknown and empty samples, distinct code snapshots, HTML escaping, PPC comment boundaries and the thread CPU-time table. See the [assembly profiler guide](../asm-profiler/README.md).
+
+## PPC code-generation guard
+
+Run the synthetic guard tests from the repository root with:
+
+```powershell
+python -B tools/tests/ppc_codegen_test.py
+```
+
+The seven `unittest` cases cover a matching manifest, input/output/context drift, obsolete 64-bit jump-table switches, a stale generator receipt and invalidation after a failed generation. They use a temporary tree with synthetic files; they do not require game input, generated game sources, a native tool build or a game/runtime process. For a real generated tree, `python -B tools/ppc_codegen.py check` verifies the recorded input/output manifest, while `python -B tools/ppc_codegen.py generate` requires the receipt written by `tools/build_tools.bat` and regenerates the sources.
+
 Run commands from the repository root. Select checks appropriate to the changed behavior; this entry point does not imply that every suite is required for every change.
+
+## PPC prebuilt bundle checks
+
+`test_ppc_prebuilt.py` exercises the synthetic export, restore and check contract
+for the PPC static-library bundle, including incremental output handling,
+receipt/input/output validation, shard boundaries and SHA256 checks. It uses a
+temporary fixture and does not require game input, a generated guest tree, a
+native build or a game process:
+
+```powershell
+python -B tools/tests/test_ppc_prebuilt.py
+```
+
+The 13 synthetic bundle checks pass. The separate `.github/workflows/test-ppc-prebuilt.yml`
+workflow runs this fixture independently of release packaging; actionlint 1.7.12
+also passes for both workflows. The fixture does not prove the hosted Release
+x64 `/MT` non-LTO build, runtime relink, gameplay launch or user acceptance. The
+real local export, restore and isolated CMake check are recorded in the [release
+packaging evidence](../../docs/notes/release-packaging.md).
+
+## PPC auto-sync boundary
+
+The local auto-sync hook is a post-build action authorized by Git config
+`git config --local lo.ppcAutoSync true`; CMake `LO_PPC_AUTO_SYNC` reads that
+setting and may need reconfiguration when a cache is `OFF`. It is not a file watcher. The
+read-only `ppc_sync.py key` command can inspect the deterministic key, while
+`sync` may reuse an existing private branch or upload a changed bundle in shards
+of at most 40 MiB. CI, imported libraries and `LO_PPC_SYNC_ACTIVE` are excluded.
+Nineteen synthetic sync cases pass; the built-library roundtrip and
+change-during-build cases were also verified separately. The real target, same-key unchanged check and sparse
+restore/check are recorded in the [release packaging evidence](../../docs/notes/release-packaging.md).
+The earlier 13-case prebuilt fixture and workflow run remain historical evidence
+for the bundle format only. Run the synthetic sync suite with:
+
+```powershell
+python -B tools/tests/test_ppc_sync.py
+```
 
 ```powershell
 tools\test.bat --list
@@ -13,6 +93,16 @@ tools\test.bat shaders pipeline
 ## Installer window checks
 
 `python -B tools/tests/test_installer_ui.py` selects the new Windows/Tk window checks only. The recorded nine passing cases cover resize hit targets, narrow layout/scrolling, long paths, cancel/retry/close, native frame styles, unchanged polling, DPI metrics and non-activating minimize. Two affected existing controller checks also passed; no importer backend suite was repeated. Subsequent copy reduction used real normal/minimum-size renders, without repeating these checks. Evidence and limitations: [desktop UI validation](../../docs/notes/desktop-ui-modernization.md), with the local report in `out/v0.5.0/ui-modernization/installer/REPORT.md`. These checks do not launch the game or establish physical multi-monitor interaction.
+
+For the installer drag-dispatch re-entrancy regression, run the focused case directly:
+
+```powershell
+python -B tools/tests/test_installer_ui.py DragDispatch
+```
+
+The recorded result is 1/1. It uses a message-only HWND and no displayed window, and checks queued `WM_NCLBUTTONDOWN` dispatch with signed negative screen coordinates. The reporter separately confirmed the real installer drag fix. This check does not measure stall or performance behavior, launch the installer import flow, or launch the game. The broader `InstallerUI` fixture setup previously failed its foreground-HWND assertion before reaching drag behavior and is not evidence for this regression.
+
+The installer-only local package is `out/installer-drag-fix/dist/InstallGame.exe` (11,888,743 bytes; SHA256 `707CD7D2E9F4AB3BF33363E172FAAD5CFCFA6B1A53161FEE0E7F53735B7C7FA7`). It was built with Python 3.12.10 and PyInstaller 6.22.2. Read-only embedded-PYZ inspection of `WindowChrome.drag` found `PostMessageW`, no `SendMessageW`, and the four required modules; do not infer installer import-flow or game validation from that inspection.
 
 ## Updater window checks
 
@@ -28,7 +118,26 @@ python -B tools/tests/updater_archive_test.py out/build/windows-clang/LostOdysse
 
 The recorded run passed 12/12 cases in `out/updater-fix/archive-test.log`. It verifies release-style staging with an explicit root directory entry, implicit-root and root-last ordering, and rejection of multiple roots, top-level files, absolute or parent roots, traversal, duplicate and unlisted payloads, SHA256 mismatch and a missing root manifest. This is archive staging coverage; it does not establish a network update, package transaction or live native dialog.
 
-`LoUpdaterStandaloneTest` passed 43 checks in the local Release /MT host build. It covers installed-manifest/EXE validation, no-argument and malformed-argument routing, injected check results, Unicode/unrelated cwd, exact-path fake game processes, and the real helper replacing synthetic files and launching a WIN32 probe after the standalone parent exits. No real game or public download is involved. Evidence: `out/standalone-host/REPORT.md` and `fixture.log`.
+The manifest transaction check is a separate focused mode. After building `LoUpdaterTest`, run it with a new isolated output directory:
+
+```powershell
+.\LoUpdaterTest.exe --manifest-transaction out/updater-manifest-check
+```
+
+The recorded run passed three scenarios with zero failures: successful update and post-apply rollback, failure after manifest replacement, and tamper rejection, including `WriteApplyPlan`/`ReadApplyPlan` serialization round-trip. It does not start the updater helper or game, and it does not repeat the older updater suite. Evidence: `out/bug-fix-evidence/updater-manifest-build/REPORT.md`.
+
+The historical `LoUpdaterStandaloneTest` passed 43 checks in the local Release /MT host build. It covers the earlier installed-manifest/EXE validation and helper-launch contract; no real game or public download is involved. Evidence: `out/standalone-host/REPORT.md` and `fixture.log`.
+
+The source-0.5.6 working-tree `LoUpdaterStandaloneTest` passed 44 checks in the windows-clang RelWithDebInfo host build (`out/updater-simple/standalone.log`). It covers recovery from an empty updater-only folder, optional `source-version.txt` and version-only manifest metadata, malformed/development/stale metadata, modified or missing game executables, exact-path fake game processes and the silent helper handoff without an unsolicited launch. The companion `LoUpdaterTest` log records the version, asset, integrity, staging, rollback, helper and preservation checks; `LoUpdaterHelperContextTest` passed the Unicode caller-CWD install without unsolicited launch. These use hidden synthetic processes only: no real game, public download or visible Yes/No dialog interaction is involved.
+
+`LoParticleMaterialCompatTest` is an `EXCLUDE_FROM_ALL` target for the particle material compatibility policy. Build the explicit target in an existing configured build directory and run the resulting executable:
+
+```powershell
+cmake --build out/build/release --target LoParticleMaterialCompatTest
+.\out\build\release\LostOdysseyRecomp\LoParticleMaterialCompatTest.exe
+```
+
+The focused `/UNDEBUG` fixture passed with zero failures. It covers the material compatibility policy and does not cover ABI integration, GPU behavior or game runtime acceptance.
 
 `python -B tools/tests/package_suffix_version_test.py` passed 7 focused cases covering full suffix identity, invalid suffixes, exact tag/source/commit matching and retained clean-checkout/build guards. Earlier updater fixtures were reused.
 
@@ -59,6 +168,9 @@ The focused `collection_upload_request_test.cpp` fixture covers the nonblocking 
 ### TAA binding evidence fixtures
 
 The standalone CPU fixtures `taa_binding_collection_test.cpp` and `taa_binding_producer_test.cpp` cover the bounded schema 3 queue, producer snapshots, revocation and zero-allocation producer paths. Compile and run them from isolated output directories when the binding contract changes. The Worker protocol fixture is run with `npm run test:taa-bindings` from `tools/taa-collector`; it covers schema 3 serialization, validation, canonicalization and deduplication. These checks do not launch the game or establish visual acceptance.
+
+### TAA crowd coverage follow-up
+
 
 ### Compact diagnostic receiver fixture
 
@@ -407,6 +519,6 @@ Release packaging is separate from test CI. A build or fixture pass is not gamep
 
 ## Geometry preparation
 
-`geometry_prepare_test.cpp` checks the scalar-compatible 16/32-bit index conversion for all endian modes, unaligned inputs and boundary counts, plus exact vertex sample comparisons and mutation detection. The retained run passed 3,206,492 value/guard assertions in `out/v0.5.0/performance-fix/geometry-candidate/geometry_prepare_test.log`. It is a standalone CPU fixture, compiled like the shader identity fixture above, and does not imply full-buffer coverage for large sampled vertex streams or GPU validation.
+`geometry_prepare_test.cpp` checks the scalar-compatible 16/32-bit index conversion for all endian modes, unaligned inputs and boundary counts, plus exact vertex sample comparisons and mutation detection. It also covers `CopyDwordsSwapped`, including endian 0 `memcpy`, SSSE3 four-dword conversion for endian modes 1/2/3, scalar tails/fallbacks, unaligned source/destination offsets and inaccessible-page boundary guards. The current focused run passed 16,685,865 value/guard assertions in `out/perf-ring/simd-copy/geometry_prepare_test.log`; the earlier 3,206,492-assertion run remains historical evidence in `out/v0.5.0/performance-fix/geometry-candidate/geometry_prepare_test.log`. It is a standalone CPU fixture and does not imply full-buffer coverage for large sampled vertex streams, a renderer performance gain or GPU validation.
 
 `deadline_wait_test.cpp` covers the reusable Windows pacing timer with 32 future deadlines in high-resolution mode and 32 in normal-timer fallback mode, plus already-expired deadlines. Both modes passed on this host. It preserves the existing `FramePacer` schedule and uses no busy wait or global timer-resolution change. Evidence: `out/v0.5.0/performance-fix/final-0.5.0/deadline_wait_test.log`.

@@ -4,15 +4,201 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## Unreleased GPU performance work / 未发布 GPU 性能改动
+## v0.5.6-hotfix1 — Unreleased / 未发布
 
 ### English
 
+- Simplify standalone updater recovery: an empty updater-only folder, stale or malformed metadata, a development package, or a modified executable can use the latest-release update path. `source-version.txt` is preferred; a valid version-only `manifest.json` is a fallback, and unknown metadata uses `0.0.0`. Download SHA-256 verification, safe archive extraction, transaction rollback and update path-safety checks remain enabled.
+- After a successful update, the local helper asks whether to launch the game and defaults to **No**. Silent mode performs the update without launching; failed updates do not restart the game, and a requested launch failure preserves the installed update. The updater copies the locally installed helper into the handoff runner so this completion policy remains active even when the downloaded package contains an older helper.
+- Focused checks recorded before the suffix-only version metadata change passed on source version 0.5.6: `LoUpdaterStandaloneTest` 44/44, updater version/asset/integrity/staging/rollback/helper/preservation checks, and the Unicode caller-CWD helper-context check. These are synthetic hidden-process checks; no real game, public download or visible Yes/No dialog interaction was performed.
 - Remove inactive shadow-loop iterations where safety can be proved, and skip identical adjacent color-resolve copies within one command batch. Shader cache version 22 rejects older binaries and startup bundles. Local shader and GPU pixel checks passed; gameplay validation and publication remain pending.
 
 ### 简体中文
 
+- 简化 standalone 更新器的恢复路径：只有 updater 的空目录、过期或损坏的 metadata、开发包或被修改的可执行文件，都可以使用最新 Release 更新。优先读取 `source-version.txt`；否则回退到只含有效版本号的 `manifest.json`，未知 metadata 使用 `0.0.0`。下载 SHA-256 校验、安全 ZIP 解压、事务回滚和更新路径安全检查仍然保留。
+- 更新成功后，当前本地 helper 会询问是否启动游戏，默认选择**否**。silent 模式只执行更新而不启动游戏；更新失败不会自动重启游戏；用户请求启动但启动失败时保留已安装的更新。交接 runner 使用本地已安装的 helper，因此即使下载包内含较旧 helper，也会保留当前完成策略。
+- 后缀版本 metadata 改动前，以 source version 0.5.6 记录的定向检查已通过：`LoUpdaterStandaloneTest` 44/44、更新器版本／asset／完整性／staging／回滚／helper／保留行为检查，以及 Unicode 调用方工作目录的 helper context 检查。这些是隐藏的合成进程检查，未运行真实游戏、公开下载或可见 Yes/No 对话框交互。
 - 在可证明安全的条件下消除阴影循环空转，并跳过同一提交批次内相邻、完全相同的颜色 resolve 复制。shader cache 版本 22 拒绝旧二进制和启动 bundle。本地 shader 与 GPU 像素检查已通过；游戏实景验证和发布仍待完成。
+
+## v0.5.6 — 2026-09-13 / 已发布
+
+### English
+
+- Fix updater manifest staging for subsequent transactions using the new `StageArchive`; the focused manifest transaction check passed three scenarios with zero failures. This does not repair already mixed installations, remove old resources or establish the unresolved Issue #15 save-flow hang. See [Issue #14–#16 triage](docs/notes/issues14-16-triage.md) for the #14–#16 investigation boundaries.
+- For Issue #16, add a narrow particle-material compatibility fallback for the zero-entry `xf_shd_aniflz.freeze` shader case; `LoParticleMaterialCompatTest` compiled and ran with zero failures. Final-branch D3D12/local Asia Disc 3 validation completed the target freeze sequence and subsequent map229/menu progression. Vulkan, other-region coverage and player acceptance remain pending. See the [triage record](docs/notes/issues14-16-triage.md).
+- Build and validate the merged local `main` at source version 0.5.6 with normal CMake Release configuration: the D3D12/local Asia Disc 3 target freeze sequence, map229/menu progression and visible movement all passed on the local binary. Release CI completed the formal build with the matching PPC artifact. The downloaded package passed hash/CRC checks for all 50 manifest files and clean source-version provenance; gameplay validation of the local binary is retained separately. Detailed hashes and boundaries are in [current status](docs/STATUS.md).
+- Bound the renderer's vertex metadata cache to 65,536 reserved entries. Full
+  caches evict from at most 16 rotating candidates, eliminating the old
+  `unordered_map` growth path: the diagnostic capture measured a 41.8241 ms
+  insertion during a 262,144-to-524,288 bucket rehash, while all 495 endian
+  copies in that frame took 0.0254 ms. `LoVertexCacheTest` passed 3,569,548
+  checks once. Three single Hidden Uhra captures (old map, bounded cache and
+  the same executable with input/shot controls moved to TEMP) retained
+  `original_saves_changed=false`; the final all-city sample reached mean 59.651
+  FPS, 1% low 45.989 FPS and worst accepted-present 43.0117 ms. The fixed
+  1600–2800 window reached 59.918 FPS mean and 54.495 FPS 1% low, with zero
+  draw over-budget samples and zero rehashes. This meets the requested mean
+  threshold on the route, but is not a locked 60 FPS result, strict S4 pass,
+  whole-game validation or player acceptance. These changes are included in
+  v0.5.6; the measurement build is source version
+  0.5.4. See [city vertex-cache follow-up](docs/notes/city-60fps-handoff.md).
+
+- Keep `LO_VERTEX_TIMING` disabled by default; the added previous-swap,
+  post-present and command-processor-idle fields are diagnostic measurements,
+  not optimization savings. The bounded run's 412.9283 ms post-present sample
+  fell to 0.4193 ms after moving the driver input/screenshot controls to TEMP;
+  this does not establish a Syncthing filesystem or scheduler root cause.
+
+- Use a PPC prebuilt library by default in the release workflow. `release.yml` restores a
+  sharded library bundle from the immutable private `ppc/<key>` branch selected by
+  the computed inputs/compiler key, while
+  manual `rebuild_ppc: true` retains the source-compilation path. Local builds can
+  set `LO_PREBUILT_PPC_DIR` to import `LostOdysseyRecompLib.lib` and skip PPC C++
+  compilation; clearing it restores the normal source build. The bundle is kept
+  in the private input repository and is not a public release artifact.
+- Add `tools/release/ppc_prebuilt.py` for incremental PPC export, bundle restore
+  and receipt/hash checks. The 13 synthetic bundle checks, local Release/x64
+  clang-cl PPC export and isolated prebuilt CMake checks pass. The four-shard
+  library is 138,454,798 bytes with SHA256
+  `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`; private
+  commit `a6cd91ea35261dd202b78e93b4acb65973369d07` was read back and consumed by Release CI.
+  The CI-compatible cache preserves the original library and records five line-ending
+  and fourteen symlink-representation differences; all 250 generated outputs,
+  471 PPC headers and the Release compile contract are identical. Hosted Release CI
+  and package verification passed; user acceptance remains separate.
+
+- Add opt-in local PPC auto-sync. Enable it with local Git config
+  `git config --local lo.ppcAutoSync true`; the CMake option reads that setting,
+  and an existing cached `OFF` value may be reconfigured with
+  `-DLO_PPC_AUTO_SYNC=ON`. This does not bypass the script's local opt-in. The
+  post-build hook invokes `ppc_sync.py sync --already-built`; ordinary contributors remain off by default. Matching input/compiler
+  hashes reuse an existing immutable private branch, while changes publish a
+  new `ppc/<key>` branch with dynamically sized shards of at most 40 MiB. CI, imported libraries and
+  `LO_PPC_SYNC_ACTIVE` never upload. The auto-sync source is pushed to
+  github/main as [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c).
+  Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
+  passed; hosted Release CI and package verification also passed. Nineteen
+  synthetic sync cases pass. Separately, the built-library roundtrip and
+  change-during-build checks pass, and the real local auto-sync branch/upload
+  plus same-key unchanged check pass. This workflow is included in v0.5.6 and was absent
+  from published v0.5.4.
+
+- Add a 2-slot D3D12 command-list ring, raise the D3D12 descriptor-set
+  limit to 1800, reuse 2D texture descriptor sets, bind unused 2D/3D/cube
+  banks to static dummy sets, use BatchCache last-hit for texture sets,
+  and skip unchanged constant uploads. Header fixtures pass: LoRenderBatchPolicyTest
+  22/22 and LoTextureDescriptorCacheTest 12/12 (including a 2000 last-hit
+  loop). Isolated user01 Uhra city walks on two local RelWithDebInfo
+  EXEs are diagnostic only (ring SHA-256
+  `5917F389F9FD9E88FDEC6DBD3437ADE76D415F1653FB6924575ACCF478C1B9AD`
+  stable city about 57.7 fps, 49.1–60; dummy SHA-256
+  `02E303F1462546FB98236446E24B2397DF762179923DE1D7C02852317ED37BC4`
+  about 56.0 fps, 28–60, bind-path only with no fps win versus the ring
+  run). Published v0.5.4 city diagnostic was 31–44 fps with about 5.2
+  batches. The two EXEs are not a laboratory A/B. Commits `b91d279` and `ed90fe9`
+  are included in v0.5.6; the cited measurements remain historical diagnostics,
+  with no player acceptance or 60 fps claim. See
+  [GPU ring compare](docs/notes/perf-gpu-ring-compare.md).
+
+- Move the vertex dword endian copy helper into `geometry_prepare.h` and add an
+  SSSE3 four-dword path for endian modes 1/2/3, with scalar tails/fallbacks and
+  `memcpy` for endian 0. The focused fixture passed 16,685,865 checks,
+  including unaligned and inaccessible-page boundary cases. A same-harness
+  Hidden city run completed with `original_saves_changed=false`; the SIMD run
+  still had a 41.736 ms vertex hitch, a separate 47.467 ms flush sample and a
+  779.572 ms load-in present interval, so the change does not establish a
+  performance gain or 60 fps acceptance. Both redirected-log runs avoided the
+  earlier 200–400 ms flush class, but residual stalls remain. The implementation
+  is included in v0.5.6; the cited local measurement build retains source version
+  0.5.4. See [city 60 FPS handoff](docs/notes/city-60fps-handoff.md).
+
+### 简体中文
+
+- 修复使用新版 `StageArchive` 的后续更新事务中的 manifest staging；manifest 事务定向检查 3 个场景零失败。该修复不会自动修复已经混装的安装、清理旧资源，也不能证明 #15 存档流程卡顿的原因。#14–#16 调查边界见[分流记录](docs/notes/issues14-16-triage.md)。
+- 针对 Issue #16 的零项 `xf_shd_aniflz.freeze` shader 情况增加窄范围 particle-material 兼容回退；`LoParticleMaterialCompatTest` 已编译并运行且零失败。最终分支 D3D12／亚洲 Disc 3 验证已完成目标冻结过场及后续 map229／菜单流程。Vulkan、其他地区覆盖和玩家验收仍待完成，见[分流记录](docs/notes/issues14-16-triage.md)。
+- 使用普通 CMake Release 配置成功构建并验证合入本地 `main` 的 0.5.6 源码：本地二进制已通过 D3D12／亚洲 Disc 3 目标冻结过场、map229／菜单流程和可见移动。Release CI 已使用匹配的 PPC artifact 完成正式构建；下载的安装包通过全部 50 个 manifest 文件的 hash／CRC 及干净源码版本 provenance 检查。本地二进制的游戏实测记录保持独立。详细 hash 和边界见[当前状态](docs/STATUS.md)。
+- 将渲染器顶点 metadata cache 限制为预留 65,536 项。缓存满时最多检查 16 个轮转候选并淘汰，消除了旧
+  `unordered_map` 扩容路径：诊断捕获中一次 262,144 到 524,288 bucket 的 rehash 插入耗时 41.8241 ms，
+  而该帧全部 495 次 endian copy 合计仅 0.0254 ms。`LoVertexCacheTest` 一次通过 3,569,548 项检查。
+  三次单独 Hidden 乌拉住宅区捕获（旧 map、有界缓存、以及将输入／截图控制移到 TEMP 的同一 EXE）均为
+  `original_saves_changed=false`；最终全城市样本平均 59.651 FPS、1% low 45.989 FPS，最差 accepted-present
+  间隔 43.0117 ms。固定 1600–2800 窗口平均 59.918 FPS、1% low 54.495 FPS，draw 超预算为 0、rehash 为 0。
+  这满足该路线请求的平均帧率门槛，但不能称为全程锁 60 FPS、严格 S4 通过、全游戏验证或玩家验收。
+  这些改动包含在 0.5.6 中；测量构建仍为 source version 0.5.4。见[城市 vertex-cache 后续记录](docs/notes/city-60fps-handoff.md)。
+
+- `LO_VERTEX_TIMING` 默认关闭；新增的 previous-swap、post-present 和 command-processor-idle 字段是诊断测量，
+  不是优化收益。有界缓存运行中的 412.9283 ms post-present 样本，在将驱动输入／截图控制移到 TEMP 后降至
+  0.4193 ms；这不能证明 Syncthing 文件系统或调度是根因。
+
+- 发布流程默认使用 PPC 预编译库。`release.yml` 根据输入／编译参数 key 从私有
+  不可变的 `ppc/<key>` branch 恢复分片库；手动设置 `rebuild_ppc: true` 仍使用源码编译
+  路径。本地构建可设置 `LO_PREBUILT_PPC_DIR` 导入 `LostOdysseyRecompLib.lib`
+  并跳过 PPC C++ 编译；清除该变量即可恢复普通源码构建。分片库保存在私有输入
+  仓库中，不作为公共发布产物。
+- 增加 `tools/release/ppc_prebuilt.py`，支持增量导出 PPC 库、恢复 bundle 以及
+  receipt／hash 校验。13 项合成 bundle 检查、本地 Release／x64 clang-cl PPC
+  导出和隔离 prebuilt CMake 检查均已通过。四片库大小为 138,454,798 字节，SHA256
+  为 `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`；私有
+  commit `a6cd91ea35261dd202b78e93b4acb65973369d07` 已远端读回，并由 Release CI 实际使用。
+  CI 兼容缓存保留原库，记录五项行尾及十四项符号链接表示差异；全部 250 个生成文件、471 个 PPC 头文件和
+  Release 编译契约完全相同。托管 Release CI 和包检查已通过；用户验收保持独立。
+
+- 增加可选的本地 PPC 自动同步。必须先用 Git 本地配置
+  `git config --local lo.ppcAutoSync true` 启用；CMake 选项读取该设置，已有缓存
+  为 OFF 时需重新配置并传入 `-DLO_PPC_AUTO_SYNC=ON`，不能绕过脚本授权。post-build
+  hook 调用 `ppc_sync.py sync --already-built`；普通贡献者默认关闭。输入与编译参数
+  hash 相同则复用已有不可变私有 branch，变化时创建新的 `ppc/<key>` branch 并上传每片
+  不超过 40 MiB 的动态分片。CI、导入库和
+  `LO_PPC_SYNC_ACTIVE` 不会上传。auto-sync 源码已推送到 github/main，提交为
+  [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c)。托管
+  [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
+  已通过；托管 Release CI 和包检查也已通过。19 项合成同步用例通过；另外，built-library
+  roundtrip、change-during-build、真实本地自动同步 branch／上传及同 key unchanged
+  检查均已通过。该流程包含在 v0.5.6 中，此前未包含在已发布的 v0.5.4 中。
+
+- 增加 D3D12 双槽 command-list 环缓冲，将 D3D12 描述符集上限提到 1800，
+  复用 2D 纹理描述符集，未使用的 2D／3D／cube bank 绑定静态 dummy 集，
+  纹理集使用 BatchCache last-hit，并跳过未变化的常量上传。头文件夹具通过：
+  LoRenderBatchPolicyTest 22/22、LoTextureDescriptorCacheTest 12/12
+  （含 2000 次 last-hit 循环）。两份本地 RelWithDebInfo EXE 的隔离
+  user01 乌拉城市走图仅为诊断（环缓冲 SHA-256
+  `5917F389F9FD9E88FDEC6DBD3437ADE76D415F1653FB6924575ACCF478C1B9AD`
+  稳定段约 57.7 fps，49.1–60；dummy SHA-256
+  `02E303F1462546FB98236446E24B2397DF762179923DE1D7C02852317ED37BC4`
+  约 56.0 fps，28–60，仅 bind 路径，相对环缓冲一轮没有帧率收益）。
+  已发布 v0.5.4 城市诊断为 31–44 fps、约 5.2 个 batch。两份 EXE 不是
+  实验室 A/B。提交 `b91d279`、`ed90fe9` 包含在 v0.5.6 中；上述测量仍为历史诊断，
+  不构成玩家验收，也不宣称 60 fps。
+  见[GPU 环缓冲实测对比](docs/notes/perf-gpu-ring-compare.md)。
+
+- 将顶点 dword endian copy helper 移到 `geometry_prepare.h`，为 endian 1／2／3
+  增加每次处理四个 dword 的 SSSE3 路径，并保留 scalar 尾部／fallback，endian 0
+  使用 `memcpy`。专项夹具通过 16,685,865 项检查，包括非对齐和不可访问页边界。
+  同一 Hidden 城市脚本的复测为 `original_saves_changed=false`；SIMD 运行仍有
+  41.736 ms 顶点卡顿、另一个 47.467 ms flush 样本以及 779.572 ms 的载入期
+  present 间隔，因此不能据此宣称性能提升或 60 fps 验收。两次重定向日志运行
+  都未复现之前 200–400 ms 的 flush 类别，但残余卡顿仍在。该实现包含在 v0.5.6 中，
+  上述本地测量构建仍保留 source version 0.5.4。见[城市 60 FPS handoff](docs/notes/city-60fps-handoff.md)。
+
+## v0.5.4 — 2026-09-11
+
+### English
+
+- Guard PPC source generation with binary/source receipts and generated-output manifests; preserve prior output on failure and reject stale inputs or 64-bit jump-table switches.
+- Add an optional Win64 external assembly profiler with bounded sampling and offline Capstone HTML/JSON reports.
+- Increase the F1 menu ZIP archive wait from 60 to 180 seconds for large captures.
+- Fix installer drag dispatch by posting signed-coordinate `WM_NCLBUTTONDOWN`; the reporter confirmed the fix.
+
+The release retains the documented validation boundaries in [current status](docs/STATUS.md); no whole-game, visual or complete F1 acceptance is implied.
+
+### 简体中文
+
+- 为 PPC 源码生成增加二进制／源码 receipt 和生成输出 manifest；失败时保留旧输出，并拒绝过期输入或 64 位跳转表 switch。
+- 增加可选的 Win64 外部汇编分析器，支持有界采样和离线 Capstone HTML／JSON 报告。
+- 将大体积 F1 菜单 ZIP 归档等待时间从 60 秒延长至 180 秒。
+- 通过发送带符号坐标的 `WM_NCLBUTTONDOWN` 修复安装器拖动分发；报告者已确认修复。
+
+本版本保留[当前状态](docs/STATUS.md)中的验证边界；不代表全游戏、画面或完整 F1 流程验收完成。
 
 ## v0.5.3 — 2026-09-10
 

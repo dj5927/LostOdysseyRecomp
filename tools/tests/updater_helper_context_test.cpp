@@ -73,7 +73,7 @@ bool LaunchParent(const fs::path &self, const fs::path &helper, const fs::path &
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
     PROCESS_INFORMATION process{};
-    if (!CreateProcessW(self.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr,
+    if (!CreateProcessW(self.c_str(), command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr,
                         working.c_str(), &startup, &process)) return false;
     CloseHandle(process.hThread);
     const auto wait = WaitForSingleObject(process.hProcess, 15000);
@@ -124,16 +124,15 @@ int wmain(int argc, wchar_t **argv)
         std::cerr << "FAIL: helper handshake parent failed\n";
         return 1;
     }
-    for (int i = 0; i < 100 && !fs::exists(marker); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    std::ifstream input(marker, std::ios::binary);
-    const std::string context((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    const std::string expectedCwd = "cwd=" + Utf8(fs::weakly_canonical(caller).wstring()) + "\n";
-    const std::string expectedArgument = "arg=" + Utf8(unicodeArgument) + "\n";
-    if (context.find(expectedCwd) == std::string::npos || context.find(expectedArgument) == std::string::npos)
+    for (int i = 0; i < 100 && !fs::exists(install / ".update/last-result.txt"); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::ifstream result(install / ".update/last-result.txt");
+    const std::string text((std::istreambuf_iterator<char>(result)), {});
+    if (fs::exists(marker) || text.find("updated=") == std::string::npos)
     {
-        std::cerr << "FAIL: helper changed caller cwd or Unicode argument\n" << context;
+        std::cerr << "FAIL: helper did not install without launching\n";
         return 1;
     }
-    std::cout << "PASS: updater helper preserves caller cwd and Unicode arguments\n";
+    std::cout << "PASS: helper completes from Unicode caller cwd without unsolicited launch\n";
     return 0;
 }
