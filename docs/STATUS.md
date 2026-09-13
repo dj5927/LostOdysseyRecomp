@@ -1,5 +1,11 @@
 # Project status
 
+## Published v0.5.10 — 2026-09-13
+
+Published at [GitHub Release v0.5.10](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.10) on 2026-09-13T21:20:10Z. Release CI [34783107248](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34783107248) passed for source/tag commit `db63ebaf50fed9612ca66a498f162ad6be69a54e`. The clean ZIP is 44,288,884 bytes with SHA-256 `e1b6b9a84bcf0360f104db2e001ca5e740552834b554a4bf5812dd9c8f52f6eb`; runtime SHA-256 is `25c3c83366143b5f74943ee0cd88789cca0042b3d4a06a7ef986fa8d8de94995`. All 50 manifest payload hashes and ZIP CRCs passed; all four public assets matched anonymous HTTP downloads, sizes, SHA-256 and API digests. CI consumed PPC key `481e10e3e18a083fbc8f3207422a2065c5ba548c39b2588336b02f3da75effdf` from private commit `eb883038c92fdfc0e154b5e3f8b61e346a98034e`. Existing functional checks were reused; no new gameplay or frame-time acceptance is claimed.
+
+The release adds 11 captured Vulkan TAA paths accepted for the reported flicker scenes, plus original CPX/declaration coverage for startup shader preparation. Startup frame-time benefit and whole-game coverage remain unverified. Evidence: `out/release-v0.5.10/`.
+
 ## Published v0.5.9 — 2026-09-13
 
 The v0.5.9 package adds conservative Vulkan depth-clear coalescing for 720 compatible EDRAM tile rectangles, preserving D3D12 mapping output, holes and uncleared regions. It also includes texture-key avalanche mixing, captured-shader identity caching, graphics descriptor same-handle suppression, same-framebuffer Plume rebind suppression and per-`GpuSlot` immutable descriptor reuse; the two-slot/fence contract remains unchanged. TAA behavior is retained from v0.5.8.

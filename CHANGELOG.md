@@ -4,7 +4,7 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## v0.5.10 — Release candidate / 待发布
+## v0.5.10 — 2026-09-13 / Published / 已发布
 
 ### English
 
@@ -17,6 +17,8 @@ One record of completed changes, with unpublished work separated from verified r
 - 修复 f5997、f5912、f16385 捕获中的另外 11 条 Vulkan TAA 顶点 shader 路径，使深度、材质和光照层保持对齐。用户已验收报告中的闪烁场景；其他场景和全游戏覆盖仍未验证。
 - 补充启动 shader 准备的原始 CPX 元数据及捕获到的 packed 静态网格声明，覆盖 `1474db97dfc0afad`。覆盖变化会更新启动包，同时复用有效的单个已编译 shader；实景帧时间仍待验证。
 - 复用已通过的捕获层、原始资源变体和启动缓存检查，包括 2,245 个历史 fixed/linked 输出的逐字节兼容性。详见 [TAA 记录](docs/notes/taa-f5912-f16385-2026-09-13.md)及[启动覆盖记录](docs/notes/shader-startup-coverage-2026-09-13.md)。
+
+Published at [GitHub Release v0.5.10](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.10) on 2026-09-13T21:20:10Z. Release CI [34783107248](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34783107248) passed for source/tag commit `db63ebaf50fed9612ca66a498f162ad6be69a54e`. The clean ZIP is 44,288,884 bytes with SHA-256 `e1b6b9a84bcf0360f104db2e001ca5e740552834b554a4bf5812dd9c8f52f6eb`; runtime SHA-256 is `25c3c83366143b5f74943ee0cd88789cca0042b3d4a06a7ef986fa8d8de94995`. All 50 manifest payload hashes and ZIP CRCs passed; all four public assets matched anonymous HTTP downloads, sizes, SHA-256 and API digests. CI consumed PPC key `481e10e3e18a083fbc8f3207422a2065c5ba548c39b2588336b02f3da75effdf` from private commit `eb883038c92fdfc0e154b5e3f8b61e346a98034e`. Existing functional checks were reused; no new gameplay or frame-time acceptance is claimed.
 
 ## v0.5.9 — 2026-09-13 / Published / 已发布
 
