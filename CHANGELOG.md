@@ -6,6 +6,8 @@ One record of completed changes, with unpublished work separated from verified r
 
 ## Unreleased / 未发布
 
+- Exclude local `.agent/` and `.agents/` directories from version control. / 将本地 `.agent/`、`.agents/` 目录移出版本控制并忽略。
+
 ## v0.5.9 — 2026-09-13 / Published / 已发布
 
 ### English

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Lost Odyssey Profiling"
-  short_description: "CPU/汇编采样、RenderDoc GPU 热点与同帧 A/B 对比"
-  default_prompt: "使用 $lo-profiling 分析 LostOdysseyRecomp 的性能热点，复用已有采集并交付证据和验证边界。"

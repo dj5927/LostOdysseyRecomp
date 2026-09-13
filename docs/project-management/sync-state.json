@@ -2437,12 +2437,12 @@
         "Area": "Runtime performance",
         "Status": "In Progress",
         "Delivery": "In progress",
-        "Release": "v0.5.6",
+        "Release": "v0.5.9",
         "Start date": "2026-09-11",
         "Source key": "performance-and-shader-startup"
       },
       "title": "Investigate remaining stalls and shader-startup compiler failures",
-      "body_sha256": "8b613c84a2395d5f8661eee2779a12f871f3d987ca50680bbd5802456c3259ad"
+      "body_sha256": "ae11ae18ea9559bc2660fa270d8fbcc50f19da9aa9119cb081543eb54f8c62af"
     },
     "vulkan-ps-loopend-predicate-exit": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6sV44",

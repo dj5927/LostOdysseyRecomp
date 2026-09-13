@@ -2,7 +2,7 @@
 
 离线诊断。目标是已发布 v0.5.4 runtime。本文件合并 `perf` 分支已测数字与当前源码路径对照，列出所有能定位的优化点。这不是性能修复、玩家验收或新 Release。
 
-索引与采集边界见历史 `perf` 分支文件（可用 `git show perf:docs/notes/perf-analysis-index.md` 读取；当前 checkout 不包含该文件）和 [assembly profiler gameplay captures](asm-profiler-gameplay.md)。测量语义见 `.agents/skills/lo-profiling/`。
+索引与采集边界见历史 `perf` 分支文件（可用 `git show perf:docs/notes/perf-analysis-index.md` 读取；当前 checkout 不包含该文件）和 [assembly profiler gameplay captures](asm-profiler-gameplay.md)。
 
 ## 1. 身份与能做的范围
 

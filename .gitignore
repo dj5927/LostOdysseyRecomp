@@ -137,3 +137,6 @@ CLAUDE.md
 /task_plan.md
 /findings.md
 /progress.md
+
+/.agent/
+/.agents/
