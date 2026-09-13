@@ -209,6 +209,34 @@ of the second candidate remains pending. The earlier area-filter checks remain
 the validated coverage. Evidence: `out/taa-bloom-fix/gpu-linear-d3d12.log` and
 `out/taa-bloom-fix/gpu-linear-vulkan.log`.
 
+The current capture audit supersedes unsynchronized live readback analysis:
+old same-frame pixel estimates and the reported 87% improvement are not repair
+evidence. Standalone bloom and geometry GPU tests remain valid. The current
+HDR candidate is disabled by default; synthetic `ffff0030` captures the actual
+first-bloom source and `ffff0031` captures accumulated HDR output. An optional
+sixth `hdr=0/1` field in `control.txt` enables it, while the existing five-field
+form defaults to `hdr=0`. TAA resources are released by submission serial.
+Production Vulkan reset and prefix-release checks passed; no old test was
+rerun. Same-scene routing and visual validation remain pending, so the HDR
+candidate is not an accepted rendering fix. The separate materials-on
+candidate was accepted for the reproduced whole-lighting scene after the
+three material VS jitter paths and the captured-static-layers selector passed;
+this does not establish whole-game coverage.
+
+The current HDR candidate produced clear improvement but still flickers in the
+whole lighting result, including face/body dark-surface transitions. Reliable
+eight-frame `ffff0030/ffff0031` data is finite, alpha 0, same-camera, same-tone
+route and `gap=false`; red-point HDR-stage variation fell 86%, while the
+whole-face/body alternation remains in the original HDR input. A no-jitter
+comparison leaves face changes near zero and body dark-surface ratio near 16%;
+ground variation is independent. Three material VS paths passed the c7–c10
+position/varying and matching resource audits. The focused
+`LoTemporalJitterTest --captured-static-layers` selector passed 131,457 checks
+across 32 phases, two worlds and 720p/4K; existing tests were not rerun.
+The next candidate uses HDR off/materials on by default; its optional seventh
+`materials=0/1` control bypasses only those three VS paths. Same-scene A/B
+validation remains pending, so these results do not establish a fix.
+
 The third candidate retains the AA3 condition and removes the transient
 `temporalJitter` gate. Captures 1653–1655 hit it on every frame; the upper
 robot is user-confirmed stable, while the lower enemy eyes still flicker. An

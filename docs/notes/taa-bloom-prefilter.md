@@ -130,3 +130,74 @@ other selections accept `0` or `1`. The control is process-scoped. Generic
 Runtime control validation is still pending the user's same-scene run. This
 build is diagnostic tooling only; the rendering algorithm and production
 invariant remain unchanged. Earlier bloom GPU tests are reused.
+
+## Current evidence boundary: synchronized capture and opt-in HDR candidate
+
+The current audit corrects the earlier live evidence. The old live trace and
+F1 readback did not wait for the GPU fence before mapping capture data, and
+`n2` was not the final HDR source. Their same-frame pixel analysis and the
+reported 87% improvement are withdrawn as repair evidence. The standalone
+bloom and geometry GPU tests remain valid, and the user's report that the
+upper target improved remains valid; the lower-eye flicker remains open.
+
+The new rendering candidate is disabled by default. Synthetic `ffff0030`
+captures the actual first-bloom source and `ffff0031` captures the accumulated
+HDR output. The optional sixth `hdr=0/1` field in `control.txt` enables the
+candidate; the existing five-field form defaults to `hdr=0`. The trace buffer
+capacity is 192 MiB for two 4K HDR surfaces, depth and final RGBA8 output.
+TAA resources are released by submission serial, so only data covered by the
+relevant fence is recycled.
+
+Production Vulkan checks passed exact reset behavior for HDR8, negative `-0.5`,
+RGB `2` and alpha `0.375`. They also passed the prefix release case where A
+completed and B remained recorded but unsubmitted, while the A prefix was
+released and B remained correct. No old test was rerun. The game candidate
+build completed with SHA256
+`69EFC0812E47309EDE725AEFB0A69C5D3F6B07E01D78379A94F237D4935DC146` and is
+launched by `Test-TAA-Eyes-4.cmd`. Same-scene routing and visual validation
+remain pending; this candidate is unaccepted, uncommitted and unreleased.
+
+## Current lighting and material follow-up
+
+The user's HDR candidate feedback is “明显改善但仍闪”. The latest capture
+(`PixPin_2026-09-12_23-38-48.mp4`) shows that the symptom affects whole
+lighting, including face and body dark-surface transitions, rather than only
+isolated red points. Reliable eight-frame `ffff0030/ffff0031` data is finite,
+has alpha 0, uses the same camera and tone-map version route, and has
+`gap=false`. Red-point HDR-stage variation fell by 86%, but whole-face/body
+black-surface to textured-surface alternation remains in the original HDR
+input. In the no-jitter comparison, face changes are near zero and the body
+dark-surface ratio is stable at about 16%; ground variation is independent and
+cannot all be attributed to TAA.
+
+Three material vertex shaders (`3c86f4a89d220ee8`, `f3b9f20b3d3a62d5`,
+`e7b38eb08c70e5e1`) passed the c7–c10 position, complete varying, and matching
+depth/index/world/camera audits; slot 7 was added. The focused
+`LoTemporalJitterTest --captured-static-layers` selector passed 131,457 checks
+across 32 phases, two worlds, and 720p/4K. Existing tests were not rerun.
+
+The subsequent game candidate built with HDR default off and materials default on;
+`Test-TAA-Lighting-5.cmd` launches it and isolates `taa-material-trace`.
+Its SHA256 is
+`F983446111909E353BB34A871CCD15E9B010F4C6B62311A3B4F2D062DA5180BE`.
+The seventh control field optionally accepts `materials=0/1` and bypasses only
+the three new material VS paths. At that stage, live same-scene A/B validation
+was pending; the later accepted result is recorded below.
+
+## Accepted material-path fix
+
+The user then tested the HDR-off/materials-on candidate in the same scene and
+reported: “到了，不闪了” for the whole lighting target. The read-only process
+check identified PID 26188 running
+`LostOdysseyRecomp-taa-material-candidate.exe`, with runtime record
+`runtime-1789278806155312` and SHA256
+`F983446111909E353BB34A871CCD15E9B010F4C6B62311A3B4F2D062DA5180BE`.
+The accepted candidate uses HDR `0` and materials `1` by default.
+
+The repair covers the three material vertex shader paths recorded above:
+their missing jitter had left depth and material positions mismatched. The
+focused captured-static-layers selector remains the recorded 131,457-check
+result, and earlier bloom GPU checks remain valid. This is user acceptance for
+the reproduced whole-lighting scene, not a whole-game or cross-hardware claim.
+Local repair branch:
+`trail/fix-taa-lighting`; it remains unpublished and not pushed.

@@ -1,6 +1,7 @@
 #include <gpu/temporal_jitter.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include "map16_jitter_capture.h"
 
@@ -510,8 +511,82 @@ static void Map16Coverage()
         checks-firstCheck,legacySeparation[0],legacySeparation[1],legacySeparation[2],legacySeparation[3],offsetError,uvError);
 }
 
-int main()
+// f1653 3c86's r8 -> r4 position chain is exactly BattleMaterial after
+// renaming temporaries; f3b9/e7b38's r5 -> r0 is BattleLight08dc. Their
+// world/VP swizzles and accumulation order are identical, not just the slot.
+// o1 (3c86) / o4 (light) retain the clip result. Actual paired material PSs
+// use only its W; light PSs overwrite XYZ before use. No world ray uses c7.
+static void CapturedStaticLayerCoverage()
 {
+    const std::array<uint32_t,16> vp{
+        0xbeb66c64,0x3e7676a4,0x3f79787d,0x3f79b86a,0x3fd8f533,0x3d4f3b82,0x3e51c2d1,0x3e51f891,
+        0,0x4044705a,0xbda36b85,0xbda39565,0x4220688f,0xc3cbadb0,0x43836084,0x4388822e};
+    // Captured c0-c3 from draw493 (1428 indices) and draw983/1067 (930/1428).
+    const std::array<std::array<uint32_t,16>,2> worlds{{
+        {0x3f7cd792,0xbe205815,0,0,0x3e205815,0x3f7cd792,0,0,0,0,0x3f800000,0,0x44bb5c1b,0xc3f557fc,0,0x3f800000},
+        {0x3f800000,0,0,0,0,0x3f800000,0,0,0,0,0x3f800000,0,0x453a8469,0x44eebffa,0,0x3f800000}}};
+    double legacySeparation=0;
+    for (const auto& world : worlds)
+        for (const auto extent : {Viewport{0,0,1280,720},Viewport{0,0,3840,2160}})
+            for (uint64_t frame=0;frame<32;++frame)
+            {
+                const SceneAnchor anchor{vp,extent,19};
+                const auto bank=[&](unsigned slot) {
+                    Constants c{};std::copy(world.begin(),world.end(),c.begin());
+                    std::copy(vp.begin(),vp.end(),c.begin()+slot*4);return c;
+                };
+                auto depth=bank(4),material=bank(7),lightA=bank(7),lightB=bank(7);
+                const auto original=material;
+                Constants ps{};
+                Check(ApplyDrawJitter(0xb030ab4e17a20783ull,0,frame,true,true,&anchor,19,extent,depth.data(),ps.data()).applied,
+                    "captured static depth accepts scene camera");
+                const auto apply=[&](uint64_t vs,uint64_t pixel,Constants& c) {
+                    const auto r=ApplyDrawJitter(vs,pixel,frame,true,true,&anchor,19,extent,c.data(),ps.data());
+                    Check(r.applied && !r.shadowCompensated && ps==Constants{},"static layer applies only position jitter");
+                    for (int mutation=0;mutation<2;++mutation)
+                    {
+                        auto rejected=original;
+                        if (!mutation) rejected[28]^=1;
+                        const auto before=rejected;
+                        const auto failure=ApplyDrawJitter(vs,pixel,frame,true,true,&anchor,mutation?20:19,
+                            extent,rejected.data(),ps.data());
+                        Check(!failure.applied && rejected==before && failure.rejection==
+                            (mutation?JitterRejection::DepthMismatch:JitterRejection::CameraMismatch),
+                            "recognized static layer rejects other camera/allocation without writes");
+                    }
+                };
+                apply(0x3c86f4a89d220ee8ull,0xec90bdc0d9da2ad4ull,material);
+                apply(0xf3b9f20b3d3a62d5ull,0x1ed63d51dfbc8863ull,lightA);
+                apply(0xe7b38eb08c70e5e1ull,0x1c7eb2610da60b50ull,lightB);
+                // Other constants (including world, light/view ray c11-c12)
+                // cannot change when the position bank is uploaded.
+                for (unsigned i=0;i<material.size();++i)
+                    if (i<28 || i>=44)
+                        Check(material[i]==original[i] && lightA[i]==original[i] && lightB[i]==original[i],
+                            "static lighting constants outside VP remain unchanged");
+                for (const auto local : {Float4{-250,-100,20,1},Float4{120,90,80,1},Float4{10,250,160,1}})
+                {
+                    const auto d=BattleDepth(depth,local),m=BattleMaterial(material,local);
+                    const auto a=BattleLight08dc(lightA,local),b=BattleLight08dc(lightB,local);
+                    const auto old=BattleMaterial(original,local);
+                    Check(d==m && m==a && a==b,"captured static HLSL depth/material/light chains agree");
+                    Check(m[2]==old[2] && m[3]==old[3],"static layer clip Z/W and material PS depth remain unchanged");
+                    Check(m[0]/m[3]==d[0]/d[3] && m[1]/m[3]==d[1]/d[3] &&
+                        a[0]/a[3]==d[0]/d[3] && b[1]/b[3]==d[1]/d[3],
+                        "retained clip varyings project onto the same jittered depth grid");
+                    legacySeparation=std::max({legacySeparation,
+                        std::abs(double(m[0])/m[3]-double(old[0])/old[3])*extent.width*.5,
+                        std::abs(double(m[1])/m[3]-double(old[1])/old[3])*extent.height*.5});
+                }
+            }
+    Check(legacySeparation>.3,"static fixture exposes original layer separation");
+    std::printf("Captured static layers: %u checks, 32 phases, two worlds, two sizes; legacy separation %.6f pixels\n",checks,legacySeparation);
+}
+
+int main(int argc,char** argv)
+{
+    CapturedStaticLayerCoverage();
+    if (argc==2 && std::strcmp(argv[1],"--captured-static-layers")==0) return 0;
     TireMaterialCoverage();
     BattleCoverage();
     Map16Coverage();

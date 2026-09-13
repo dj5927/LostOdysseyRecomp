@@ -69,6 +69,9 @@ public:
     TemporalAA();
     ~TemporalAA();
     bool Init(plume::RenderDevice* device);
+    // Select color storage once per instance: false=RGBA8 UNORM, true=RGBA16 FLOAT.
+    // All color inputs, history and outputs must use that same format; depth stays R32 FLOAT.
+    bool Init(plume::RenderDevice* device, bool hdrColor);
     const std::string& LastError() const;
     // Caller transitions every bound input to SHADER_READ and output to COLOR_WRITE
     // BEFORE recording; no implicit UNKNOWN/source-layout assumption or barrier here.
@@ -91,5 +94,10 @@ public:
     // Distinct descriptor/framebuffer allocations are kept until this call; destructor
     // and re-Init have the same completion requirement. Single recording thread only.
     void ReleaseCompleted();
+    // Snapshot after recording a batch; release only after that batch's fence completes.
+    uint64_t RecordedSerial() const;
+    // Mark external commands using owned resources (e.g. depth copies) on the same fence timeline.
+    void RecordExternalUse();
+    void ReleaseCompletedThrough(uint64_t serial);
 };
 }

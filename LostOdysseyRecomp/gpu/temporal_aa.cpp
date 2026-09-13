@@ -18,8 +18,9 @@ struct TemporalAA::Impl
     std::unique_ptr<RenderShader> vs, ps, displayPs;
     std::unique_ptr<RenderPipeline> pipeline, displayPipeline;
     std::unique_ptr<RenderSampler> sampler;
-    struct Pending { std::unique_ptr<RenderBuffer> constants; std::unique_ptr<RenderDescriptorSet> set; std::unique_ptr<RenderFramebuffer> framebuffer; };
+    struct Pending { uint64_t serial=0; std::unique_ptr<RenderBuffer> constants; std::unique_ptr<RenderDescriptorSet> set; std::unique_ptr<RenderFramebuffer> framebuffer; };
     std::vector<Pending> pending;
+    uint64_t recordedSerial=0;
 };
 namespace
 {
@@ -181,7 +182,8 @@ float4 displayPixel(float4 position:SV_Position):SV_Target {
  float2 p=clamp(position.xy+policy.xy,.5,imageSize.xy-.5);
  int2 first=int2(floor(p-.5));float2 fraction=frac(p-.5);
  float4 wx=cubicWeights(fraction.x),wy=cubicWeights(fraction.y);
- float4 value=0,lo=1,hi=0;
+ float4 value=0;
+ float4 lo=currentColor.Load(int3(clamp(first-int2(1,1),int2(0,0),int2(imageSize.xy)-1),0)),hi=lo;
  [unroll]for(int y=0;y<4;++y) [unroll]for(int x=0;x<4;++x) {
   int2 tap=clamp(first+int2(x-1,y-1),int2(0,0),int2(imageSize.xy)-1);
   float4 c=currentColor.Load(int3(tap,0));value+=c*wx[x]*wy[y];lo=min(lo,c);hi=max(hi,c);
@@ -193,7 +195,16 @@ TemporalAA::TemporalAA():impl(std::make_unique<Impl>()) {}
 TemporalAA::~TemporalAA()=default;
 const std::string& TemporalAA::LastError() const { return impl->error; }
 void TemporalAA::ReleaseCompleted() { impl->pending.clear(); }
+uint64_t TemporalAA::RecordedSerial() const { return impl->recordedSerial; }
+void TemporalAA::RecordExternalUse() { ++impl->recordedSerial; }
+void TemporalAA::ReleaseCompletedThrough(uint64_t serial) {
+    std::erase_if(impl->pending,[serial](const Impl::Pending& pending){return pending.serial<=serial;});
+}
 bool TemporalAA::Init(RenderDevice* device)
+{
+    return Init(device,false);
+}
+bool TemporalAA::Init(RenderDevice* device,bool hdrColor)
 {
     if(!device || impl->device) { impl->error="Init requires a non-null device and a fresh component";return false; }
     auto& p=*impl;p.device=device;
@@ -213,7 +224,7 @@ bool TemporalAA::Init(RenderDevice* device)
     p.sampler=device->createSampler(sampler);
     if(!p.vs||!p.ps||!p.displayPs||!p.layout||!p.sampler) {p.error="Temporal shader/layout/sampler creation failed";return false;}
     RenderGraphicsPipelineDesc desc;desc.pipelineLayout=p.layout.get();desc.vertexShader=p.vs.get();desc.pixelShader=p.ps.get();
-    desc.renderTargetCount=1;desc.renderTargetFormat[0]=RenderFormat::R8G8B8A8_UNORM;desc.renderTargetBlend[0]=RenderBlendDesc::Copy();desc.cullMode=RenderCullMode::NONE;
+    desc.renderTargetCount=1;desc.renderTargetFormat[0]=hdrColor?RenderFormat::R16G16B16A16_FLOAT:RenderFormat::R8G8B8A8_UNORM;desc.renderTargetBlend[0]=RenderBlendDesc::Copy();desc.cullMode=RenderCullMode::NONE;
     p.pipeline=device->createGraphicsPipeline(desc);
     desc.pixelShader=p.displayPs.get();p.displayPipeline=device->createGraphicsPipeline(desc);
     if(!p.pipeline||!p.displayPipeline)p.error="Temporal pipeline creation failed";
@@ -272,7 +283,7 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
         pending.set->setBuffer(6,pending.constants.get(),sizeof(c));
     }
 
-    p.pending.push_back(std::move(pending));auto& resources=p.pending.back();
+    pending.serial=p.recordedSerial+1;p.pending.push_back(std::move(pending));++p.recordedSerial;auto& resources=p.pending.back();
     commands->setFramebuffer(resources.framebuffer.get());RenderViewport viewport(0,0,float(in.width),float(in.height));RenderRect scissor(0,0,in.width,in.height);
     commands->setViewports(&viewport,1);commands->setScissors(&scissor,1);
     commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(p.pipeline.get());
@@ -302,7 +313,7 @@ bool TemporalAA::ReconstructDisplay(RenderCommandList* commands,const TemporalDi
         auto* mapped=pending.constants->map();memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
         pending.set->setBuffer(6,pending.constants.get(),sizeof(c));
     }
-    p.pending.push_back(std::move(pending));auto& resources=p.pending.back();
+    pending.serial=p.recordedSerial+1;p.pending.push_back(std::move(pending));++p.recordedSerial;auto& resources=p.pending.back();
     commands->setFramebuffer(resources.framebuffer.get());RenderViewport viewport(0,0,float(in.width),float(in.height));RenderRect scissor(0,0,in.width,in.height);
     commands->setViewports(&viewport,1);commands->setScissors(&scissor,1);
     commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(p.displayPipeline.get());
@@ -315,9 +326,13 @@ namespace gpu {
 struct TemporalAA::Impl {std::string error="Temporal AA requires plume";};
 TemporalAA::TemporalAA():impl(std::make_unique<Impl>()){} TemporalAA::~TemporalAA()=default;
 bool TemporalAA::Init(plume::RenderDevice*){return false;}
+bool TemporalAA::Init(plume::RenderDevice*,bool){return false;}
 bool TemporalAA::Resolve(plume::RenderCommandList*,const TemporalAAInputs&){return false;}
 bool TemporalAA::ReconstructDisplay(plume::RenderCommandList*,const TemporalDisplayInputs&){return false;}
 void TemporalAA::ReleaseCompleted(){}
+uint64_t TemporalAA::RecordedSerial()const{return 0;}
+void TemporalAA::RecordExternalUse(){}
+void TemporalAA::ReleaseCompletedThrough(uint64_t){}
 const std::string& TemporalAA::LastError()const{return impl->error;}
 }
 #endif

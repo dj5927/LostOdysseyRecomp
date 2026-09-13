@@ -336,6 +336,7 @@ namespace gpu::renderer
                 // a distinct output while commands in the slot remain in flight.
                 std::vector<std::unique_ptr<HostTexture>> bloomPrefilterTextures;
                 size_t bloomPrefilterUsed = 0;
+                uint64_t temporalSerial = 0, hdrTemporalSerial = 0;
                 bool submitted = false;
             };
             GpuSlot gpuSlots[kGpuSlots];
@@ -447,6 +448,13 @@ namespace gpu::renderer
             temporal::SceneObservation temporalScene;
             std::shared_ptr<taa_collection::SparseDepthGPU> sparseCollector;
             std::unique_ptr<temporal::HistoryOwner> temporalHistory;
+            // Opt-in candidate, controlled through the local diagnostic file.
+            // Separate owner: HDR is accumulated before bloom and tone mapping.
+            std::unique_ptr<temporal::HistoryOwner> hdrTemporalHistory;
+            RenderTexture* hdrTemporalOutput = nullptr;
+            temporal::SceneResolve hdrTemporalSource{};
+            bool hdrTonemapApplied = false, hdrTemporalInitFailed = false;
+            uint32_t hdrTemporalLogs = 0;
             bool temporalExperiment=false,temporalAllowHistory=false,temporalJitter=false,temporalStableGrid=false;
             bool temporalForced=false,temporalForcedHistory=false,temporalForcedJitter=false,temporalForcedStable=false;
             bool temporalInitFailed=false;
@@ -715,15 +723,27 @@ namespace gpu::renderer
             };
             uint64_t taaDiagnosticSerial = 0;
             int taaDiagnosticAA = -1, taaDiagnosticJitter = -1, taaDiagnosticHistory = -1, taaDiagnosticBloom = -1;
+            int taaDiagnosticHDR = 0;
+            int taaDiagnosticMaterials = 1;
             void PollTaaDiagnostic()
             {
                 static const char* path = getenv("LO_TAA_DIAGNOSTIC_REQUEST");
                 if (!path) return;
                 std::ifstream input(path);
                 std::string serialText, extra;
-                int aa, jitter, history, bloom;
-                if (!(input >> serialText >> aa >> jitter >> history >> bloom) || input >> extra ||
+                int aa, jitter, history, bloom, hdr = 0, materials = 1;
+                if (!(input >> serialText >> aa >> jitter >> history >> bloom) ||
                     serialText.empty() || serialText.find_first_not_of("0123456789") != std::string::npos) return;
+                // The optional sixth field keeps existing five-field requests valid.
+                if (input >> extra) {
+                    if (extra != "0" && extra != "1") return;
+                    hdr = extra == "1";
+                    if (input >> extra) {
+                        if (extra != "0" && extra != "1") return;
+                        materials = extra == "1";
+                        if (input >> extra) return;
+                    }
+                }
                 uint64_t serial = 0;
                 for (char digit : serialText) {
                     if (serial > (UINT64_MAX - uint64_t(digit - '0')) / 10) return;
@@ -733,10 +753,13 @@ namespace gpu::renderer
                     jitter < -1 || jitter > 1 || history < -1 || history > 1 || bloom < -1 || bloom > 1) return;
                 taaDiagnosticSerial = serial;
                 taaDiagnosticAA = aa; taaDiagnosticJitter = jitter; taaDiagnosticHistory = history; taaDiagnosticBloom = bloom;
+                taaDiagnosticHDR = hdr;
+                taaDiagnosticMaterials = materials;
                 if (temporalHistory) temporalHistory->Reset();
+                if (hdrTemporalHistory) hdrTemporalHistory->Reset();
                 temporalSupportedFrame = ~0ull; ++temporalEpoch;
-                LOG_INFO("renderer: TAA diagnostic serial={} frame={} aa={} jitter={} history={} bloom={}",
-                    serial, frame, aa, jitter, history, bloom);
+                LOG_INFO("renderer: TAA diagnostic serial={} frame={} aa={} jitter={} history={} bloom={} hdr={} materials={}",
+                    serial, frame, aa, jitter, history, bloom, hdr, materials);
             }
             uint64_t resolveTraceSerial = 0, resolveTraceFirstFrame = ~0ull;
             uint32_t resolveTraceRemaining = 0, resolveTraceBytes = 0;
@@ -750,6 +773,10 @@ namespace gpu::renderer
                 if (!requestPath) return;
                 if (!resolveTraceCopies.empty())
                 {
+                    // Flush submits asynchronously. Recycle completed slots before
+                    // mapping their copies; this also consumes/reset-tracks Vulkan
+                    // fences so a later Begin cannot wait the same fence twice.
+                    WaitForReadback();
                     const auto directory = std::filesystem::path(requestPath).parent_path();
                     const auto* data = static_cast<const char*>(resolveTraceBuffer->map());
                     for (const auto& copy : resolveTraceCopies)
@@ -803,7 +830,7 @@ namespace gpu::renderer
                     if (!bpp) continue;
                     const uint32_t pitch = (width * bpp + 255) & ~255u;
                     const uint32_t offset = (resolveTraceBytes + 511) & ~511u;
-                    constexpr uint32_t capacity = 128u << 20; // 4K source + TAA output + R32 depth.
+                    constexpr uint32_t capacity = 192u << 20; // 4K HDR source/output + R32 depth + RGBA8 output.
                     if (uint64_t(offset) + uint64_t(pitch) * height > capacity) continue;
                     if (!resolveTraceBuffer) resolveTraceBuffer = device->createBuffer(RenderBufferDesc::ReadbackBuffer(capacity));
                     if (!resolveTraceBuffer) continue;
@@ -1301,7 +1328,7 @@ namespace gpu::renderer
                 }
             }
 
-            HostTexture* PrefilterBloom(HostTexture& src)
+            HostTexture* PrefilterBloom(HostTexture& src, RenderTexture* hdrSource = nullptr)
             {
                 if (!bloomPrefilterPs || !blitVs) return nullptr;
                 if (!bloomPrefilterPipeline) {
@@ -1338,7 +1365,7 @@ namespace gpu::renderer
                 Transition(src, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
                 Transition(dst, RenderTextureLayout::COLOR_WRITE, RenderBarrierStage::GRAPHICS);
                 auto* set = AcquireSet(1); // Does not submit or change GPU slots.
-                set->setTexture(0, src.texture.get(), RenderTextureLayout::SHADER_READ);
+                set->setTexture(0, hdrSource ? hdrSource : src.texture.get(), RenderTextureLayout::SHADER_READ);
                 commandList->setFramebuffer(GetFramebuffer(&dst, nullptr));
                 RenderViewport viewport(0.0f, 0.0f, 1280.0f, 720.0f);
                 RenderRect scissor{0, 0, 1280, 720};
@@ -1478,8 +1505,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 for (auto& cache : s.textureSetCache) cache.Clear();
                 s.retiredTextures.clear();
                 s.bloomPrefilterUsed = 0;
-                if(temporalHistory)temporalHistory->ReleaseCompleted();
+                if(temporalHistory)temporalHistory->ReleaseCompletedThrough(s.temporalSerial);
                 else if(sparseCollector)sparseCollector->ReleaseCompleted();
+                if(hdrTemporalHistory)hdrTemporalHistory->ReleaseCompletedThrough(s.hdrTemporalSerial);
                 sceneAABusy=false;
                 s.uploadOffset = 0;
                 for (auto& used : s.setPoolUsed)
@@ -1491,6 +1519,15 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             {
                 for (uint32_t i = 0; i < kGpuSlots; ++i)
                     RecycleSlot(i);
+            }
+
+            void WaitForReadback()
+            {
+                // Call only after Flush. Its outgoing slot is the newest queue
+                // submission; waiting it first covers earlier copies before any
+                // RecycleSlot releases shared temporal descriptor resources.
+                RecycleSlot((gpuSlot + kGpuSlots - 1) % kGpuSlots);
+                WaitForGpu();
             }
 
             void Begin()
@@ -1527,6 +1564,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 commandList->end();
                 listOpen = false;
                 const RenderCommandList* lists[] = { commandList };
+                Gpu().temporalSerial = temporalHistory ? temporalHistory->RecordedSerial() : 0;
+                Gpu().hdrTemporalSerial = hdrTemporalHistory ? hdrTemporalHistory->RecordedSerial() : 0;
                 queue->executeCommandLists(lists, 1, nullptr, 0, nullptr, 0, fence);
                 Gpu().submitted = true;
                 gpuSlot = (gpuSlot + 1) % kGpuSlots;
@@ -3322,10 +3361,18 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         if(!temporalHistory->Init(device,sparseCollector)) {temporalHistory.reset();temporalInitFailed=true;LOG_ERROR("renderer: TAA initialization failed; SMAA fallback");}
                     }
                     if(!temporalHistory)temporalExperiment=false;
+                    if (temporalExperiment && taaDiagnosticHDR == 1 && !hdrTemporalHistory && !hdrTemporalInitFailed) {
+                        hdrTemporalHistory = std::make_unique<temporal::HistoryOwner>();
+                        if (!hdrTemporalHistory->Init(device, {}, true)) {
+                            hdrTemporalHistory.reset(); hdrTemporalInitFailed = true;
+                            LOG_ERROR("renderer: HDR temporal candidate initialization failed");
+                        }
+                    }
                 }
                 const bool trackTemporalScene = !debugCaptureDir.empty() || temporalExperiment || sceneAAEnabled;
                 if (trackTemporalScene && temporalScene.Frame() != frame) {
                     temporalScene.Reset(frame);
+                    hdrTemporalOutput = nullptr; hdrTemporalSource = {}; hdrTonemapApplied = false;
                     if(temporalHistory&&std::chrono::steady_clock::now()-temporalFrameTime>std::chrono::milliseconds(250)) {
                         temporalHistory->Reset();temporalSupportedFrame=~0ull;temporalJitter=taaDiagnosticJitter >= 0 ? taaDiagnosticJitter == 1 : temporalForcedJitter;++temporalEpoch;
                     }
@@ -3337,10 +3384,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         strcmp(getenv("LO_TEMPORAL_DRAW_LOG_WITH_RESOLVE_TRACE"), "1") == 0;
                     temporalHistory->BeginFrame(frame,temporalEpoch,
                         taa_collection::DiagnosticsActive() || (diagnosticStart&&frame>=diagnosticFrame&&temporalFramesLogged<256) || (withTrace&&resolveTraceRemaining));
+                    if (hdrTemporalHistory) hdrTemporalHistory->BeginFrame(frame, temporalEpoch, resolveTraceRemaining != 0);
                 }
                 taaInit.AddTo(tTaa);
                 std::optional<temporal::SceneResolve> temporalSceneCopy;
-                bool sceneAARecorded=false,temporalAARecorded=false;
+                bool sceneAARecorded=false,temporalAARecorded=false,hdrTonemapRecorded=false;
                 std::optional<temporal::SceneAnchor> temporalDrawAnchor;
 
                 SharedConstants shared{};
@@ -3438,8 +3486,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     if (bindingTransform.slot >= 0 && bindingTransform.slot <= 252)
                         std::copy_n(vsConstants + bindingTransform.slot * 4, 16, bindingTransform.guestVP.begin());
                 }
+                const bool diagnosticMaterialBypass = taaDiagnosticMaterials == 0 &&
+                    (key.vs == 0x3c86f4a89d220ee8ull || key.vs == 0xf3b9f20b3d3a62d5ull || key.vs == 0xe7b38eb08c70e5e1ull);
                 const auto drawJitter = temporal::ApplyDrawJitter(key.vs, key.ps, frame,
-                    temporalExperiment && temporalJitter, temporalViewport, jitterAnchor,
+                    temporalExperiment && temporalJitter && !diagnosticMaterialBypass, temporalViewport, jitterAnchor,
                     depth ? depth->allocationSerial : 0,
                     {rasterViewport.x, rasterViewport.y, rasterViewport.width, rasterViewport.height},
                     vsConstants, psConstants, &temporalScene.Depth(), jitterSampledDepth ? &*jitterSampledDepth : nullptr);
@@ -3688,9 +3738,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                     source->tex->width == tex->width && source->tex->height == tex->height};
                         }
                         HostTexture* bloomFiltered = nullptr;
+                        RenderTexture* hdrBinding = nullptr;
+                        const bool useBloomPrefilter = taaDiagnosticBloom >= 0 ? taaDiagnosticBloom == 1 : bloomPrefilterEnabled && sceneAAMode == 3;
                         // Keep bloom reconstruction stable while temporal history
                         // resets or temporarily suspends jitter (including capture stalls).
-                        if ((taaDiagnosticBloom >= 0 ? taaDiagnosticBloom == 1 : bloomPrefilterEnabled && sceneAAMode == 3) && s == ps && slot == 0 &&
+                        if ((useBloomPrefilter || taaDiagnosticHDR == 1 || resolveTraceRemaining) && s == ps && slot == 0 &&
                             key.vs == 0x2f6bbed8149a7804ull && key.ps == 0x7c260eacff1d681dull &&
                             declared == 1 && dimension == 1 && tex != color &&
                             tex->format == RenderFormat::R16G16B16A16_FLOAT &&
@@ -3704,7 +3756,37 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             if (source && source->tex.get() == tex && source->frame == frame && source->writeOrdinal &&
                                 source->writeX == 0 && source->writeY == 0 &&
                                 source->writeWidth == tex->width && source->writeHeight == tex->height) {
-                                bloomFiltered = PrefilterBloom(*tex);
+                                const auto traceCopiesBefore = resolveTraceCopies.size();
+                                QueueResolveTrace(*tex, 0xffff0030u);
+                                if (resolveTraceCopies.size() != traceCopiesBefore)
+                                    LOG_INFO("renderer: bloom source trace frame={} write_ordinal={} address={:#x} source={}x{} synthetic=0xffff0030",
+                                        frame, source->writeOrdinal, (fetch[1] >> 12) << 12, tex->width, tex->height);
+                                if (taaDiagnosticHDR == 1 && temporalExperiment && hdrTemporalHistory && !hdrTemporalOutput &&
+                                    temporalScene.Reason() == temporal::SceneObservation::Rejection::None && temporalScene.Copies() == 0) {
+                                    auto hdrScene = temporalScene;
+                                    temporal::SceneResolve hdrSource{source->frame, source->writeOrdinal,
+                                        (fetch[1] >> 12) << 12, fetch[1] & 0x3F, tex->width, tex->height, true};
+                                    if (hdrScene.ObserveColor(hdrSource)) {
+                                        Transition(*tex, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
+                                        const auto jitter = temporal::FrameJitter(frame, tex->width, tex->height);
+                                        hdrTemporalOutput = hdrTemporalHistory->ResolveColor(commandList, tex->texture.get(), hdrScene,
+                                            temporalJitter ? jitter.pixelX : 0, temporalJitter ? jitter.pixelY : 0,
+                                            temporalAllowHistory, true, true);
+                                        Transition(*tex, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
+                                        if (hdrTemporalOutput) {
+                                            hdrTemporalSource = hdrSource;
+                                            QueueResolveTrace(hdrTemporalOutput, tex->format, tex->width, tex->height, RenderTextureLayout::SHADER_READ, 0xffff0031u);
+                                            if (resolveTraceRemaining || hdrTemporalLogs++ < 4)
+                                                LOG_INFO("renderer: HDR temporal frame={} source_ordinal={} depth_ordinal={} reused={} size={}x{}",
+                                                    frame, hdrSource.ordinal, hdrScene.Depth().ordinal, hdrTemporalHistory->Reused(), tex->width, tex->height);
+                                        }
+                                    }
+                                }
+                                const bool sameHDRSource = hdrTemporalOutput && hdrTemporalSource.frame == frame &&
+                                    hdrTemporalSource.address == ((fetch[1] >> 12) << 12) && hdrTemporalSource.format == (fetch[1] & 0x3F) &&
+                                    hdrTemporalSource.ordinal == source->writeOrdinal && hdrTemporalSource.width == tex->width && hdrTemporalSource.height == tex->height;
+                                if (useBloomPrefilter) bloomFiltered = PrefilterBloom(*tex, sameHDRSource ? hdrTemporalOutput : nullptr);
+                                else if (sameHDRSource) hdrBinding = hdrTemporalOutput;
                                 if (bloomFiltered) {
                                     if (bloomPrefilterLogs++ < 4)
                                         LOG_INFO("renderer: bloom prefilter frame={} vs={:016x} ps={:016x} source={}x{} filtered=1280x720 HDR area linear",
@@ -3713,6 +3795,22 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                         debugTrace << fmt::format("bloom_prefilter frame={} vs={:016x} ps={:016x} source={}x{} filtered=1280x720 resolve={} HDR_area=1 linear=1\n",
                                             frame, key.vs, key.ps, tex->width, tex->height, source->writeOrdinal);
                                 }
+                            }
+                        }
+                        // The same resolved version feeds the verified tone-map shader.
+                        // Rewrites, address reuse, other consumers, and other frames do not match.
+                        if (hdrTemporalOutput && s == ps && slot == 0 && declared == 1 && dimension == 1 &&
+                            key.vs == 0x9b81c55ca39bb529ull && key.ps == 0xb4b4d54a7a2d6b96ull &&
+                            tex->format == RenderFormat::R16G16B16A16_FLOAT && tex != color) {
+                            const auto address = (fetch[1] >> 12) << 12;
+                            const auto format = fetch[1] & 0x3F;
+                            const auto* source = FindResolved(address, format);
+                            if (source && source->tex.get() == tex && address == hdrTemporalSource.address &&
+                                format == hdrTemporalSource.format && source->frame == hdrTemporalSource.frame && source->frame == frame &&
+                                source->writeOrdinal == hdrTemporalSource.ordinal && tex->width == hdrTemporalSource.width && tex->height == hdrTemporalSource.height) {
+                                hdrBinding = hdrTemporalOutput; hdrTonemapRecorded = true;
+                                if (resolveTraceRemaining)
+                                    LOG_INFO("renderer: HDR tone-map frame={} source_ordinal={} same_output=1", frame, source->writeOrdinal);
                             }
                         }
                         const bool diagnosticFullSceneCopy = fullSceneCopy && s == ps && slot == 0 &&
@@ -3729,7 +3827,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                 Transition(*tex,RenderTextureLayout::COPY_SOURCE,RenderBarrierStage::COPY);
                                 const auto sample = temporal::FrameJitter(frame, rasterViewport.width, rasterViewport.height);
                                 const double jx = temporalJitter ? sample.pixelX : 0, jy = temporalJitter ? sample.pixelY : 0;
-                                temporalDisplay=temporalHistory->ResolveColor(commandList,tex->texture.get(),temporalScene,jx,jy,temporalAllowHistory,temporalStableGrid,sceneAAMode==3);
+                                temporalDisplay=temporalHistory->ResolveColor(commandList,tex->texture.get(),temporalScene,jx,jy,temporalAllowHistory && !hdrTonemapApplied,temporalStableGrid,sceneAAMode==3);
                                 Transition(*tex,RenderTextureLayout::SHADER_READ,RenderBarrierStage::GRAPHICS);
                                 if(temporalDisplay) {
                                     temporalDisplayFromHistory = true;
@@ -3778,10 +3876,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             samplerKey = (samplerKey & ~uint64_t(0xF)) | 0x5;
                         shared.samplerIndex[slot] = GetSamplerIndex(samplerKey);
                         textureBindings[bank][slot] = temporalDisplay ? temporalDisplay :
-                            bloomFiltered ? bloomFiltered->texture.get() : tex->texture.get();
+                            bloomFiltered ? bloomFiltered->texture.get() : hdrBinding ? hdrBinding : tex->texture.get();
                         if (selectedBinding) {
                             selectedBinding->bank = bank;
-                            if (temporalDisplay || bloomFiltered) {
+                            if (temporalDisplay || bloomFiltered || hdrBinding) {
                                 // No bloom-filtered TextureKind exists. Unknown
                                 // avoids reporting a filtered texture as a direct resolve.
                                 selectedBinding->kind = temporalDisplay ?
@@ -4220,6 +4318,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         bits(guestShadow.data(), shadowPair ? 16 : 0), shadowPair ? bits(psConstants + 2 * 4, 16) : "");
                 }
                 if(temporalSceneCopy)temporalSubmittedFrame=frame;
+                if(hdrTonemapRecorded)hdrTonemapApplied=true;
                 if(fullSceneCopy)color->aaProvenance.Invalidate(frame,color->allocationSerial,
                     rasterViewport.width>=color->aaValidWidth && rasterViewport.height>=color->aaValidHeight);
                 if(sceneAARecorded||temporalAARecorded) {
@@ -4443,6 +4542,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     RenderTextureCopyLocation::PlacedFootprint(readback.get(), tex.format, tex.width, tex.height, 1, rowPitch / bpp, 0),
                     RenderTextureCopyLocation::Subresource(tex.texture.get(), 0));
                 Flush();
+                WaitForReadback();
                 Begin();
                 const uint8_t* src = static_cast<const uint8_t*>(readback->map());
                 if (FILE* f = fopen(path.c_str(), "wb"))
@@ -4527,6 +4627,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     RenderTextureCopyLocation::PlacedFootprint(readback.get(), tex.format == RenderFormat::R32_FLOAT ? RenderFormat::R32_FLOAT : tex.format, tex.width, tex.height, 1, rowPitch / bpp, 0),
                     RenderTextureCopyLocation::Subresource(tex.texture.get(), 0));
                 Flush();
+                WaitForReadback();
                 Begin();
                 const uint8_t* src = static_cast<const uint8_t*>(readback->map());
                 const char* dir = debugCaptureDir.empty()
@@ -4683,6 +4784,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     if(temporalExperiment && temporalHistory && temporalScene.Depth().ordinal==rs.writeOrdinal) {
                         Transition(*rs.tex,RenderTextureLayout::COPY_SOURCE,RenderBarrierStage::COPY);
                         temporalHistory->CaptureDepth(commandList,rs.tex->texture.get(),temporalScene);
+                        if (taaDiagnosticHDR == 1 && hdrTemporalHistory)
+                            hdrTemporalHistory->CaptureDepth(commandList,rs.tex->texture.get(),temporalScene);
                         Transition(*rs.tex,RenderTextureLayout::SHADER_READ,RenderBarrierStage::GRAPHICS);
                     }
                 }

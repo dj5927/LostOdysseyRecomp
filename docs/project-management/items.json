@@ -5155,18 +5155,18 @@
     },
     {
       "key": "kanto-red-eye-flicker-v056",
-      "title": "Investigate Kanto armored-soldier red-eye flicker",
-      "body": "<!-- lo-project:kanto-red-eye-flicker-v056 -->\n\n## Reported symptom — 2026-09-12\n\nA local v0.5.6 AA3/TAA battle scene has flickering Kanto armored-soldier red eyes; the same scene with TAA Off does not. The environment is RTX 5080, 3840×2160; 120 FPS is a configured target, not a measured performance result. Raw captures and video remain local.\n\n## Bounded implementation and validation\n\nSource `0.5.6-hotfix1` contains three directed Bloom candidates. The first area-prefilters high-resolution HDR input back to guest 1280×720 for the known first-Bloom pair; the second adds linear sampling after that prefilter; the third removes only the transient `temporalJitter` gate while retaining AA3. D3D12 and Vulkan fixtures cover HDR negative values/alpha, exact area weights, highlight phases and linear filter response. Production GPU checks on captured HDR inputs matched independent references.\n\n## Acceptance and remaining work\n\nThe user confirmed the upper large robot no longer flickers with the third candidate. The lower enemy eyes still flicker, so this is partial scene acceptance and not a complete repair. Four `f7208` 84-index eye pairs have bit-identical CPU uploads/D3D replay and Vulkan coverage masks through all 32 jitter phases under strict EQUAL depth; no invariant, threshold or shader-map change is justified.\n\nA separate process-scoped live diagnostic build is staged for the user's same-scene run. Its runtime-control validation, lower-eye diagnosis/repair and player acceptance remain pending. It is not included in a release.\n\n## Sources\n\n- `docs/notes/taa-bloom-prefilter.md`\n- `out/taa-bloom-fix/capture-filter-validation.json`\n- User local-only capture/video and same-scene observation, 2026-09-12\n",
+      "title": "Investigate Kanto armored-soldier lighting flicker",
+      "body": "<!-- lo-project:kanto-red-eye-flicker-v056 -->\n\n## Accepted scene repair — 2026-09-12\n\nThe user accepted the fifth candidate in the reported encounter: “arrived, no flicker.” The observed process was PID 26188, `LostOdysseyRecomp-taa-material-candidate.exe`, runtime `1789278806155312`, source `0.5.6-hotfix1`, using `Test-TAA-Lighting-5.cmd`, HDR default 0 and materials default 1. The candidate SHA-256 is `F983446111909E353BB34A871CCD15E9B010F4C6B62311A3B4F2D062DA5180BE`.\n\n## Delivered scope and boundary\n\nThis is user acceptance for the reported scene-wide lower-enemy face/body lighting flicker. It does not establish all-scene, all-material or full-game absence of flicker. Local repair branch target: `trail/fix-taa-lighting`; unpublished. Recurrence reopens this work item.\n\n## Sources\n\n- User same-scene acceptance, 2026-09-12\n- `out/taa-bloom-fix/REPORT.md`\n- `out/taa-bloom-fix/body-occluder-audit.md`\n",
       "issue_url": null,
       "fields": {
         "Kind": "Bug",
         "Area": "TAA and graphics",
-        "Status": "In Progress",
-        "Delivery": "Validated",
+        "Status": "Done",
+        "Delivery": "Implemented",
         "Release": null,
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "AA3 Bloom candidates passed D3D12/Vulkan fixtures and captured-input GPU references. User confirms the third candidate stabilizes the upper large robot; lower enemy eyes still flicker. Four f7208 84-index eye pairs are bit-identical in CPU/D3D replay and Vulkan strict-EQUAL coverage through 32 jitter phases. No invariant, threshold or shader-map change. Process-scoped live diagnostic control validation, lower-eye repair and player acceptance are pending. Not included in a release."
+        "Evidence": "User accepted fifth candidate in reported scene: no flicker. Verified PID 26188, LostOdysseyRecomp-taa-material-candidate.exe, runtime 1789278806155312, source 0.5.6-hotfix1, Test-TAA-Lighting-5.cmd, HDR default 0/materials default 1, SHA-256 F983446111909E353BB34A871CCD15E9B010F4C6B62311A3B4F2D062DA5180BE. Accepted reported encounter scope only; not all-scene/full-game guarantee. Local repair branch target trail/fix-taa-lighting; unpublished. Recurrence reopens item."
       },
       "source_refs": [
         "user-report-2026-09-12",

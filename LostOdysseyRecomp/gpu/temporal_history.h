@@ -162,20 +162,23 @@ class HistoryOwner {
     plume::RenderDevice* device_=nullptr;
     TemporalAA aa_;
     std::shared_ptr<taa_collection::SparseDepthGPU> sparse_;
+    uint64_t sparseReleaseSerial_=0;
     std::array<Image,2> depth_,history_;
     Image source_,display_;
-    std::vector<std::unique_ptr<plume::RenderTexture>> retired_;
+    struct RetiredImage { uint64_t serial; std::unique_ptr<plume::RenderTexture> texture; };
+    std::vector<RetiredImage> retired_;
     std::array<Frame,2> frames_;
     uint32_t width_=0,height_=0;
     uint64_t frame_=~0ull,epoch_=0;
     bool valid_=false,reused_=false;
     bool diagnosticsEnabled_=false;
+    plume::RenderFormat colorFormat_=plume::RenderFormat::R8G8B8A8_UNORM;
     HistoryReuseDiagnostic diagnostics_;
     static void Transition(plume::RenderCommandList* commands,Image& image,plume::RenderTextureLayout layout) {
         if(image.layout!=layout) {commands->barriers(plume::RenderBarrierStage::ALL,plume::RenderTextureBarrier(image.texture.get(),layout));image.layout=layout;}
     }
     bool Allocate(Image& image,plume::RenderFormat format) {
-        if(image.texture)retired_.push_back(std::move(image.texture));
+        if(image.texture)retired_.push_back({aa_.RecordedSerial(),std::move(image.texture)});
         image.layout=plume::RenderTextureLayout::UNKNOWN;
         image.texture=device_->createTexture(plume::RenderTextureDesc::Texture2D(width_,height_,1,format,plume::RenderTextureFlag::RENDER_TARGET));
         return bool(image.texture);
@@ -185,8 +188,11 @@ class HistoryOwner {
         return x.x==y.x&&x.y==y.y&&x.width==y.width&&x.height==y.height&&x.ndcYSign==y.ndcYSign&&x.halfPixelNdcX==y.halfPixelNdcX&&x.halfPixelNdcY==y.halfPixelNdcY;
     }
 public:
-    bool Init(plume::RenderDevice* device,std::shared_ptr<taa_collection::SparseDepthGPU> sparse={}) {
-        device_=device;sparse_=std::move(sparse);return aa_.Init(device);
+    // Color source, history and display share the instance format; depth remains R32 FLOAT.
+    bool Init(plume::RenderDevice* device,std::shared_ptr<taa_collection::SparseDepthGPU> sparse={},bool hdrColor=false) {
+        device_=device;sparse_=std::move(sparse);
+        colorFormat_=hdrColor?plume::RenderFormat::R16G16B16A16_FLOAT:plume::RenderFormat::R8G8B8A8_UNORM;
+        return aa_.Init(device,hdrColor);
     }
     void Reset() {valid_=false;for(auto& frame:frames_)frame.completed=false;}
     // Frame identity is supplied by renderer, never CPU presented-swap count.
@@ -205,9 +211,9 @@ public:
             bool ok=width_&&height_&&width_<=16384&&height_<=16384;
             if(!ok)return false;
             for(auto& image:depth_)ok=Allocate(image,plume::RenderFormat::R32_FLOAT)&&ok;
-            for(auto& image:history_)ok=Allocate(image,plume::RenderFormat::R8G8B8A8_UNORM)&&ok;
-            ok=Allocate(source_,plume::RenderFormat::R8G8B8A8_UNORM)&&ok;
-            ok=Allocate(display_,plume::RenderFormat::R8G8B8A8_UNORM)&&ok;
+            for(auto& image:history_)ok=Allocate(image,colorFormat_)&&ok;
+            ok=Allocate(source_,colorFormat_)&&ok;
+            ok=Allocate(display_,colorFormat_)&&ok;
             if(!ok){width_=height_=0;return false;}
         }
         Matrix vp{};for(unsigned i=0;i<16;++i)vp[i]=std::bit_cast<float>(scene.Anchor().vpBits[i]);
@@ -216,9 +222,10 @@ public:
         // Caller has explicitly transitioned external source to COPY_SOURCE.
         auto& destination=depth_[frame_%2];Transition(commands,destination,plume::RenderTextureLayout::COPY_DEST);
         commands->copyTextureRegion(plume::RenderTextureCopyLocation::Subresource(destination.texture.get()),plume::RenderTextureCopyLocation::Subresource(source));
-        Transition(commands,destination,plume::RenderTextureLayout::SHADER_READ);return true;
+        Transition(commands,destination,plume::RenderTextureLayout::SHADER_READ);
+        aa_.RecordExternalUse();return true;
     }
-    // Caller supplies full RGBA8 pre-UI scene in COPY_SOURCE. Output is SHADER_READ.
+    // Caller supplies full scene color in the instance color format and COPY_SOURCE. Output is SHADER_READ.
     // allowHistory is an explicit experiment assertion, NOT inferred scene/MV safety.
     plume::RenderTexture* ResolveColor(plume::RenderCommandList* commands,plume::RenderTexture* source,const SceneObservation& scene,double jx,double jy,bool allowHistory,bool stableGrid=false,bool colorReactive=false) {
         auto& current=frames_[frame_%2];auto& previous=frames_[(frame_+1)%2];
@@ -236,12 +243,13 @@ public:
         TemporalAAInputs in;in.rejectOutOfNeighborhoodHistory=colorReactive;in.stableGrid=stableGrid;in.currentColor=source_.texture.get();in.currentDepth=depth_[frame_%2].texture.get();in.historyColor=history_[(frame_+1)%2].texture.get();in.historyDepth=depth_[(frame_+1)%2].texture.get();in.output=history_[frame_%2].texture.get();
         in.width=in.historyWidth=width_;in.height=in.historyHeight=height_;in.currentCamera=&*current.camera;in.previousCamera=previous.camera?&*previous.camera:nullptr;
         in.currentJitterX=jx;in.currentJitterY=jy;in.previousJitterX=previous.jx;in.previousJitterY=previous.jy;in.historyValid=reuse;in.rejectAllHistory=!allowHistory;
-        if(sparse_&&sparse_->Ready()&&taa_collection::WantSparse()) {
+        if(sparse_&&!sparseReleaseSerial_&&sparse_->Ready()&&taa_collection::WantSparse()) {
             taa_collection::SparseFrame f;f.frame=frame_;f.epoch=epoch_;f.width=width_;f.height=height_;
             f.current=current.camera;f.previous=previous.camera;
             f.flags=(previous.completed&&previous.number+1==frame_&&previous.epoch==epoch_&&previous.camera&&SameRaster(*current.camera,*previous.camera)?1u:0u)|(reuse?2u:0u)|(allowHistory?4u:0u)|(stableGrid?8u:0u);
             f.jitter[0]=float(jx);f.jitter[1]=float(jy);f.jitter[2]=float(previous.jx);f.jitter[3]=float(previous.jy);
             sparse_->Record(commands,in.currentDepth,std::move(f));
+            aa_.RecordExternalUse();sparseReleaseSerial_=aa_.RecordedSerial();
         }
         if(!aa_.Resolve(commands,in)){Reset();return nullptr;}
         Transition(commands,history_[frame_%2],plume::RenderTextureLayout::SHADER_READ);
@@ -256,7 +264,15 @@ public:
     const HistoryReuseDiagnostic& Diagnostics() const {return diagnostics_;}
     // Borrowed diagnostic view, SHADER_READ; restore that layout after a readback.
     plume::RenderTexture* CurrentDepth() const {return depth_[frame_%2].texture.get();}
-    void ReleaseCompleted() {if(sparse_)sparse_->ReleaseCompleted();aa_.ReleaseCompleted();retired_.clear();}
+    void ReleaseCompleted() {if(sparse_)sparse_->ReleaseCompleted();sparseReleaseSerial_=0;aa_.ReleaseCompleted();retired_.clear();}
+    uint64_t RecordedSerial() const {return aa_.RecordedSerial();}
+    void ReleaseCompletedThrough(uint64_t serial) {
+        if(sparse_&&sparseReleaseSerial_&&sparseReleaseSerial_<=serial) {
+            sparse_->ReleaseCompleted();sparseReleaseSerial_=0;
+        }
+        aa_.ReleaseCompletedThrough(serial);
+        std::erase_if(retired_,[serial](const RetiredImage& image){return image.serial<=serial;});
+    }
 };
 }
 #endif

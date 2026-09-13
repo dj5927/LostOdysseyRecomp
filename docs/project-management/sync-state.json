@@ -2477,14 +2477,14 @@
       "fields": {
         "Kind": "Bug",
         "Area": "TAA and graphics",
-        "Status": "In Progress",
-        "Delivery": "Validated",
+        "Status": "Done",
+        "Delivery": "Implemented",
         "Start date": "2026-09-12",
-        "Evidence": "AA3 Bloom candidates passed D3D12/Vulkan fixtures and captured-input GPU references. User confirms the third candidate stabilizes the upper large robot; lower enemy eyes still flicker. Four f7208 84-index eye pairs are bit-identical in CPU/D3D replay and Vulkan strict-EQUAL coverage through 32 jitter phases. No invariant, threshold or shader-map change. Process-scoped live diagnostic control validation, lower-eye repair and player acceptance are pending. Not included in a release.",
+        "Evidence": "User accepted fifth candidate in reported scene: no flicker. Verified PID 26188, LostOdysseyRecomp-taa-material-candidate.exe, runtime 1789278806155312, source 0.5.6-hotfix1, Test-TAA-Lighting-5.cmd, HDR default 0/materials default 1, SHA-256 F983446111909E353BB34A871CCD15E9B010F4C6B62311A3B4F2D062DA5180BE. Accepted reported encounter scope only; not all-scene/full-game guarantee. Local repair branch target trail/fix-taa-lighting; unpublished. Recurrence reopens item.",
         "Source key": "kanto-red-eye-flicker-v056"
       },
-      "title": "Investigate Kanto armored-soldier red-eye flicker",
-      "body_sha256": "7bf42c00b53aa5245b27d98216e42a2419c77609d6f7e64743efbc0bf4e7e90b"
+      "title": "Investigate Kanto armored-soldier lighting flicker",
+      "body_sha256": "aa8ee2008eefa832ff8d83c2fb24ed09f5659e1500c4b2d345219e543fe3780d"
     }
   }
 }

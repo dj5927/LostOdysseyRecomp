@@ -26,7 +26,10 @@ inline int PositionVPSlot(uint64_t shader) {
     case 0x0b786a899598ce18ull:
     // Capture 2813-2815: exact c7 camera and position output, 48 draws/frame.
     case 0xe8ec18f1d3eac4dfull:case 0x1ea46291cb1c7298ull:
-    case 0x7d403bdef896a97full:case 0x45ed0948b6b701a7ull:return 7;
+    case 0x7d403bdef896a97full:case 0x45ed0948b6b701a7ull:
+    // f1653: matched depth/material/light geometry and camera; c7-c10 only
+    // feed clip position/varyings. World-space lighting uses separate constants.
+    case 0x3c86f4a89d220ee8ull:case 0xf3b9f20b3d3a62d5ull:case 0xe7b38eb08c70e5e1ull:return 7;
     case 0x1da1ddc75da8e994ull:case 0x22557143e0f243ddull:case 0x4c87bb5b986defc8ull:case 0xa6c8c11c6dd07144ull:
     case 0xe8c0d438c690c784ull:case 0x576d669b2ad3c898ull:
     case 0x188061ace0615678ull:case 0xdc7f83af67c53ba1ull:case 0x68014a17a2a9a4bdull:return 8;
