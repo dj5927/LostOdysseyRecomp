@@ -4,13 +4,19 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## v0.5.10 — Unreleased / 未发布
+## v0.5.10 — Release candidate / 待发布
 
-- Extend startup shader preparation with verified original CPX metadata and the captured packed static-mesh declaration, including `1474db97dfc0afad`. Discovery changes refresh the startup bundle while reusing valid individual compiled shaders. Gameplay frame-time validation remains pending; see the [coverage note](docs/notes/shader-startup-coverage-2026-09-13.md).
-- 补充启动 shader 准备的原始 CPX 元数据及捕获到的 packed 静态网格声明，覆盖 `1474db97dfc0afad`。覆盖变化会更新启动包，同时复用有效的单个已编译 shader；实景帧时间仍待验证，详见[覆盖记录](docs/notes/shader-startup-coverage-2026-09-13.md)。
-- Exclude local `.agent/` and `.agents/` directories from version control. / 将本地 `.agent/`、`.agents/` 目录移出版本控制并忽略。
-- Extend the local Vulkan TAA jitter mapping with 11 additional material/light vertex-shader paths observed in captures f5997, f5912 and f16385; the f5997 and f5912 captured-layer fixtures passed 590,985 and 787,980 checks. The user accepted the reported flicker scenes for these captures; other scenes and whole-game coverage remain unverified, and no release is recorded. See the [f5997 TAA note](docs/notes/taa-f5997-2026-09-13.md) and [f5912/f16385 TAA note](docs/notes/taa-f5912-f16385-2026-09-13.md).
-- 将本地 Vulkan TAA jitter 映射扩展到 f5997、f5912 和 f16385 捕获中发现的 11 条其他材质／光照顶点 shader 路径；f5997 和 f5912 captured-layer 夹具分别通过 590,985 和 787,980 项检查。用户已验收这些捕获对应的闪烁场景；其他场景和全游戏覆盖仍未核实，也未记录发布。详见 [f5997 TAA 记录](docs/notes/taa-f5997-2026-09-13.md)及 [f5912/f16385 TAA 记录](docs/notes/taa-f5912-f16385-2026-09-13.md)。
+### English
+
+- Fix 11 additional Vulkan TAA vertex-shader paths observed in captures f5997, f5912 and f16385, keeping depth, material and light layers aligned. The user accepted the reported flicker scenes; other scenes and whole-game coverage remain unverified.
+- Extend startup shader preparation with verified original CPX metadata and the captured packed static-mesh declaration, including `1474db97dfc0afad`. Discovery changes refresh the startup bundle while reusing valid individual compiled shaders. Gameplay frame-time validation remains pending.
+- Reuse passing captured-layer, original-source variant and startup-cache checks, including byte-identical preservation of 2,245 historical fixed/linked outputs. See the [TAA records](docs/notes/taa-f5912-f16385-2026-09-13.md) and [startup coverage note](docs/notes/shader-startup-coverage-2026-09-13.md).
+
+### 简体中文
+
+- 修复 f5997、f5912、f16385 捕获中的另外 11 条 Vulkan TAA 顶点 shader 路径，使深度、材质和光照层保持对齐。用户已验收报告中的闪烁场景；其他场景和全游戏覆盖仍未验证。
+- 补充启动 shader 准备的原始 CPX 元数据及捕获到的 packed 静态网格声明，覆盖 `1474db97dfc0afad`。覆盖变化会更新启动包，同时复用有效的单个已编译 shader；实景帧时间仍待验证。
+- 复用已通过的捕获层、原始资源变体和启动缓存检查，包括 2,245 个历史 fixed/linked 输出的逐字节兼容性。详见 [TAA 记录](docs/notes/taa-f5912-f16385-2026-09-13.md)及[启动覆盖记录](docs/notes/shader-startup-coverage-2026-09-13.md)。
 
 ## v0.5.9 — 2026-09-13 / Published / 已发布
 
