@@ -8,10 +8,12 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- Add guarded TAA jitter coverage for seven main-camera vertex-shader paths found in frames 13429–13431, including five paths recovered by separating position input from auxiliary lighting data. The seven-path CPU fixture and Release candidate build passed; player visual acceptance remains pending. Historical discovery also recorded 76 cache-only candidates and eight historical associations without enabling them at runtime. See the [capture and validation note](docs/notes/taa-current-scene-2026-09-13.md).
 - Synchronize the private PPC cache by fast-forwarding its `main` branch while preserving unrelated archive files and retaining existing `ppc/<key>` branches for historical build selection. Release CI validates the cache fingerprint and compile contract before restore and records the immutable private HEAD. Actionlint, the 23-test PPC sync suite and two embedded CI identity fixtures passed; real GitHub Release CI has not yet proved this new workflow, and runtime/gameplay validation remains separate. Local auto-sync is not enabled automatically.
 
 ### 简体中文
 
+- 补齐 frames 13429–13431 中七条主相机顶点 shader 路径的 TAA jitter 覆盖，其中五条通过区分位置输入与辅助光照数据找出。七路径 CPU 夹具和 Release 候选构建已通过，玩家画面验收待完成。历史扫描另保留 76 个缓存候选和八条历史关联，没有自动加入运行映射。详见[抓帧与验证记录](docs/notes/taa-current-scene-2026-09-13.md)。
 - 通过快进更新同步私有 PPC cache 的 `main` 分支，保留无关归档文件，并保留现有 `ppc/<key>` 分支用于历史构建选择。Release CI 在恢复前校验 cache 指纹和编译契约，并记录私有仓库不可变的 HEAD。actionlint、23 项 PPC sync 测试和两项嵌入式 CI identity fixture 已通过；真实 GitHub Release CI 尚未证明这个新 workflow，运行时／游戏验证仍需另行判断。本地 auto-sync 不会自动启用。
 
 ## v0.5.7 — 2026-09-13 / Published / 已发布

@@ -8,6 +8,7 @@
 
 | 专项笔记 |
 |---|
+| [当前场景 TAA jitter 覆盖与静态 shader discovery（2026-09-13；候选，未验收）](taa-current-scene-2026-09-13.md) |
 | [Issue #7：议会崩溃、原生保存／读档与日志诊断](issue7-cutscene-crash.md) |
 | [PowerPC 位宽／控制流审查与九类语义修复](recompiler-width-audit.md) |
 | [Switch 评估与 v0.5.0 PC Vulkan／DX11 交接（2026-09-07；后端规划待实施、待验收，PC Vulkan 后再对齐 Switch）](switch-vulkan-handoff.md) |

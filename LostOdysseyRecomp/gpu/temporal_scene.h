@@ -15,6 +15,9 @@ namespace gpu::temporal
 inline int PositionVPSlot(uint64_t shader) {
     switch(shader) {
     case 0x702c643defe73320ull:case 0x97f07e5d73418e64ull:case 0x99c2b4b0960a9ccdull:return 0;
+    // f13429-f13431: alpha-tested depth shares ff9da/a27a geometry; c4-c7
+    // feed only position, while its object UV and alpha color remain unchanged.
+    case 0x8d3c80b318235b22ull:
     case 0xb030ab4e17a20783ull:case 0xf1b330b3ceea9a3bull:case 0xf7fd88506d704a3dull:return 4;
     case 0x03184cec350bc14eull:case 0x3621e6e696f914c5ull:case 0x4053f2a21dbb92ddull:
     case 0xa27a7234977e0d4aull:case 0xbfe5f796efa9ae95ull:case 0xc13cdd857c57fed9ull:case 0xf4577672c6ee5dd9ull:
@@ -26,6 +29,11 @@ inline int PositionVPSlot(uint64_t shader) {
     case 0x0b786a899598ce18ull:
     // Capture 2813-2815: exact c7 camera and position output, 48 draws/frame.
     case 0xe8ec18f1d3eac4dfull:case 0x1ea46291cb1c7298ull:
+    // f13429-f13431: material/light companions consume the same main camera.
+    // Extra fetch94 carries lighting/scalar data, not position; c7-c10 feed
+    // only clip position/copy. Keep independent lighting c4-c6 and object UV.
+    case 0x3eb16ad927f44289ull:case 0x83b23507725f85bfull:case 0x6742ec1abe49589eull:
+    case 0x0f2b89c7eb1c409eull:case 0xfecf2f9d9bef2702ull:case 0x2a7867b5eed37f8aull:
     case 0x7d403bdef896a97full:case 0x45ed0948b6b701a7ull:
     // f1653: matched depth/material/light geometry and camera; c7-c10 only
     // feed clip position/varyings. World-space lighting uses separate constants.
