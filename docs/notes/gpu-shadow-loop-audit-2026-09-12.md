@@ -2,7 +2,7 @@
 
 以下“不是生产 translator 修复”等表述仅指最初诊断阶段；后续实施状态见下方“实施跟进”。
 
-本文记录最初的单帧 RenderDoc 诊断与单 shader 离线探针，以及后续 `gpu-perf` 分支上的有界修复；实现已合入当前 main 但未发布，游戏实景验收仍待完成。目标是定位 RTX 5080 在 3840×2160 Vulkan 下的高 GPU 负载。诊断使用同一发布 EXE 0.5.6，SHA-256 为 `1fff598e1a0872da2a7728ceb9921aa2e4a1bff0bd818c224827b84eaf3f5aaa`。正确捕获是 [`audit_frame12462.rdc`](../../out/gpu-profile-20260912/session-02/audit_frame12462.rdc)，大小 1,274,168,861 bytes；较早的 `audit_frame7922.rdc` 不是本结论的依据。
+本文记录最初的单帧 RenderDoc 诊断与单 shader 离线探针，以及后续 `gpu-perf` 分支上的有界修复；实现已纳入已发布的 v0.5.7，游戏实景验收仍待完成。目标是定位 RTX 5080 在 3840×2160 Vulkan 下的高 GPU 负载。诊断使用同一发布 EXE 0.5.6，SHA-256 为 `1fff598e1a0872da2a7728ceb9921aa2e4a1bff0bd818c224827b84eaf3f5aaa`。正确捕获是 [`audit_frame12462.rdc`](../../out/gpu-profile-20260912/session-02/audit_frame12462.rdc)，大小 1,274,168,861 bytes；较早的 `audit_frame7922.rdc` 不是本结论的依据。
 
 ## 结论
 
@@ -33,7 +33,7 @@
 
 同一分支的主程序 Release build 已成功，证据为 [`build.log`](../../out/gpu-profile-20260912/production-01/build.log)。resolve-copy 实现位于 renderer 与 `resolve_copy_policy.h`：仅去重同 batch 内完全相同的复制，并在 Draw、clear、transfer、分配、提交或外部访问时失效；metadata、layout 和 clear 副作用仍保留。`LoResolveCopyPolicyTest` 通过 30/30；既有 `LoResolveCopyGpuTest` 的 Vulkan 与 D3D12 记录均为每后端 3 allocation × 2 pass、`mismatch_pixels=0`，并验证 copy/skipped/逻辑 resolve 次数及 source-clear 强制重新 copy。`LO_RESOLVE_COPY_REUSE=0` 可关闭该路径，GPU stats/timing 会记录 `recorded` 与 `skipped`。
 
-捕获中的 EID 5529/5532 重复复制为 66,355,200 bytes；尚未在修复 EXE 的实际游戏中验证命中，也未测量整帧收益。最终用户 EXE 和 `gpu-perf.cmd` 已准备但尚未启动游戏。已交付的候选 EXE 是 `D:/Mihoyo/LostOdysseyRecomp-windows-x64/LostOdysseyRecomp-gpu-perf.exe`，SHA-256 为 `313CDD34712154A88FEEAF9C25D8AB1409705D327D8B0FD15252A52562C1C211`，来自包含既有 dirty 工作的 `0.5.6-hotfix1` 工作树，不代表干净提交产物；实现已推送于 [`4715b60`](https://github.com/freefrank/LostOdysseyRecomp/commit/4715b60)，并由 [`1d139c9`](https://github.com/freefrank/LostOdysseyRecomp/commit/1d139c9) 合并 `github/main` 的 `b39c2c9`，当前仍未发布。
+捕获中的 EID 5529/5532 重复复制为 66,355,200 bytes；尚未在修复 EXE 的实际游戏中验证命中，也未测量整帧收益。最终用户 EXE 和 `gpu-perf.cmd` 已准备但尚未启动游戏。已交付的诊断 EXE 是 `D:/Mihoyo/LostOdysseyRecomp-windows-x64/LostOdysseyRecomp-gpu-perf.exe`，SHA-256 为 `313CDD34712154A88FEEAF9C25D8AB1409705D327D8B0FD15252A52562C1C211`，来自包含既有 dirty 工作的 `0.5.6-hotfix1` 工作树，不代表干净发布产物；实现已推送于 [`4715b60`](https://github.com/freefrank/LostOdysseyRecomp/commit/4715b60)，并由 [`1d139c9`](https://github.com/freefrank/LostOdysseyRecomp/commit/1d139c9) 合并 `github/main` 的 `b39c2c9`，已纳入发布的 v0.5.7。
 
 ## 采集边界与后续工作
 

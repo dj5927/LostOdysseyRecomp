@@ -19,15 +19,15 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## New in v0.5.7
+
+- Published Windows x64 package: [v0.5.7](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7). It recovers updater-only installations and stale metadata, asks before launching after an update with **No** as the default, and includes guarded shadow-loop and resolve-copy reductions, the HDR16 TAA bloom prefilter, and the material vertex-shader jitter repair.
+- The HDR-off/materials-on repair was accepted in the reported lighting-flicker scene. Other scenes and hardware remain unverified.
+
 ## New in v0.5.6
 
 - Fix updater manifest transactions, add the narrow Issue #16 particle-material fallback, and include the PPC prebuilt release path with bounded renderer performance improvements.
 - Published Windows x64 package: [v0.5.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6). The Issue #16 fix passed the target scene on a local main build using D3D12/Asia Disc 3; the formal package passed integrity checks. Whole-game, Vulkan, other-region and player acceptance remain unverified.
-
-## Upcoming v0.5.7 — Candidate
-
-- The current main candidate recovers updater-only installations and stale metadata, asks before launching after an update with **No** as the default, and includes guarded shadow-loop and resolve-copy reductions, the HDR16 TAA bloom prefilter, and the material vertex-shader jitter repair.
-- The HDR-off/materials-on repair was accepted in the reported lighting-flicker scene. The candidate is not published; other scenes and hardware remain unverified.
 
 ## New in v0.5.4
 
@@ -45,7 +45,7 @@ Earlier release details are maintained in the [changelog](CHANGELOG.md).
 
 No Python or Visual Studio installation is needed for the release package. Later launches reuse the shader cache. Keep your save and profile folders when updating.
 
-The published updater checks GitHub's latest Release: a higher numeric version updates, and an equal numeric version with a different `-suffix` also triggers an update. The unreleased `v0.5.7` candidate additionally permits recovery from an empty updater-only folder and stale or malformed local metadata. After a successful update, that candidate helper asks whether to launch the game and defaults to **No**; silent runs complete without launching. Download integrity checks, safe extraction and rollback remain enabled.
+The published updater checks GitHub's latest Release: a higher numeric version updates, and an equal numeric version with a different `-suffix` also triggers an update. The v0.5.7 release additionally permits recovery from an empty updater-only folder and stale or malformed local metadata. After a successful update, the helper asks whether to launch the game and defaults to **No**; silent runs complete without launching. Download integrity checks, safe extraction and rollback remain enabled.
 
 | Requirement | Supported configuration |
 | :--- | :--- |

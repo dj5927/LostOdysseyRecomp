@@ -199,4 +199,4 @@ their missing jitter had left depth and material positions mismatched. The
 focused captured-static-layers selector remains the recorded 131,457-check
 result, and earlier bloom GPU checks remain valid. This is user acceptance for
 the reproduced whole-lighting scene, not a whole-game or cross-hardware claim.
-The repair is included in the current main candidate (source commit `6112c06`); the accepted result remains limited to the reported lighting-flicker scene. The v0.5.7 candidate is not published, and other scenes or hardware remain unverified.
+The repair is included in published v0.5.7 (source commit `6112c06`); the accepted result remains limited to the reported lighting-flicker scene. Other scenes or hardware remain unverified.
