@@ -42,4 +42,47 @@ namespace gpu::shader_identity
             return hash;
         }
     };
+
+    // IM_LOAD captures microcode on the command-processor thread. Guest memory
+    // may change at any time, but draws consume this owned snapshot until the
+    // next load. Revalidate all incoming bytes at each load, then resolve the
+    // renderer identity only once for that snapshot, even across cache eviction.
+    class CapturedShader
+    {
+        std::vector<uint32_t> words;
+        uint64_t commandHash = 0;
+        uint64_t rendererHash = 0;
+        bool rendererHashValid = false;
+
+    public:
+        bool Load(const uint32_t* source, uint32_t count)
+        {
+            if (!count || count > 0x10000) return false;
+            const size_t size = size_t(count) * sizeof(uint32_t);
+            if (words.size() == count && !std::memcmp(words.data(), source, size))
+                return false;
+            words.assign(source, source + count);
+            commandHash = 0xcbf29ce484222325ull;
+            for (uint32_t word : words) {
+                commandHash ^= word;
+                commandHash *= 0x100000001b3ull;
+            }
+            rendererHashValid = false;
+            return true;
+        }
+
+        const uint32_t* Words() const { return words.empty() ? nullptr : words.data(); }
+        uint32_t Count() const { return uint32_t(words.size()); }
+        uint64_t CommandHash() const { return commandHash; }
+
+        template<class IdentityCache>
+        uint64_t RendererHash(IdentityCache& cache)
+        {
+            if (!rendererHashValid) {
+                rendererHash = cache.Get(commandHash, Words(), Count());
+                rendererHashValid = true;
+            }
+            return rendererHash;
+        }
+    };
 }

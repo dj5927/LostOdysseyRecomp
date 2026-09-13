@@ -64,8 +64,74 @@ bool FrontFaceOnly(bool vulkan, bool depthResolve = false) {
     return ok;
 }
 }
+static bool RenderPassRebind() {
+    using namespace plume;
+    auto api=CreateVulkanInterface();auto device=api->createDevice();
+    auto queue=device->createCommandQueue(RenderCommandListType::DIRECT);
+    auto commands=queue->createCommandList();auto fence=device->createCommandFence();
+    auto vc=xenos::CompileHlsl("float4 main(uint id:SV_VertexID):SV_Position {float2 uv=float2((id<<1)&2,id&2);return float4(uv*float2(2,-2)+float2(-1,1),.5,1);}","main","vs_6_0",xenos::ShaderBinaryFormat::Spirv);
+    auto pc=xenos::CompileHlsl("struct C {float4 color;}; [[vk::push_constant]] C constants; float4 main():SV_Target{return constants.color;}","main","ps_6_0",xenos::ShaderBinaryFormat::Spirv);
+    if(!vc.ok||!pc.ok) std::fprintf(stderr,"VS: %s\nPS: %s\n",vc.errors.c_str(),pc.errors.c_str());
+    Check(vc.ok&&pc.ok,"rebind shader compilation");
+    auto vs=device->createShader(vc.bytecode.data(),vc.bytecode.size(),"main",RenderShaderFormat::SPIRV);
+    auto ps=device->createShader(pc.bytecode.data(),pc.bytecode.size(),"main",RenderShaderFormat::SPIRV);
+    RenderPipelineLayoutBuilder lb;lb.begin(false,false);lb.addPushConstant(0,0,16,RenderShaderStageFlag::PIXEL);lb.end();
+    auto layout=lb.create(device.get());
+    std::unique_ptr<RenderTexture> targets[2];std::unique_ptr<RenderFramebuffer> framebuffers[2];
+    for(unsigned i=0;i<2;++i) {
+        targets[i]=device->createTexture(RenderTextureDesc::Texture2D(4,4,1,RenderFormat::R32G32B32A32_FLOAT,RenderTextureFlag::RENDER_TARGET));
+        const RenderTexture* attachments[]{targets[i].get()};framebuffers[i]=device->createFramebuffer(RenderFramebufferDesc(attachments,1));
+    }
+    auto readback=device->createBuffer(RenderBufferDesc::ReadbackBuffer(2048));
+    RenderGraphicsPipelineDesc pd;pd.pipelineLayout=layout.get();pd.vertexShader=vs.get();pd.pixelShader=ps.get();
+    pd.renderTargetCount=1;pd.renderTargetFormat[0]=RenderFormat::R32G32B32A32_FLOAT;pd.renderTargetBlend[0]=RenderBlendDesc::Copy();pd.cullMode=RenderCullMode::NONE;
+    auto pipeline=device->createGraphicsPipeline(pd);
+    unsigned checked=0;
+    // Reuse the same command list and framebuffer objects across fence cycles.
+    for(unsigned cycle=0;cycle<3;++cycle) {
+        float expected[2][4][4][4]{};
+        commands->begin();
+        for(unsigned i=0;i<2;++i) {
+            commands->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(targets[i].get(),RenderTextureLayout::COLOR_WRITE));
+            commands->setFramebuffer(framebuffers[i].get());commands->clearColor(0,RenderColor(0,0,0,0));
+        }
+        commands->setGraphicsPipelineLayout(layout.get());commands->setPipeline(pipeline.get());
+        RenderViewport viewport(0,0,4,4);commands->setViewports(&viewport,1);
+        for(unsigned draw=0;draw<96;++draw) {
+            // Four successive draws share a framebuffer, then switch and return.
+            const unsigned target=(draw/4)%2,x=draw%4,y=(draw/8)%4;
+            const std::array<float,4> color{float(cycle+1),float(draw+1),float(target+1),1.f};
+            commands->setFramebuffer(framebuffers[target].get());
+            commands->setFramebuffer(framebuffers[target].get());
+            RenderRect scissor(x,y,x+1,y+1);commands->setScissors(&scissor,1);
+            commands->setGraphicsPushConstants(0,color.data());commands->drawInstanced(3,1,0,0);
+            for(unsigned c=0;c<4;++c) expected[target][y][x][c]=color[c];
+            if(draw==47) {
+                // A real barrier must still end the pass. Rebinding the same
+                // target afterwards must let the next draw begin another pass.
+                commands->barriers(RenderBarrierStage::COPY,RenderTextureBarrier(targets[target].get(),RenderTextureLayout::COPY_SOURCE));
+                commands->copyTextureRegion(RenderTextureCopyLocation::PlacedFootprint(readback.get(),RenderFormat::R32G32B32A32_FLOAT,4,4,1,16),RenderTextureCopyLocation::Subresource(targets[target].get()));
+                commands->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(targets[target].get(),RenderTextureLayout::COLOR_WRITE));
+            }
+        }
+        for(unsigned i=0;i<2;++i) {
+            commands->barriers(RenderBarrierStage::COPY,RenderTextureBarrier(targets[i].get(),RenderTextureLayout::COPY_SOURCE));
+            commands->copyTextureRegion(RenderTextureCopyLocation::PlacedFootprint(readback.get(),RenderFormat::R32G32B32A32_FLOAT,4,4,1,16,i*1024),RenderTextureCopyLocation::Subresource(targets[i].get()));
+        }
+        commands->setFramebuffer(nullptr);commands->setFramebuffer(nullptr);commands->end();
+        const RenderCommandList* lists[]{commands.get()};queue->executeCommandLists(lists,1,nullptr,0,nullptr,0,fence.get());queue->waitForCommandFence(fence.get());
+        const auto* data=static_cast<const float*>(readback->map());
+        for(unsigned i=0;i<2;++i)for(unsigned y=0;y<4;++y)for(unsigned x=0;x<4;++x)for(unsigned c=0;c<4;++c) {
+            Check(data[i*256+y*64+x*4+c]==expected[i][y][x][c],"rebind output differs");++checked;
+        }
+        readback->unmap();
+    }
+    std::printf("Vulkan render-pass rebind: %u exact float checks, 288 draws, 3 fence cycles passed\n",checked);
+    return true;
+}
 int main(int argc,char** argv) {
     try {
+        if(argc==2&&std::strcmp(argv[1],"--render-pass-rebind-only")==0)return RenderPassRebind()?0:1;
         if(argc==2&&std::strcmp(argv[1],"--front-face-only")==0) {
             const bool dx=FrontFaceOnly(false),vk=FrontFaceOnly(true);return dx&&vk?0:1;
         }

@@ -1,10 +1,43 @@
 #pragma once
 #include <algorithm>
 #include <cstdint>
+#include <tuple>
 #include <vector>
 
 namespace gpu::renderer {
 struct DepthClearRect { int32_t left, top, right, bottom; };
+
+// Preserve the exact covered area while reducing EDRAM tile clear batches.
+// Only equal-height horizontal spans and equal-width adjacent vertical spans
+// can become one rectangle; a bounding box would incorrectly clear holes.
+inline void CoalesceDepthClearRects(std::vector<DepthClearRect>& rects)
+{
+    rects.erase(std::remove_if(rects.begin(), rects.end(), [](const auto& r) {
+        return r.left >= r.right || r.top >= r.bottom;
+    }), rects.end());
+    std::sort(rects.begin(), rects.end(), [](const auto& a, const auto& b) {
+        return std::tie(a.top, a.bottom, a.left, a.right) < std::tie(b.top, b.bottom, b.left, b.right);
+    });
+    std::size_t count = 0;
+    for (const auto r : rects) {
+        if (count && rects[count - 1].top == r.top && rects[count - 1].bottom == r.bottom &&
+            r.left <= rects[count - 1].right) {
+            rects[count - 1].right = std::max(rects[count - 1].right, r.right);
+        } else rects[count++] = r;
+    }
+    rects.resize(count);
+    std::sort(rects.begin(), rects.end(), [](const auto& a, const auto& b) {
+        return std::tie(a.left, a.right, a.top, a.bottom) < std::tie(b.left, b.right, b.top, b.bottom);
+    });
+    count = 0;
+    for (const auto r : rects) {
+        if (count && rects[count - 1].left == r.left && rects[count - 1].right == r.right &&
+            rects[count - 1].bottom == r.top) {
+            rects[count - 1].bottom = r.bottom;
+        } else rects[count++] = r;
+    }
+    rects.resize(count);
+}
 
 // Map a rectangle between 32-bit depth views of the same EDRAM base.
 // EDRAM tiles contain 80 x 16 samples; MSAA changes the pixel-to-sample

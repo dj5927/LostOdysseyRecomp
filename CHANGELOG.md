@@ -6,6 +6,20 @@ One record of completed changes, with unpublished work separated from verified r
 
 ## Unreleased / 未发布
 
+## v0.5.9 — Pending publication / 待发布
+
+### English
+
+- Add conservative Vulkan depth-clear coalescing for 720 EDRAM tile rectangles, preserving D3D12 mapping output, holes and uncleared regions. A matched 45-second static 4K Vulkan observation at 60 W improved mean FPS from 7.49638 to 43.47614 and GPU time from 132.91221 ms to 21.06364 ms; this remains bounded candidate evidence rather than a clean release-build benchmark or 4K60/1080p60/15 W acceptance.
+- Add texture-key avalanche mixing, captured-shader identity caching, same-handle graphics descriptor binding suppression, same-framebuffer Plume rebind suppression and per-`GpuSlot` immutable descriptor reuse while retaining the two-slot/fence contract. The binding-cache fixture passed duplicate, replacement, incompatible-prefix and post-fence cases.
+- Retain the v0.5.8 TAA behavior without changing its mappings. Player acceptance and 1080p60 at 15 W remain pending. See the [Vulkan depth-clear performance note](docs/notes/vulkan-depth-clear-performance-2026-09-13.md).
+
+### 简体中文
+
+- 增加保守的 Vulkan 深度清除合并，将 720 个 EDRAM tile rectangle 合并为一个，同时保留 D3D12 映射输出、空洞和未清除区域。在 60 W、固定视角、4K Vulkan 的配对 45 秒观测中，平均 FPS 从 7.49638 提升到 43.47614，GPU 时间从 132.91221 ms 降至 21.06364 ms；这仍是有界候选证据，不是干净 Release 构建基准，也不代表 4K60、1080p60 或 15 W 验收。
+- 增加 texture-key avalanche、captured-shader identity 缓存、同 handle graphics descriptor 绑定抑制、同 framebuffer 的 Plume rebind 抑制和每个 `GpuSlot` 的 immutable descriptor 复用，同时保留双 slot/fence 契约。binding-cache fixture 已通过重复、替换、不兼容前缀和 fence 后场景。
+- 保留 v0.5.8 的 TAA 行为，不改变现有映射。玩家验收和 15 W 下 1080p60 仍待完成。详见 [Vulkan 深度清除性能记录](docs/notes/vulkan-depth-clear-performance-2026-09-13.md)。
+
 ## v0.5.8 — 2026-09-13 / Published / 已发布
 
 ### English

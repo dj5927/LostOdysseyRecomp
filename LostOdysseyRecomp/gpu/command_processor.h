@@ -50,6 +50,8 @@ namespace gpu
         void ReadRegisters(uint32_t first, uint32_t count, uint32_t* destination);
         // Microcode of the last IM_LOAD for the vertex (false) / pixel (true) stage.
         const uint32_t* GetActiveShader(bool pixel, uint32_t& dwordCount, uint64_t& commandHash) const;
+        // Byte identity of the owned IM_LOAD snapshot; resolved once per change.
+        uint64_t GetActiveShaderByteHash(bool pixel) const;
         void MmioWrite32(uint32_t address, uint32_t value);
         uint32_t MmioRead32(uint32_t address);
 

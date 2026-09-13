@@ -55,6 +55,7 @@
 | [Xenia 实机画面对照（2026-09-04）](xenia-render-comparison.md) |
 | [性能分析完整报告（2026-09-11；诊断，未改运行时）](perf-complete-analysis.md) |
 | [GPU 环缓冲实测对比（2026-09-11；user01 城市，非验收）](perf-gpu-ring-compare.md) |
+| [Vulkan depth-clear performance (2026-09-13; bounded 4K comparison)](vulkan-depth-clear-performance-2026-09-13.md) |
 | [4K Vulkan shadow loop GPU 审查（2026-09-12；实施、测试与实景边界）](gpu-shadow-loop-audit-2026-09-12.md) |
 | [TAA bloom prefilter 候选与 geometry trace（2026-09-12；部分改善，实景验证待完成）](taa-bloom-prefilter.md) |
 | [ReBlue vs Lost Odyssey GPU 对照（2026-09-11）](reblue-gpu-comparison.md) |

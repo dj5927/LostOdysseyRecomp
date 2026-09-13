@@ -8,12 +8,12 @@
 #include "render_resolution.h"
 #include "video.h"
 #include "command_processor.h"
-#include "shader_identity.h"
 #include "shader_source_capture.h"
 #include "position_evidence_collection.h"
 #include "geometry_prepare.h"
 #include "vertex_cache.h"
 #include "texture_descriptor_cache.h"
+#include "texture_key.h"
 #include "depth_format.h"
 #include "depth_clear_layout.h"
 #include "polygon_offset.h"
@@ -48,6 +48,7 @@
 #ifdef LO_GPU_PLUME
 #include <plume_render_interface.h>
 #include <plume_render_interface_builders.h>
+#include "draw_timing.h"
 #endif
 
 #include <algorithm>
@@ -289,12 +290,8 @@ namespace gpu::renderer
         };
         struct RenderTargetKeyHash { size_t operator()(const RenderTargetKey& k) const { return k.base * 1000003u ^ k.format * 8191u ^ k.pitch * 131u ^ k.height ^ (k.depth ? 0x9E3779B9u : 0); } };
 
-        struct TextureKey
-        {
-            uint32_t address, format, width, height, flags; // flags: tiled | endian<<1 | pitch<<3
-            bool operator==(const TextureKey& o) const { return address == o.address && format == o.format && width == o.width && height == o.height && flags == o.flags; }
-        };
-        struct TextureKeyHash { size_t operator()(const TextureKey& k) const { return k.address * 1000003u ^ k.format * 8191u ^ k.width * 131u ^ k.height * 17u ^ k.flags; } };
+        using TextureKey = gpu::texture_cache::Key;
+        using TextureKeyHash = gpu::texture_cache::KeyHash;
 
         struct Shader
         {
@@ -324,6 +321,7 @@ namespace gpu::renderer
                 std::unique_ptr<RenderCommandList> list;
                 std::unique_ptr<RenderCommandFence> fence;
                 std::unique_ptr<RenderQueryPool> timingQueries;
+                draw_timing::Probe drawProbe;
                 std::unique_ptr<RenderBuffer> uploadRing;
                 uint8_t* uploadMapped = nullptr;
                 uint64_t uploadOffset = 0;
@@ -968,8 +966,8 @@ namespace gpu::renderer
                 vulkan = video::IsVulkan();
                 const char* batchOverride = getenv("LO_VK_DESCRIPTOR_BATCH_LIMIT");
                 descriptorBatchLimit = render_batch::DescriptorLimit(vulkan, batchOverride ? batchOverride : "");
-                LOG_INFO("renderer: descriptor reuse={} backend={} limit={} gpu_slots={} (LO_DESCRIPTOR_REUSE=0 disables D3D12 reuse)",
-                    !vulkan && descriptorReuse, vulkan ? "Vulkan" : "D3D12", descriptorBatchLimit, kGpuSlots);
+                LOG_INFO("renderer: descriptor reuse={} backend={} limit={} gpu_slots={} (LO_DESCRIPTOR_REUSE=0 disables reuse)",
+                    descriptorReuse, vulkan ? "Vulkan" : "D3D12", descriptorBatchLimit, kGpuSlots);
                 binaryFormat = vulkan ? xenos::ShaderBinaryFormat::Spirv : xenos::ShaderBinaryFormat::Dxil;
                 renderFormat = vulkan ? RenderShaderFormat::SPIRV : RenderShaderFormat::DXIL;
                 if (!device || !queue)
@@ -1496,6 +1494,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     if (results) gpuTiming.AddBatch(results[0], results[1]);
                     else gpuTiming.AddUnavailableBatch();
                 } else if (render_timing::Enabled()) gpuTiming.AddUnavailableBatch();
+                s.drawProbe.ReadCompleted();
                 for (const auto& texture : s.retiredTextures)
                     for (auto fb = framebuffers.begin(); fb != framebuffers.end();)
                         if (fb->first.first == texture->texture.get() || fb->first.second == texture->texture.get())
@@ -1547,6 +1546,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         timingQueries = Gpu().timingQueries.get();
                     }
                     commandList->begin();
+                    Gpu().drawProbe.Begin(device, commandList, frame);
                     if (timingQueries) {
                         commandList->resetQueryPool(timingQueries, 0, 2);
                         commandList->writeTimestamp(timingQueries, 0);
@@ -1560,6 +1560,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 consecutiveResolveCopies.Invalidate();
                 if (!listOpen)
                     return;
+                Gpu().drawProbe.End(commandList);
                 if (timingQueries) commandList->writeTimestamp(timingQueries, 1);
                 commandList->end();
                 listOpen = false;
@@ -1623,7 +1624,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             {
                 if (activeSlots == 0)
                     return staticDummySets[which - 1].get();
-                const bool reuse = !vulkan && descriptorReuse;
+                // Complete immutable sets are reusable on both backends. The
+                // cache and pool belong to the same completed-fence interval.
+                const bool reuse = descriptorReuse;
                 auto create = [&]() {
                     auto* set = AcquireSet(which);
                     for (uint32_t slot = 0; slot < kTextureSlots; ++slot)
@@ -2151,7 +2154,6 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 ResetTimers();
             }
 
-            shader_identity::Cache shaderIdentities;
             std::unique_ptr<position_evidence::Collection> positionEvidence;
 
             void PreparePositionEvidence(Shader& entry, const uint32_t* words, uint32_t count, uint64_t hash)
@@ -3185,9 +3187,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         drops.shader++;
                         return;
                     }
-                    vsHash = shaderIdentities.Get(vsCommandHash, vsWords, vsCount);
+                    vsHash = g_commandProcessor.GetActiveShaderByteHash(false);
                     psHash = modeControl == 4 && psWords && psCount
-                        ? shaderIdentities.Get(psCommandHash, psWords, psCount) : 0;
+                        ? g_commandProcessor.GetActiveShaderByteHash(true) : 0;
                     shaderLookupTimer.AddTo(tShaderLookup);
                 }
                 Shader* vs = GetShader(false, vsWords, vsCount, vsHash);
@@ -4032,9 +4034,17 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 commandList->setScissors(&scissor, 1);
                 commandList->setPipeline(pipeline);
                 commandList->setGraphicsPipelineLayout(pipelineLayout.get());
-                SetConstantBuffer(vsOffset, 0);
-                SetConstantBuffer(sharedOffset, 1);
-                SetConstantBuffer(psOffset, 2);
+                if (vulkan) {
+                    const uint64_t base = uploadRing->getDeviceAddress();
+                    constantAddresses[0] = base + vsOffset;
+                    constantAddresses[1] = base + sharedOffset;
+                    constantAddresses[2] = base + psOffset;
+                    commandList->setGraphicsPushConstants(0, constantAddresses);
+                } else {
+                    SetConstantBuffer(vsOffset, 0);
+                    SetConstantBuffer(sharedOffset, 1);
+                    SetConstantBuffer(psOffset, 2);
+                }
                 commandList->setGraphicsDescriptorSet(set0, 0);
                 commandList->setGraphicsDescriptorSet(set1, 1);
                 commandList->setGraphicsDescriptorSet(set2, 2);
@@ -4463,8 +4473,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             commandList->setFramebuffer(GetFramebuffer(nullptr, target));
                             const DepthClearRect sourceRect{int32_t(std::ceil(minX)), int32_t(std::ceil(minY)),
                                 int32_t(std::ceil(maxX)), int32_t(std::ceil(maxY))};
-                            const auto mapped = MapDepthClear(pitch, (surfaceInfo >> 16) & 3, sourceRect,
+                            auto mapped = MapDepthClear(pitch, (surfaceInfo >> 16) & 3, sourceRect,
                                 k.pitch, target->guestHeight, target->depthMsaa);
+                            if (vulkan) CoalesceDepthClearRects(mapped);
                             std::vector<RenderRect> clearRects;
                             clearRects.reserve(mapped.size());
                             for (const auto& r : mapped) clearRects.push_back({int32_t(target->Scale(uint32_t(r.left))), int32_t(target->Scale(uint32_t(r.top))),
@@ -4523,6 +4534,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 
                 // Debug snapshot goes last: it flushes, which would drop the
                 // pipeline state the clear replay above still relies on.
+                Gpu().drawProbe.Record(commandList, drawsThisFrame - 1, key.vs, key.ps,
+                    indexCount, color->width, color->height);
                 DumpDrawStep(*color, key.vs);
             }
 

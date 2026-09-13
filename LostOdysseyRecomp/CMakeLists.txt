@@ -19,6 +19,8 @@ lo_add_header_test(LoPollWaitTest ${CMAKE_SOURCE_DIR}/tools/tests/poll_wait_test
 lo_add_header_test(LoParticleMaterialCompatTest ${CMAKE_SOURCE_DIR}/tools/tests/particle_material_compat_test.cpp)
 lo_add_header_test(LoRenderBatchPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/render_batch_policy_test.cpp)
 lo_add_header_test(LoTextureDescriptorCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_descriptor_cache_test.cpp)
+lo_add_header_test(LoTextureKeyTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_key_test.cpp)
+lo_add_header_test(LoCapturedShaderTest ${CMAKE_SOURCE_DIR}/tools/tests/captured_shader_test.cpp)
 lo_add_header_test(LoVertexCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/vertex_cache_test.cpp)
 lo_add_header_test(LoResolveCopyPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/resolve_copy_policy_test.cpp)
 target_include_directories(LoVertexCacheTest PRIVATE ${CMAKE_SOURCE_DIR}/thirdparty/unordered_dense/include)
@@ -536,13 +538,21 @@ if(WIN32 AND LO_BUILD_GPU)
     target_compile_definitions(LoVulkanBackendTest PRIVATE LO_GPU_PLUME NOMINMAX)
     target_compile_features(LoVulkanBackendTest PRIVATE cxx_std_20)
     target_link_libraries(LoVulkanBackendTest PRIVATE plume d3d12 dxgi fmt::fmt)
+    add_executable(LoVulkanTextureReuseTest EXCLUDE_FROM_ALL
+        ${CMAKE_SOURCE_DIR}/tools/tests/vulkan_texture_reuse_test.cpp
+        ${LO_RUNTIME_ROOT}/gpu/shader/dxc_compiler.cpp)
+    target_include_directories(LoVulkanTextureReuseTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp,INCLUDE_DIRECTORIES>)
+    target_compile_definitions(LoVulkanTextureReuseTest PRIVATE NOMINMAX)
+    target_compile_features(LoVulkanTextureReuseTest PRIVATE cxx_std_20)
+    set_target_properties(LoVulkanTextureReuseTest PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+    target_link_libraries(LoVulkanTextureReuseTest PRIVATE plume d3d12 dxgi fmt::fmt)
 endif()
 
 # Package the same SPIR-V-capable DXC beside runtime and compiler/GPU fixtures.
 # The Windows SDK compiler is allowed as an explicit fallback, but is not the release contract.
 if(WIN32 AND LO_BUILD_GPU)
     set(LO_DXC_BINARY_DIR "${CMAKE_SOURCE_DIR}/tools/XenosRecomp/thirdparty/dxc-bin/bin/x64")
-    foreach(target LostOdysseyRecomp LoShaderTool LoPresentationTest LoTemporalAATest LoRenderResolutionShaderTest LoVulkanBackendTest LoShaderStartupCacheTest LoBackendCacheTest LoBackendLifecycleTest)
+    foreach(target LostOdysseyRecomp LoShaderTool LoPresentationTest LoTemporalAATest LoRenderResolutionShaderTest LoVulkanBackendTest LoVulkanTextureReuseTest LoShaderStartupCacheTest LoBackendCacheTest LoBackendLifecycleTest)
         if(TARGET ${target})
             foreach(binary dxcompiler.dll dxil.dll)
                 add_custom_command(TARGET ${target} POST_BUILD

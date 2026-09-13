@@ -1,5 +1,13 @@
 # Project status
 
+## v0.5.9 release candidate — pending publication
+
+The local v0.5.9 implementation adds conservative Vulkan depth-clear coalescing for 720 compatible EDRAM tile rectangles, preserving D3D12 mapping output, holes and uncleared regions. It also includes texture-key avalanche mixing, captured-shader identity caching, same-framebuffer Plume rebind suppression and per-`GpuSlot` immutable descriptor reuse; the two-slot/fence contract remains unchanged. TAA behavior is retained from v0.5.8, and interrupted exploratory TAA probes are outside this release scope.
+
+The matched 45-second static-view comparison used copied `user01` state, 3840x2160 internal rendering, Vulkan, AA3, a 60 FPS cap and 60 W AMD AI MAX+395 power. Mean FPS improved 7.49638→43.47614, with GPU time 132.91221→21.06364 ms. This is bounded candidate evidence, not a clean release-build benchmark and not 4K60, 1080p60 at 15 W, whole-game validation or player acceptance. The binding-cache fixture passed the retained duplicate, replacement, incompatible-prefix and post-fence cases; the masked-load register-SIMD experiment was reverted after slower constants and no FPS benefit.
+
+This local implementation is unpublished. The retained candidate predates the current source commit, and the prior clear-coalesce executable/launcher remain unchanged. Evidence and detailed boundaries are recorded in the [Vulkan depth-clear performance note](notes/vulkan-depth-clear-performance-2026-09-13.md).
+
 ## Published v0.5.8 — 2026-09-13
 
 The v0.5.8 source change set includes the seven current-scene TAA `PositionVPSlot` mappings, the bounded sampled-content SIMD comparison, the `LO_QUERY_TRACE` presence cache and the synchronized private PPC cache `main` state. Release CI `34764115203` passed for source/tag commit `6e6f11cf56ef69082f5be5b049e5d48d58154415`; the package was published at GitHub on 2026-09-13. The TAA and CPU evidence is reused from the repository-relative records under `out/`; no source-0.5.7 gameplay result is presented as v0.5.8 package validation.

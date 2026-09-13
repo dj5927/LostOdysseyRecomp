@@ -19,6 +19,11 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## New in v0.5.9 (pending publication)
+
+- The release candidate adds conservative Vulkan depth-clear coalescing, texture-key avalanche mixing, captured-shader identity caching, Plume binding suppression and per-slot descriptor reuse. The retained two-slot/fence contract is unchanged.
+- A matched static 4K Vulkan observation at 60 W improved mean FPS from 7.49638 to 43.47614. This is bounded candidate evidence; it does not establish 4K60, 1080p60 at 15 W, whole-game behavior or player acceptance. See the [Vulkan depth-clear performance note](docs/notes/vulkan-depth-clear-performance-2026-09-13.md).
+
 ## New in v0.5.8
 
 - Published Windows x64 package: [v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8). It extends current-scene TAA jitter coverage with seven reviewed main-camera paths and adds bounded sampled-content SIMD plus `LO_QUERY_TRACE` caching.

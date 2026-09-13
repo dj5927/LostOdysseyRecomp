@@ -5,6 +5,7 @@
 #include "frame_pacer.h"
 #include "deadline_wait.h"
 #include "register_snapshot.h"
+#include "shader_identity.h"
 #include <debug/frame_timing.h>
 #include <cpu/guest_thread.h>
 #include <kernel/memory.h>
@@ -93,33 +94,24 @@ namespace gpu
     static FrameStats g_frame;
     static uint64_t g_activeShader[2] = {};      // [0]=vertex [1]=pixel
     static uint32_t g_activeShaderSize[2] = {};
-    static std::vector<uint32_t> g_activeShaderWords[2]; // big-endian copy for the renderer
+    static shader_identity::CapturedShader g_activeShaderSnapshots[2];
+    static shader_identity::Cache g_shaderIdentities;
     static std::mutex g_shaderMutex;
     static std::set<uint64_t> g_seenShaders;
     static const bool g_gpuStats = getenv("LO_GPU_STATS") != nullptr;
     static uint32_t g_detailBudget = 0;
-
-    static uint64_t HashWords(const uint32_t* words, uint32_t count)
-    {
-        uint64_t h = 0xcbf29ce484222325ull;
-        for (uint32_t i = 0; i < count; i++)
-        {
-            h ^= words[i];
-            h *= 0x100000001b3ull;
-        }
-        return h;
-    }
 
     // words point at big-endian microcode in guest memory.
     static void CaptureShader(uint32_t type, const uint32_t* words, uint32_t count)
     {
         if (type > 1 || count == 0 || count > 0x10000)
             return;
-        uint64_t hash = HashWords(words, count);
+        g_frame.shaderLoads++;
+        auto& snapshot = g_activeShaderSnapshots[type];
+        if (!snapshot.Load(words, count)) return;
+        const uint64_t hash = snapshot.CommandHash();
         g_activeShader[type] = hash;
         g_activeShaderSize[type] = count;
-        g_activeShaderWords[type].assign(words, words + count);
-        g_frame.shaderLoads++;
 
         std::lock_guard lock(g_shaderMutex);
         if (!g_seenShaders.insert(hash).second)
@@ -131,7 +123,7 @@ namespace gpu
             std::string path = fmt::format("{}/{}_{:016x}.bin", dir, type ? "ps" : "vs", hash);
             if (FILE* f = fopen(path.c_str(), "wb"))
             {
-                fwrite(words, 4, count, f);
+                fwrite(snapshot.Words(), 4, count, f);
                 fclose(f);
             }
         }
@@ -388,10 +380,15 @@ namespace gpu
 
     const uint32_t* CommandProcessor::GetActiveShader(bool pixel, uint32_t& dwordCount, uint64_t& commandHash) const
     {
-        auto& words = g_activeShaderWords[pixel ? 1 : 0];
-        dwordCount = uint32_t(words.size());
-        commandHash = g_activeShader[pixel ? 1 : 0];
-        return words.empty() ? nullptr : words.data();
+        const auto& snapshot = g_activeShaderSnapshots[pixel ? 1 : 0];
+        dwordCount = snapshot.Count();
+        commandHash = snapshot.CommandHash();
+        return snapshot.Words();
+    }
+
+    uint64_t CommandProcessor::GetActiveShaderByteHash(bool pixel) const
+    {
+        return g_activeShaderSnapshots[pixel ? 1 : 0].RendererHash(g_shaderIdentities);
     }
 
     void CommandProcessor::WorkerMain()

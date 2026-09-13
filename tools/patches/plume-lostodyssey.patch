@@ -311,7 +311,7 @@ index 9dcfedf..e35a468 100644
          bool geometryShader = false;
  
 diff --git a/plume_vulkan.cpp b/plume_vulkan.cpp
-index f1dd503..b9fc17e 100644
+index f1dd503..a481f6d 100644
 --- a/plume_vulkan.cpp
 +++ b/plume_vulkan.cpp
 @@ -835,7 +835,7 @@ namespace plume {
@@ -542,7 +542,40 @@ index f1dd503..b9fc17e 100644
              vkDestroySwapchainKHR(commandQueue->device->vk, vk, nullptr);
              vk = VK_NULL_HANDLE;
          }
-@@ -3229,7 +3269,29 @@ namespace plume {
+@@ -2794,6 +2834,7 @@ namespace plume {
+ 
+     void VulkanCommandList::begin() {
+         vkResetCommandBuffer(vk, 0);
++        activeGraphicsDescriptorSets.clear();
+ 
+         VkCommandBufferBeginInfo beginInfo = {};
+         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+@@ -2986,6 +3027,11 @@ namespace plume {
+     void VulkanCommandList::setGraphicsPipelineLayout(const RenderPipelineLayout *pipelineLayout) {
+         assert(pipelineLayout != nullptr);
+ 
++        // A layout change can disturb every previously bound set. Conservatively
++        // invalidate even compatible layouts; repeated use of one layout is common.
++        if (activeGraphicsPipelineLayout != pipelineLayout) {
++            activeGraphicsDescriptorSets.clear();
++        }
+         activeGraphicsPipelineLayout = static_cast<const VulkanPipelineLayout *>(pipelineLayout);
+     }
+ 
+@@ -3097,6 +3143,12 @@ namespace plume {
+     }
+ 
+     void VulkanCommandList::setFramebuffer(const RenderFramebuffer *framebuffer) {
++        // Rebinding an unchanged target is common between draws. Keep its
++        // attachment contents in the active pass; barriers and copies still
++        // end the pass explicitly before their commands are recorded.
++        if (targetFramebuffer == framebuffer) {
++            return;
++        }
+         endActiveRenderPass();
+ 
+         if (framebuffer != nullptr) {
+@@ -3229,7 +3281,29 @@ namespace plume {
              imageCopy.imageExtent.depth = srcLocation.placedFootprint.depth;
              vkCmdCopyBufferToImage(vk, srcBuffer->vk, dstTexture->vk, toImageLayout(dstTexture->textureLayout), 1, &imageCopy);
          }
@@ -572,7 +605,30 @@ index f1dd503..b9fc17e 100644
              VkImageCopy imageCopy = {};
              imageCopy.srcSubresource.aspectMask = toAspectFlags(srcTexture->desc.format, srcTexture->desc.flags);
              imageCopy.srcSubresource.baseArrayLayer = srcLocation.subresource.arrayIndex;
-@@ -3561,11 +3623,17 @@ namespace plume {
+@@ -3494,6 +3568,22 @@ namespace plume {
+         assert(setIndex < pipelineLayout->descriptorSetLayouts.size());
+ 
+         const VulkanDescriptorSet *interfaceSet = static_cast<const VulkanDescriptorSet *>(descriptorSet);
++        if (bindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS) {
++            if (activeGraphicsDescriptorSets.size() <= setIndex) {
++                activeGraphicsDescriptorSets.resize(setIndex + 1, VK_NULL_HANDLE);
++            }
++            if (activeGraphicsDescriptorSets[setIndex] == interfaceSet->vk) {
++                return;
++            }
++            // After a layout switch, the old native binding at this index may
++            // use an incompatible layout and disturb higher sets on rebinding.
++            // Handle callers that bind the new layout's sets in reverse order.
++            if (activeGraphicsDescriptorSets[setIndex] == VK_NULL_HANDLE) {
++                std::fill(activeGraphicsDescriptorSets.begin() + setIndex + 1,
++                    activeGraphicsDescriptorSets.end(), VK_NULL_HANDLE);
++            }
++            activeGraphicsDescriptorSets[setIndex] = interfaceSet->vk;
++        }
+         vkCmdBindDescriptorSets(vk, bindPoint, pipelineLayout->vk, setIndex, 1, &interfaceSet->vk, 0, nullptr);
+     }
+ 
+@@ -3561,11 +3651,17 @@ namespace plume {
      }
  
      std::unique_ptr<RenderCommandList> VulkanCommandQueue::createCommandList() {
@@ -592,7 +648,7 @@ index f1dd503..b9fc17e 100644
      }
  
      void VulkanCommandQueue::executeCommandLists(const RenderCommandList **commandLists, uint32_t commandListCount, RenderCommandSemaphore **waitSemaphores, uint32_t waitSemaphoreCount, RenderCommandSemaphore **signalSemaphores, uint32_t signalSemaphoreCount, RenderCommandFence *signalFence) {
-@@ -3839,7 +3907,7 @@ namespace plume {
+@@ -3839,7 +3935,7 @@ namespace plume {
          }
  
          VkPhysicalDeviceScalarBlockLayoutFeatures layoutFeatures = {};
@@ -601,7 +657,7 @@ index f1dd503..b9fc17e 100644
          if (scalarBlockLayoutFound) {
              layoutFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES;
              layoutFeatures.pNext = featuresChain;
-@@ -3868,7 +3936,7 @@ namespace plume {
+@@ -3868,7 +3964,7 @@ namespace plume {
          }
  
          VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = {};
@@ -610,7 +666,7 @@ index f1dd503..b9fc17e 100644
          if (bufferDeviceAddressFound) {
              bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
              bufferDeviceAddressFeatures.pNext = featuresChain;
-@@ -3979,7 +4047,7 @@ namespace plume {
+@@ -3979,7 +4075,7 @@ namespace plume {
          vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilyProperties.data());
  
          auto pickFamilyQueue = [&](RenderCommandListType type, VkQueueFlags flags) {
@@ -619,7 +675,7 @@ index f1dd503..b9fc17e 100644
              uint32_t familySetBits = sizeof(uint32_t) * 8;
              uint32_t familyQueueCount = 0;
              bool familyUsed = false;
-@@ -3987,7 +4055,7 @@ namespace plume {
+@@ -3987,7 +4083,7 @@ namespace plume {
                  const VkQueueFamilyProperties &props = queueFamilyProperties[i];
  
                  // The family queue flags must contain all the flags required by the command list type.
@@ -628,7 +684,7 @@ index f1dd503..b9fc17e 100644
                      continue;
                  }
  
-@@ -4003,14 +4071,19 @@ namespace plume {
+@@ -4003,14 +4099,19 @@ namespace plume {
                  }
              }
  
@@ -651,7 +707,7 @@ index f1dd503..b9fc17e 100644
  
          // Create the struct to store the virtual queues.
          queueFamilies.resize(queueFamilyCount);
-@@ -4120,6 +4193,7 @@ namespace plume {
+@@ -4120,6 +4221,7 @@ namespace plume {
          description.dedicatedVideoMemory = memoryHeapSize;
  
          // Fill capabilities.
@@ -659,7 +715,7 @@ index f1dd503..b9fc17e 100644
          capabilities.geometryShader = deviceFeatures.features.geometryShader;
          capabilities.raytracing = rayTracingSupported;
          capabilities.raytracingStateUpdate = false;
-@@ -4161,23 +4235,33 @@ namespace plume {
+@@ -4161,23 +4263,33 @@ namespace plume {
      }
  
      std::unique_ptr<RenderDescriptorSet> VulkanDevice::createDescriptorSet(const RenderDescriptorSetDesc &desc) {
@@ -698,7 +754,7 @@ index f1dd503..b9fc17e 100644
      }
  
      std::unique_ptr<RenderPipeline> VulkanDevice::createRaytracingPipeline(const RenderRaytracingPipelineDesc &desc, const RenderPipeline *previousPipeline) {
-@@ -4189,11 +4273,15 @@ namespace plume {
+@@ -4189,11 +4301,15 @@ namespace plume {
      }
  
      std::unique_ptr<RenderBuffer> VulkanDevice::createBuffer(const RenderBufferDesc &desc) {
@@ -716,7 +772,7 @@ index f1dd503..b9fc17e 100644
      }
  
      std::unique_ptr<RenderAccelerationStructure> VulkanDevice::createAccelerationStructure(const RenderAccelerationStructureDesc &desc) {
-@@ -4205,15 +4293,21 @@ namespace plume {
+@@ -4205,15 +4321,21 @@ namespace plume {
      }
  
      std::unique_ptr<RenderPipelineLayout> VulkanDevice::createPipelineLayout(const RenderPipelineLayoutDesc &desc) {
@@ -741,7 +797,7 @@ index f1dd503..b9fc17e 100644
      }
  
      std::unique_ptr<RenderFramebuffer> VulkanDevice::createFramebuffer(const RenderFramebufferDesc &desc) {
-@@ -4444,7 +4538,7 @@ namespace plume {
+@@ -4444,7 +4566,7 @@ namespace plume {
      }
  
      bool VulkanDevice::isValid() const {
@@ -751,7 +807,7 @@ index f1dd503..b9fc17e 100644
  
      bool VulkanDevice::beginCapture() {
 diff --git a/plume_vulkan.h b/plume_vulkan.h
-index 0a1edbe..99e4048 100644
+index 0a1edbe..03d11a6 100644
 --- a/plume_vulkan.h
 +++ b/plume_vulkan.h
 @@ -235,6 +235,7 @@ namespace plume {
@@ -762,3 +818,11 @@ index 0a1edbe..99e4048 100644
          VkPresentModeKHR requiredPresentMode = VK_PRESENT_MODE_FIFO_KHR;
          VkCompositeAlphaFlagBitsKHR pickedAlphaFlag = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
          std::vector<VulkanTexture> textures;
+@@ -300,6 +301,7 @@ namespace plume {
+         const VulkanFramebuffer *targetFramebuffer = nullptr;
+         const VulkanPipelineLayout *activeComputePipelineLayout = nullptr;
+         const VulkanPipelineLayout *activeGraphicsPipelineLayout = nullptr;
++        std::vector<VkDescriptorSet> activeGraphicsDescriptorSets;
+         const VulkanPipelineLayout *activeRaytracingPipelineLayout = nullptr;
+         VkRenderPass activeRenderPass = VK_NULL_HANDLE;
+ 

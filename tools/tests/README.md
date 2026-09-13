@@ -2,6 +2,20 @@
 
 ## Render batch policy and descriptor cache
 
+## v0.5.9 Vulkan selectors
+
+The Vulkan depth-clear and binding-cache checks are selected targets for the
+v0.5.9 candidate. Retained runs include `LoDepthClearLayoutTest
+--coalesced-only` (720-to-1 layout coalescing, partial/hole/overlap/empty
+cases), `LoDepthClearGpuTest --vulkan --coalesced-only` (3840x2208, two
+fixtures and zero per-pixel differences), and
+`LoVulkanTextureReuseTest --binding-cache-only` (duplicate/replacement,
+incompatible-prefix A/B/A and post-fence binding cases). The supporting
+`LoTextureKeyTest`, `LoCapturedShaderTest` and Vulkan render-pass rebind
+checks are retained as focused evidence. These selectors do not launch the
+game and do not establish whole-game or player acceptance; do not rerun the
+full suite merely because these targets exist.
+
 Header fixtures for the D3D12/Vulkan descriptor batch limit and per-batch texture-set reuse. They do not launch the game or open a GPU device:
 
 ```powershell
