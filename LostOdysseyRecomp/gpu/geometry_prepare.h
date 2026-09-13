@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#if defined(__SSE2__)
+#include <emmintrin.h>
+#endif
 #if defined(__SSSE3__)
 #include <tmmintrin.h>
 #endif
@@ -57,6 +60,29 @@ namespace gpu::geometry_prepare
         }
     }
 
+    // Read exactly one sample block with unaligned SIMD loads. An explicit
+    // comparison avoids compiler-dependent expansion of constant-size memcmp.
+    inline bool EqualSampleBlock64(const uint8_t* left, const uint8_t* right)
+    {
+#if defined(__SSE2__)
+        __m128i equal = _mm_cmpeq_epi8(
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(left)),
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(right)));
+        equal = _mm_and_si128(equal, _mm_cmpeq_epi8(
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(left + 16)),
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(right + 16))));
+        equal = _mm_and_si128(equal, _mm_cmpeq_epi8(
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(left + 32)),
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(right + 32))));
+        equal = _mm_and_si128(equal, _mm_cmpeq_epi8(
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(left + 48)),
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(right + 48))));
+        return _mm_movemask_epi8(equal) == 0xFFFF;
+#else
+        return std::memcmp(left, right, 64) == 0;
+#endif
+    }
+
     // Preserve the old large-buffer sampling coverage, using exact comparisons
     // instead of serial hash arithmetic. Small buffers include trailing bytes.
     class SampledContent
@@ -78,7 +104,9 @@ namespace gpu::geometry_prepare
             if (sourceSize != bytes || samples.size() != (bytes <= 8192 ? bytes : 5120)) return false;
             size_t position = 0;
             return Visit(bytes, [&](size_t offset, size_t count) {
-                const bool equal = !count || !std::memcmp(data + offset, samples.data() + position, count);
+                const bool equal = !count || (count == 64
+                    ? EqualSampleBlock64(data + offset, samples.data() + position)
+                    : !std::memcmp(data + offset, samples.data() + position, count));
                 position += count;
                 return equal;
             });

@@ -17,9 +17,76 @@ static uint32_t OldSwap(uint32_t v, unsigned endian)
     default: return v;
     }
 }
-int main()
+static void TestSampleBlock64()
+{
+    using gpu::geometry_prepare::EqualSampleBlock64;
+    uint8_t left[64 + 15], right[64 + 15];
+    for (unsigned leftOffset = 0; leftOffset < 16; ++leftOffset)
+        for (unsigned rightOffset = 0; rightOffset < 16; ++rightOffset)
+        {
+            auto* a = left + leftOffset;
+            auto* b = right + rightOffset;
+            for (unsigned i = 0; i < 64; ++i) a[i] = b[i] = uint8_t(i * 37 + 0xA5);
+            Check(EqualSampleBlock64(a, b));
+            Check(EqualSampleBlock64(a, a));
+            for (unsigned i = 0; i < 64; ++i)
+                for (uint8_t bit : {uint8_t(1), uint8_t(0x80)})
+                {
+                    b[i] ^= bit;
+                    Check(!EqualSampleBlock64(a, b));
+                    b[i] ^= bit;
+                }
+            // Mismatches at the same SIMD lane in different blocks must not cancel.
+            b[0] ^= 1;
+            b[16] ^= 1;
+            b[32] ^= 0x80;
+            b[48] ^= 0x80;
+            Check(!EqualSampleBlock64(a, b));
+            b[0] ^= 1;
+            b[16] ^= 1;
+            b[32] ^= 0x80;
+            b[48] ^= 0x80;
+            Check(EqualSampleBlock64(a, b));
+        }
+#ifdef _WIN32
+    SYSTEM_INFO systemInfo;
+    GetSystemInfo(&systemInfo);
+    const size_t page = systemInfo.dwPageSize;
+    auto* leftPages = static_cast<uint8_t*>(VirtualAlloc(nullptr, page * 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    auto* rightPages = static_cast<uint8_t*>(VirtualAlloc(nullptr, page * 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    Check(leftPages && rightPages);
+    DWORD oldProtection;
+    Check(VirtualProtect(leftPages + page, page, PAGE_NOACCESS, &oldProtection) != 0);
+    Check(VirtualProtect(rightPages + page, page, PAGE_NOACCESS, &oldProtection) != 0);
+    auto* a = leftPages + page - 64;
+    auto* b = rightPages + page - 64;
+    for (unsigned i = 0; i < 64; ++i) a[i] = b[i] = uint8_t(i * 37 + 0xA5);
+    Check(EqualSampleBlock64(a, b));
+    for (unsigned i = 0; i < 64; ++i)
+    {
+        a[i] ^= 1;
+        Check(!EqualSampleBlock64(a, b));
+        a[i] ^= 1;
+        b[i] ^= 0x80;
+        Check(!EqualSampleBlock64(a, b));
+        b[i] ^= 0x80;
+    }
+    Check(EqualSampleBlock64(a, b));
+    Check(VirtualFree(leftPages, 0, MEM_RELEASE) != 0);
+    Check(VirtualFree(rightPages, 0, MEM_RELEASE) != 0);
+#endif
+}
+int main(int argc, char** argv)
 {
     using namespace gpu::geometry_prepare;
+    const bool sampleBlockOnly = argc == 2 && std::strcmp(argv[1], "--sample-block-only") == 0;
+    if (argc != 1 && !sampleBlockOnly) return 2;
+    TestSampleBlock64();
+    if (sampleBlockOnly)
+    {
+        std::printf("sample block64 equality: %u checks passed\n", checks);
+        return 0;
+    }
     std::vector<uint8_t> bytes(65536 * 4 + 16);
     uint32_t random = 0x823400;
     for (auto& b : bytes) { random ^= random << 13; random ^= random >> 17; random ^= random << 5; b = uint8_t(random); }

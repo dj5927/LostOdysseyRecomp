@@ -7,6 +7,16 @@ extern "C" PPC_FUNC(__imp__sub_823CDCA8);
 extern "C" PPC_FUNC(__imp__sub_823CF3F0);
 void ArmGuestWriteWatchpoint(uint32_t address, uint32_t length);
 
+namespace
+{
+bool QueryLifetimeTraceEnabled()
+{
+    // This startup-only diagnostic must not scan the environment on every query.
+    static const bool enabled = getenv("LO_QUERY_TRACE") != nullptr;
+    return enabled;
+}
+}
+
 PPC_FUNC(sub_823CF3F0)
 {
     static const bool enabled = getenv("LO_QUERY_CALL_TRACE") != nullptr;
@@ -42,7 +52,7 @@ PPC_FUNC(sub_827B7408)
     const uint32_t device = ctx.r3.u32;
     const uint32_t caller = uint32_t(ctx.lr);
     __imp__sub_827B7408(ctx, base);
-    if (!getenv("LO_QUERY_TRACE")) return;
+    if (!QueryLifetimeTraceEnabled()) return;
     static std::atomic<uint32_t> sequence{0};
     const uint32_t index = ++sequence;
     const uint32_t query = ctx.r3.u32;
@@ -55,7 +65,7 @@ PPC_FUNC(sub_827B7408)
 
 PPC_FUNC(sub_823CDCA8)
 {
-    if (getenv("LO_QUERY_TRACE"))
+    if (QueryLifetimeTraceEnabled())
     {
         const uint32_t query = ctx.r3.u32;
         if (PPC_LOAD_U32(query + 12) == 1)
