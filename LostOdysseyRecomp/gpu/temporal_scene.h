@@ -18,6 +18,10 @@ inline int PositionVPSlot(uint64_t shader) {
     // f13429-f13431: alpha-tested depth shares ff9da/a27a geometry; c4-c7
     // feed only position, while its object UV and alpha color remain unchanged.
     case 0x8d3c80b318235b22ull:
+    // f5914: stride-56 static depth companion of 799c/eeae; c4-c7 position only.
+    case 0x52e4405f97159d2full:
+    // f16385-f16387: alpha-tested depth; UV/color outputs are independent of VP.
+    case 0xfe3efe042c311110ull:
     case 0xb030ab4e17a20783ull:case 0xf1b330b3ceea9a3bull:case 0xf7fd88506d704a3dull:return 4;
     case 0x03184cec350bc14eull:case 0x3621e6e696f914c5ull:case 0x4053f2a21dbb92ddull:
     case 0xa27a7234977e0d4aull:case 0xbfe5f796efa9ae95ull:case 0xc13cdd857c57fed9ull:case 0xf4577672c6ee5dd9ull:
@@ -37,10 +41,22 @@ inline int PositionVPSlot(uint64_t shader) {
     case 0x7d403bdef896a97full:case 0x45ed0948b6b701a7ull:
     // f1653: matched depth/material/light geometry and camera; c7-c10 only
     // feed clip position/varyings. World-space lighting uses separate constants.
-    case 0x3c86f4a89d220ee8ull:case 0xf3b9f20b3d3a62d5ull:case 0xe7b38eb08c70e5e1ull:return 7;
+    case 0x3c86f4a89d220ee8ull:case 0xf3b9f20b3d3a62d5ull:case 0xe7b38eb08c70e5e1ull:
+    // f5997-f5999: static material/light companions of b030 depth geometry.
+    // c7-c10 feed position and clip copies; world lighting uses c4-c6/c11+.
+    case 0x5f0bd44481510be0ull:case 0x310850b1446f0e41ull:case 0xe242d31a3f1acdc4ull:
+    // f5912-f5914: clip-copy light pass; c4-c6/c11-c12 lighting stays independent.
+    case 0x97b5d441419b5533ull:
+    // f16385-f16387: matching alpha-tested light layer, same clip/UV separation.
+    case 0x1474db97dfc0afadull:return 7;
     case 0x1da1ddc75da8e994ull:case 0x22557143e0f243ddull:case 0x4c87bb5b986defc8ull:case 0xa6c8c11c6dd07144ull:
     case 0xe8c0d438c690c784ull:case 0x576d669b2ad3c898ull:
-    case 0x188061ace0615678ull:case 0xdc7f83af67c53ba1ull:case 0x68014a17a2a9a4bdull:return 8;
+    case 0x188061ace0615678ull:case 0xdc7f83af67c53ba1ull:case 0x68014a17a2a9a4bdull:
+    // Same capture, f7fd depth geometry: c7 is an independent UV transform;
+    // c8-c11 feed only position/clip, preserving UV and lighting constants.
+    case 0x5d98f5e3bcc3f4aeull:case 0xa9dd56801863b1f0ull:
+    // f5914: stride-56 material/light pair, c7 UV and c12+ lighting untouched.
+    case 0x799c02c8b6582bfeull:case 0xeeae6424413228d6ull:return 8;
     case 0x31bde3e2770db187ull:case 0x7e8492365edcf556ull:return 230;
     case 0x118a37c0d32c0477ull:case 0x3148f81d65d3b5f4ull:case 0xb7557072899a63a1ull:case 0xc84ca5209e98e743ull:
     case 0x0eb223d33f8e8e0cull:case 0x1e9017d2b296f480ull:

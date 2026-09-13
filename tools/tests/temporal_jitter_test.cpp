@@ -4,6 +4,9 @@
 #include <cstring>
 #include <limits>
 #include "map16_jitter_capture.h"
+#include "f5997_jitter_capture.h"
+#include "f5912_jitter_capture.h"
+#include "f16385_jitter_capture.h"
 
 using namespace gpu::temporal;
 using Constants = std::array<uint32_t, 256 * 4>;
@@ -583,8 +586,223 @@ static void CapturedStaticLayerCoverage()
     std::printf("Captured static layers: %u checks, 32 phases, two worlds, two sizes; legacy separation %.6f pixels\n",checks,legacySeparation);
 }
 
+
+// f5997 5f0/310 use the exact TireMaterialFf9 operation chain (temporary
+// register renaming only). a9dd/5d98 retain the same swizzles with c8-c11 VP.
+static Float4 F5997LayerC8(const Constants& c, Float4 r6)
+{
+    r6[3]=1;
+    auto r2=Mul(r6[3],S(C(c,3),"xywz"));
+    r2=Mad(r6[2],S(C(c,2),"wxzy"),S(r2,"zxwy"));
+    r2=Mad(r6[1],S(C(c,1),"zwyx"),S(r2,"zxwy"));
+    r6=Mad(r6[0],S(C(c,0),"yzxw"),S(r2,"zxwy"));
+    r2=Mul(r6[3],C(c,11));
+    r2=Mad(r6[1],C(c,10),r2);
+    r2=Mad(r6[0],C(c,9),r2);
+    return Mad(r6[2],C(c,8),r2);
+}
+// e242 has a distinct wxyz world path and x,w,z,y camera accumulation.
+static Float4 F5997LayerE242(const Constants& c, Float4 r6)
+{
+    r6[3]=1;
+    auto r0=Mul(r6[3],S(C(c,3),"wxyz"));
+    r0=Mad(r6[2],S(C(c,2),"wxyz"),r0);
+    r0=Mad(r6[1],S(C(c,1),"wxyz"),r0);
+    r6=Mad(r6[0],S(C(c,0),"wxyz"),r0);
+    r0=Mul(r6[0],C(c,10));
+    r0=Mad(r6[3],C(c,9),r0);
+    r0=Mad(r6[2],C(c,8),r0);
+    return Mad(r6[1],C(c,7),r0);
+}
+static void CapturedF5997Layers()
+{
+    double legacySeparation=0;
+    for (const auto& draw:f5997_capture::draws)
+    {
+        double drawSeparation=0;
+        Constants original{}, originalPs{};
+        std::copy(draw.vertex.begin(),draw.vertex.end(),original.begin());
+        std::copy(draw.pixel.begin(),draw.pixel.end(),originalPs.begin());
+        std::array<uint32_t,16> vp{};
+        std::copy_n(original.begin()+draw.slot*4,16,vp.begin());
+        const auto path=draw.vs==0xe242d31a3f1acdc4ull?F5997LayerE242:
+            draw.slot==8?F5997LayerC8:TireMaterialFf9;
+        for (const auto extent:{Viewport{0,0,1280,720},Viewport{0,0,3840,2160}})
+            for (uint64_t phase=0;phase<32;++phase)
+            {
+                const SceneAnchor anchor{vp,extent,0x10000};
+                auto layer=original,ps=originalPs;
+                Constants depth{};
+                std::copy_n(original.begin(),16,depth.begin());
+                std::copy(vp.begin(),vp.end(),depth.begin()+16);
+                Check(ApplyDrawJitter(0xb030ab4e17a20783ull,0,phase,true,true,&anchor,
+                    0x10000,extent,depth.data(),ps.data()).applied,"f5997 depth camera accepted");
+                const auto applied=ApplyDrawJitter(draw.vs,draw.ps,phase,true,true,&anchor,
+                    0x10000,extent,layer.data(),ps.data());
+                Check(applied.applied && !applied.shadowCompensated && ps==originalPs,
+                    "f5997 layer applies position jitter without changing paired PS");
+                for (unsigned i=0;i<layer.size();++i)
+                    if (i<draw.slot*4 || i>=(draw.slot+4)*4 || i%4>=2)
+                        Check(layer[i]==original[i],"f5997 non-position constants and VP ZW preserved");
+                for (const auto local:{Float4{-250,-100,20,1},Float4{120,90,80,1},Float4{10,250,160,1}})
+                {
+                    const auto d=TireDepthB030(depth,local),m=path(layer,local),old=path(original,local);
+                    Check(d==m,"f5997 independently transcribed material and depth chains agree");
+                    Check(m[2]==old[2] && m[3]==old[3],"f5997 clip ZW preserved");
+                    drawSeparation=std::max({drawSeparation,
+                        std::abs(double(m[0])/m[3]-double(old[0])/old[3])*extent.width*.5,
+                        std::abs(double(m[1])/m[3]-double(old[1])/old[3])*extent.height*.5});
+                }
+                for (unsigned mutation=0;mutation<2;++mutation)
+                {
+                    auto rejected=original;
+                    if (!mutation) rejected[draw.slot*4]^=1;
+                    const auto before=rejected;
+                    auto rejectedPs=originalPs;
+                    const auto result=ApplyDrawJitter(draw.vs,draw.ps,phase,true,true,&anchor,
+                        mutation?0x10001:0x10000,extent,rejected.data(),rejectedPs.data());
+                    Check(!result.applied && rejected==before && rejectedPs==originalPs &&
+                        result.rejection==(mutation?JitterRejection::DepthMismatch:JitterRejection::CameraMismatch),
+                        "f5997 other camera or depth allocation rejected without writes");
+                }
+            }
+        Check(drawSeparation>.3,"f5997 omitted-jitter negative control exposes each draw separation");
+        legacySeparation=std::max(legacySeparation,drawSeparation);
+    }
+    std::printf("Captured f5997 layers: %u checks, nine draws, five shaders, 32 phases, 720p/4K; legacy separation %.6f pixels\n",checks,legacySeparation);
+}
+
+// Reviewed f5912 HLSL: 52e position chain is exactly TireDepthB030;
+// 799c/eeae exactly F5997LayerC8, and 97b5 exactly TireMaterialFf9.
+// Temporary register names differ; world swizzles and accumulation order do not.
+static void CapturedF5912Layers()
+{
+    double legacySeparation=0;
+    for (const auto& draw:f5912_capture::draws)
+    {
+        double drawSeparation=0;
+        Constants original{}, originalPs{};
+        std::copy(draw.vertex.begin(),draw.vertex.end(),original.begin());
+        std::copy(draw.pixel.begin(),draw.pixel.end(),originalPs.begin());
+        std::array<uint32_t,16> vp{};
+        std::copy_n(original.begin()+draw.slot*4,16,vp.begin());
+        const auto path=draw.slot==4?TireDepthB030:
+            draw.slot==8?F5997LayerC8:TireMaterialFf9;
+        for (const auto extent:{Viewport{0,0,1920,1080},Viewport{0,0,3840,2160}})
+            for (uint64_t phase=0;phase<32;++phase)
+            {
+                const SceneAnchor anchor{vp,extent,0x10000};
+                auto layer=original,ps=originalPs;
+                Constants depth{};
+                std::copy(draw.depth.begin(),draw.depth.end(),depth.begin());
+                Check(ApplyDrawJitter(draw.depthVs,0,phase,true,true,&anchor,
+                    0x10000,extent,depth.data(),ps.data()).applied,"f5912 depth camera accepted");
+                const auto applied=ApplyDrawJitter(draw.vs,draw.ps,phase,true,true,&anchor,
+                    0x10000,extent,layer.data(),ps.data());
+                Check(applied.applied && !applied.shadowCompensated && ps==originalPs,
+                    "f5912 layer applies position jitter without changing paired PS");
+                for (unsigned i=0;i<layer.size();++i)
+                    if (i<draw.slot*4 || i>=(draw.slot+4)*4 || i%4>=2)
+                        Check(layer[i]==original[i],"f5912 non-position constants and VP ZW preserved");
+                for (const auto local:{Float4{-250,-100,20,1},Float4{120,90,80,1},Float4{10,250,160,1}})
+                {
+                    const auto d=TireDepthB030(depth,local),m=path(layer,local),old=path(original,local);
+                    Check(d==m,"f5912 independently transcribed material and depth chains agree");
+                    Check(m[2]==old[2] && m[3]==old[3],"f5912 clip ZW preserved");
+                    drawSeparation=std::max({drawSeparation,
+                        std::abs(double(m[0])/m[3]-double(old[0])/old[3])*extent.width*.5,
+                        std::abs(double(m[1])/m[3]-double(old[1])/old[3])*extent.height*.5});
+                }
+                for (unsigned mutation=0;mutation<2;++mutation)
+                {
+                    auto rejected=original;
+                    if (!mutation) rejected[draw.slot*4]^=1;
+                    const auto before=rejected;
+                    auto rejectedPs=originalPs;
+                    const auto result=ApplyDrawJitter(draw.vs,draw.ps,phase,true,true,&anchor,
+                        mutation?0x10001:0x10000,extent,rejected.data(),rejectedPs.data());
+                    Check(!result.applied && rejected==before && rejectedPs==originalPs &&
+                        result.rejection==(mutation?JitterRejection::DepthMismatch:JitterRejection::CameraMismatch),
+                        "f5912 other camera or depth allocation rejected without writes");
+                }
+            }
+        Check(drawSeparation>.3,"f5912 omitted-jitter negative control exposes each draw separation");
+        legacySeparation=std::max(legacySeparation,drawSeparation);
+    }
+    std::printf("Captured f5912 layers: %u checks, 12 draws across three frames, four shaders, 32 phases, 1080p/4K; legacy separation %.6f pixels\n",checks,legacySeparation);
+}
+
+// Exact position instruction chains reviewed in f16385 HLSL: fe3efe uses
+// TireDepthB030; 1474 uses TireMaterialFf9, with clip retained in o4.
+// Neither path uses camera constants for alpha UV or vertex color.
+static void CapturedF16385Layers()
+{
+    double legacySeparation=0;
+    for (const auto& draw:f16385_capture::draws)
+    {
+        double drawSeparation=0;
+        Constants original{}, originalPs{};
+        std::copy(draw.vertex.begin(),draw.vertex.end(),original.begin());
+        std::copy(draw.pixel.begin(),draw.pixel.end(),originalPs.begin());
+        std::array<uint32_t,16> vp{};
+        std::copy_n(original.begin()+draw.slot*4,16,vp.begin());
+        const auto path=draw.slot==4?TireDepthB030:
+            TireMaterialFf9;
+        for (const auto extent:{Viewport{0,0,1920,1080},Viewport{0,0,3840,2160}})
+            for (uint64_t phase=0;phase<32;++phase)
+            {
+                const SceneAnchor anchor{vp,extent,0x10000};
+                auto layer=original,ps=originalPs;
+                Constants depth{};
+                std::copy(draw.depth.begin(),draw.depth.end(),depth.begin());
+                Check(ApplyDrawJitter(draw.depthVs,0,phase,true,true,&anchor,
+                    0x10000,extent,depth.data(),ps.data()).applied,"f16385 depth camera accepted");
+                const auto applied=ApplyDrawJitter(draw.vs,draw.ps,phase,true,true,&anchor,
+                    0x10000,extent,layer.data(),ps.data());
+                Check(applied.applied && !applied.shadowCompensated && ps==originalPs,
+                    "f16385 layer applies position jitter without changing paired PS");
+                for (unsigned i=0;i<layer.size();++i)
+                    if (i<draw.slot*4 || i>=(draw.slot+4)*4 || i%4>=2)
+                        Check(layer[i]==original[i],"f16385 non-position constants and VP ZW preserved");
+                for (const auto local:{Float4{-250,-100,20,1},Float4{120,90,80,1},Float4{10,250,160,1}})
+                {
+                    const auto d=TireDepthB030(depth,local),m=path(layer,local),old=path(original,local);
+                    Check(d==m,"f16385 independently transcribed material and depth chains agree");
+                    Check(m[2]==old[2] && m[3]==old[3],"f16385 clip ZW preserved");
+                    drawSeparation=std::max({drawSeparation,
+                        std::abs(double(m[0])/m[3]-double(old[0])/old[3])*extent.width*.5,
+                        std::abs(double(m[1])/m[3]-double(old[1])/old[3])*extent.height*.5});
+                }
+                for (unsigned mutation=0;mutation<2;++mutation)
+                {
+                    auto rejected=original;
+                    if (!mutation) rejected[draw.slot*4]^=1;
+                    const auto before=rejected;
+                    auto rejectedPs=originalPs;
+                    const auto result=ApplyDrawJitter(draw.vs,draw.ps,phase,true,true,&anchor,
+                        mutation?0x10001:0x10000,extent,rejected.data(),rejectedPs.data());
+                    Check(!result.applied && rejected==before && rejectedPs==originalPs &&
+                        result.rejection==(mutation?JitterRejection::DepthMismatch:JitterRejection::CameraMismatch),
+                        "f16385 other camera or depth allocation rejected without writes");
+                }
+            }
+        Check(drawSeparation>.3,"f16385 omitted-jitter negative control exposes each draw separation");
+        legacySeparation=std::max(legacySeparation,drawSeparation);
+    }
+    std::printf("Captured f16385 layers: %u checks, 12 draws across three frames, two shaders, 32 phases, 1080p/4K; legacy separation %.6f pixels\n",checks,legacySeparation);
+}
+
 int main(int argc,char** argv)
 {
+    if (argc==2 && std::strcmp(argv[1],"--captured-f16385-layers")==0)
+    { CapturedF16385Layers(); return 0; }
+    if (argc==2 && std::strcmp(argv[1],"--captured-f5912-layers")==0)
+    { CapturedF5912Layers(); return 0; }
+    if (argc==2 && std::strcmp(argv[1],"--captured-f5997-layers")==0)
+    { CapturedF5997Layers(); return 0; }
+    CapturedF5997Layers();
+    CapturedF5912Layers();
+    CapturedF16385Layers();
     CapturedStaticLayerCoverage();
     if (argc==2 && std::strcmp(argv[1],"--captured-static-layers")==0) return 0;
     TireMaterialCoverage();

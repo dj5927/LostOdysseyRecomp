@@ -4,7 +4,7 @@
 
 Track the v0.5.0 backend and QOL requirements in the bilingual roadmaps and [QOL requirements](docs/notes/v0.5.0-qol-requirements.md). Recording a requirement does not authorize its implementation.
 
-The current user request authorizes publishing `v0.5.9` from `main`, including the version update, release commits, pushes, tag and GitHub Release. Verify the PPC input/compiler identity and synchronize a matching private PPC cache when needed before release CI consumes it. Keep source version `0.5.9` until another version change is requested. Do not add a version number for each subtask or validation. Preserve `v0.5.6`, the former `0.5.6-hotfix1` candidate, and earlier artifact versions as historical provenance, including city measurements made with a source-`0.5.4` binary. Future publication beyond this request requires explicit authorization.
+The current user request authorizes publishing `v0.5.9` from `main`, including the version update, release commits, pushes, tag and GitHub Release. Verify the PPC input/compiler identity and synchronize a matching private PPC cache when needed before release CI consumes it. The subsequent shader-update request authorizes version `0.5.10` and committing/pushing the scoped changes. Keep source version `0.5.10` until another version change is requested; publication of this version is not yet authorized. Do not add a version number for each subtask or validation. Preserve `v0.5.6`, the former `0.5.6-hotfix1` candidate, and earlier artifact versions as historical provenance, including city measurements made with a source-`0.5.4` binary. Future publication beyond this request requires explicit authorization.
 
 ## Project management agent
 

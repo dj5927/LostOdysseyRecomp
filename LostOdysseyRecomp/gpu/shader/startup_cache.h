@@ -2,6 +2,7 @@
 
 #include "cache.h"
 #include "resource_cpx_index_sha256.h"
+#include "resource_variant_identity.h"
 #include "xenos_translator.h"
 #include <atomic>
 #include <cctype>
@@ -73,11 +74,13 @@ inline std::vector<FileStamp> List(const fs::path& directory,
 // edits that deliberately preserve both values. Bundle contents are hashed below.
 inline std::string Snapshot(const fs::path& game, const fs::path& cacheDir,
     bool spirv, std::string_view compiler, std::span<const uint8_t> xex,
-    bool includeCompiled = true, bool includeSources = true, const cache::Identity* typed = nullptr) {
+    bool includeCompiled = true, bool includeSources = true, const cache::Identity* typed = nullptr,
+    std::string_view discovery = resources::variants::DiscoveryIdentity) {
     std::ostringstream out;
     out << "startup-bundle=" << Schema << ";translator=" << (typed ? typed->translatorVersion : cache::Version)
         << ";backend=" << spirv << ";flags=lo-dxc-vulkan12-dx-layout-v1\n"
-        << "compiler=" << compiler << "\nxex=" << Hex(xex) << '\n';
+        << "compiler=" << compiler << "\nxex=" << Hex(xex) << '\n'
+        << "discovery=" << discovery << '\n';
     if (typed) {
         if (!cache::ValidIdentity(*typed)) throw std::runtime_error("unsupported shader cache identity");
         // Frozen v0.4.17 contracts. Do not replace these with DefaultOptions:

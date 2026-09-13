@@ -98,6 +98,14 @@ int main(int argc,char** argv) {
     assert(snapshot()!=sc::Snapshot(game,cache,true,"compiler",sc::Bytes("xex")));
     assert(snapshot()!=sc::Snapshot(game,cache,false,"compiler2",sc::Bytes("xex")));
     assert(snapshot()!=sc::Snapshot(game,cache,false,"compiler",sc::Bytes("changed xex")));
+    // Discovery changes must reject an old bundle even with unchanged sources
+    // and compiled binaries. They do not modify individual shader cache keys.
+    const auto oldDiscovery=sc::Snapshot(game,cache,false,"compiler",sc::Bytes("xex"),true,true,nullptr,"old-discovery");
+    assert(oldDiscovery!=snapshot());
+    {sc::Writer writer(file,common);writer.Add(record);writer.Finish(oldDiscovery);}
+    int discoveryCallbacks=0;
+    assert(!sc::Load(file,snapshot(),false,[&](auto&&){++discoveryCallbacks;}).ok);
+    assert(discoveryCallbacks==0);
     // One real deterministic DXC rejection, then reuse without another call;
     // changed source succeeds and is never treated as a cached rejection.
     assert(xenos::DxcAvailable() && !xenos::DxcIdentity().empty());

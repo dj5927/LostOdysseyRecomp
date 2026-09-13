@@ -19,6 +19,11 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## v0.5.10 新增（未发布）
+
+- 本地 Vulkan TAA jitter 映射现已覆盖 f5997、f5912 和 f16385 捕获中新增的 11 条材质与光照顶点 shader 路径。用户已验收报告中的闪烁场景；其他场景和全游戏覆盖仍未验证。详见 [TAA 覆盖记录](docs/notes/taa-f5997-2026-09-13.md)及 [f5912/f16385 TAA 记录](docs/notes/taa-f5912-f16385-2026-09-13.md)。
+- 启动 shader 准备现已加入已核验的原始 CPX 元数据和捕获到的 `1474db97dfc0afad` packed 静态网格声明。定向启动覆盖检查和 Release 构建已通过；实景帧时间仍未验证，详见[启动覆盖记录](docs/notes/shader-startup-coverage-2026-09-13.md)。
+
 ## v0.5.9 新增
 
 - 已发布 Windows x64 包：[v0.5.9](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.9)。增加保守的 Vulkan 深度清除合并、texture-key avalanche、captured-shader identity 缓存、graphics descriptor 绑定抑制、Plume 绑定抑制和每 slot descriptor 复用，同时保留双 slot/fence 契约。

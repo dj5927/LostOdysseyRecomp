@@ -19,6 +19,11 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## New in v0.5.10 (unreleased)
+
+- The local Vulkan TAA jitter mapping now covers 11 additional material and light vertex shader paths found in captures f5997, f5912 and f16385. The reported flicker scenes were accepted by the user; other scenes and whole game coverage remain unverified. See the [TAA coverage notes](docs/notes/taa-f5997-2026-09-13.md) and [f5912/f16385 TAA note](docs/notes/taa-f5912-f16385-2026-09-13.md).
+- Startup shader preparation now includes verified original CPX metadata and the captured packed static mesh declaration for `1474db97dfc0afad`. Focused startup coverage checks and the Release build passed. Gameplay frame time remains unverified; see the [startup coverage note](docs/notes/shader-startup-coverage-2026-09-13.md).
+
 ## New in v0.5.9
 
 - Published Windows x64 package: [v0.5.9](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.9). It adds conservative Vulkan depth-clear coalescing, texture-key avalanche mixing, captured-shader identity caching, graphics descriptor binding suppression, Plume binding suppression and per-slot descriptor reuse. The retained two-slot/fence contract is unchanged.
