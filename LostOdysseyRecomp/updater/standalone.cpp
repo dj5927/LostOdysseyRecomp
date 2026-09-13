@@ -5,6 +5,7 @@
 #include <tlhelp32.h>
 #include <fstream>
 #include <iterator>
+#include "../../tools/XenonRecomp/thirdparty/tomlplusplus/vendor/json.hpp"
 
 namespace updater
 {
@@ -45,38 +46,30 @@ bool ConfigureStandalone(const std::filesystem::path &helper, StartupOptions &op
     options.installRoot = std::filesystem::canonical(helper, ec).parent_path();
     if (ec || options.installRoot.empty()) { error = "Cannot locate the updater installation folder."; return false; }
     options.executable = options.installRoot / "LostOdysseyRecomp.exe";
-    if (!std::filesystem::is_regular_file(options.executable, ec))
+    // Version hints are optional; stale or modified installation metadata must
+    // never prevent a direct update. Prefer the version shipped with the payload.
+    options.currentVersion = "0.0.0";
+    std::ifstream versionInput(options.installRoot / "source-version.txt");
+    std::string version;
+    versionInput >> version;
+    if (ParseVersion(version)) options.currentVersion = version;
+    else
     {
-        error = "Place LostOdysseyUpdater.exe beside LostOdysseyRecomp.exe and manifest.json.";
-        return false;
-    }
-    const auto manifestPath = options.installRoot / "manifest.json";
-    const auto size = std::filesystem::file_size(manifestPath, ec);
-    if (ec || size > 4 * 1024 * 1024) { error = "The installed release manifest is missing or too large."; return false; }
-    std::ifstream input(manifestPath, std::ios::binary);
-    const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    auto manifest = ParsePackageManifest(text, error);
-    if (!manifest) return false;
-    if (manifest->developmentBuild || !ParseVersion(manifest->version))
-    {
-        error = "Standalone updates require an installed release package, not a development build.";
-        return false;
-    }
-    bool verified = false;
-    for (const auto &file : manifest->files)
-    {
-        if (!SamePath(options.installRoot / file.path, options.executable)) continue;
-        const auto digest = Sha256File(options.executable, error);
-        if (digest.empty() || digest != file.sha256)
+        const auto manifestPath = options.installRoot / "manifest.json";
+        const auto size = std::filesystem::file_size(manifestPath, ec);
+        if (!ec && size <= 4 * 1024 * 1024)
         {
-            error = "The installed game executable does not match manifest.json.";
-            return false;
+            std::ifstream input(manifestPath, std::ios::binary);
+            auto manifest = nlohmann::json::parse(input, nullptr, false);
+            if (manifest.is_object() && manifest.contains("version") && manifest["version"].is_string())
+            {
+                version = manifest["version"].get<std::string>();
+                if (ParseVersion(version)) options.currentVersion = version;
+            }
         }
-        verified = true;
-        break;
     }
-    if (!verified) { error = "The release manifest does not identify the game executable."; return false; }
-    options.currentVersion = manifest->version;
+    if (!std::filesystem::is_regular_file(options.executable, ec))
+        options.currentVersion = "0.0.0"; // An empty folder needs a full installation.
     // A direct user request is independent of the saved automatic-check opt-out.
     // PrepareAtStartup still respects the explicit LO_NO_UPDATE environment switch.
     options.automaticUpdates = true;
@@ -128,7 +121,7 @@ int RunStandalone(const std::filesystem::path &helper, PrepareUpdate prepare)
     StartupOptions options;
     std::string error;
     if (!ConfigureStandalone(helper, options, error))
-        return Notify(L"The installed release could not be identified.", true, error);
+        return Notify(L"The installation folder could not be located.", true, error);
     if (!StandaloneGameClosed(options.executable, error))
         return Notify(L"Close the game and try again.", true, error);
     const auto result = prepare(options);

@@ -34,6 +34,14 @@ The standalone updater retains the behavior validated for [v0.5.1](https://githu
 
 The bug-fix implementation and its recorded local validation are committed as `2019cd017ab939d0b728cec340f7835c2082e615` and are included in the pushed `main` alongside its existing city-performance work. The 0.5.6 release is published; hosted CI and package verification passed.
 
+### Standalone updater recovery and completion policy — unpublished v0.5.6-hotfix1 target
+
+The pending `v0.5.6-hotfix1` source change removes local package-provenance and executable-hash gates from the standalone recovery path. It prefers a valid `source-version.txt`, falls back to a valid version-only `manifest.json`, and uses `0.0.0` when metadata is missing or unusable. An updater-only empty folder, or a missing game executable, therefore requests the latest release; stale or malformed metadata no longer blocks the check, although a selected valid version can still be up to date. `PrepareAtStartup` compares the selected version with the latest release without requiring an installed manifest/version match. Download SHA-256 verification, safe archive extraction, transaction rollback and update path-safety checks remain in force.
+
+After a successful update, the local helper asks whether to launch the game, with **No** as the default. Silent mode does not launch the game; failed updates do not auto-restart it; and a requested launch failure leaves the installed update in place. The handoff runner uses the locally installed updater so this completion behavior remains active when the downloaded package contains an older helper.
+
+The recorded checks and local helper for this unpublished target were built before the suffix-only version metadata change, as source version 0.5.6: `LoUpdaterStandaloneTest` passed 44/44 (`out/updater-simple/standalone.log`), alongside the companion updater version/asset/integrity/staging/rollback/helper/preservation log and `LoUpdaterHelperContextTest` for a Unicode caller working directory and no unsolicited launch. The standalone count covers recovery and handoff behavior; transaction rollback remains covered by the companion updater fixture. These are hidden synthetic-process checks only. No real game, public download or visible Yes/No dialog interaction was performed. The target is not published.
+
 ### Local main 0.5.6 gameplay validation and PPC provenance
 
 The merged local `main` at source version 0.5.6 built successfully with the normal CMake Release configuration in 173.782 seconds. The runtime executable SHA-256 is `d50c240d24bcd6cda7a1abc23107fa97f11d18dc5a68167310da6e6f892fe0ed`; the updater SHA-256 is `732681bf2a1c74106bb1ea90b32912b3269304dea3abe8ba351f6e1d5b94cc3e`. The build used no diagnostic object overlay or battle bridge. Evidence: `out/main-bugfix-0.5.6/REPORT.md`, `artifacts.json` and `build-result.json`.

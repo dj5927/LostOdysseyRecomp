@@ -40,7 +40,7 @@ Earlier release details are maintained in the [changelog](CHANGELOG.md).
 
 No Python or Visual Studio installation is needed for the release package. Later launches reuse the shader cache. Keep your save and profile folders when updating.
 
-The updater checks GitHub's latest Release. A higher numeric version updates normally; an equal numeric version with a different `-suffix`, such as `0.5.0-hotfix1`, also triggers an update. The installed build must contain this updater policy before it can take effect.
+The published updater checks GitHub's latest Release: a higher numeric version updates, and an equal numeric version with a different `-suffix` also triggers an update. The unreleased local `v0.5.6-hotfix1` target additionally permits recovery from an empty updater-only folder and stale or malformed local metadata. After a successful update, that local helper asks whether to launch the game and defaults to **No**; silent runs complete without launching. Download integrity checks, safe extraction and rollback remain enabled.
 
 | Requirement | Supported configuration |
 | :--- | :--- |

@@ -4,6 +4,20 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
+## v0.5.6-hotfix1 — Unreleased / 未发布
+
+### English
+
+- Simplify standalone updater recovery: an empty updater-only folder, stale or malformed metadata, a development package, or a modified executable can use the latest-release update path. `source-version.txt` is preferred; a valid version-only `manifest.json` is a fallback, and unknown metadata uses `0.0.0`. Download SHA-256 verification, safe archive extraction, transaction rollback and update path-safety checks remain enabled.
+- After a successful update, the local helper asks whether to launch the game and defaults to **No**. Silent mode performs the update without launching; failed updates do not restart the game, and a requested launch failure preserves the installed update. The updater copies the locally installed helper into the handoff runner so this completion policy remains active even when the downloaded package contains an older helper.
+- Focused checks recorded before the suffix-only version metadata change passed on source version 0.5.6: `LoUpdaterStandaloneTest` 44/44, updater version/asset/integrity/staging/rollback/helper/preservation checks, and the Unicode caller-CWD helper-context check. These are synthetic hidden-process checks; no real game, public download or visible Yes/No dialog interaction was performed.
+
+### 简体中文
+
+- 简化 standalone 更新器的恢复路径：只有 updater 的空目录、过期或损坏的 metadata、开发包或被修改的可执行文件，都可以使用最新 Release 更新。优先读取 `source-version.txt`；否则回退到只含有效版本号的 `manifest.json`，未知 metadata 使用 `0.0.0`。下载 SHA-256 校验、安全 ZIP 解压、事务回滚和更新路径安全检查仍然保留。
+- 更新成功后，当前本地 helper 会询问是否启动游戏，默认选择**否**。silent 模式只执行更新而不启动游戏；更新失败不会自动重启游戏；用户请求启动但启动失败时保留已安装的更新。交接 runner 使用本地已安装的 helper，因此即使下载包内含较旧 helper，也会保留当前完成策略。
+- 后缀版本 metadata 改动前，以 source version 0.5.6 记录的定向检查已通过：`LoUpdaterStandaloneTest` 44/44、更新器版本／asset／完整性／staging／回滚／helper／保留行为检查，以及 Unicode 调用方工作目录的 helper context 检查。这些是隐藏的合成进程检查，未运行真实游戏、公开下载或可见 Yes/No 对话框交互。
+
 ## v0.5.6 — 2026-09-13 / 已发布
 
 ### English

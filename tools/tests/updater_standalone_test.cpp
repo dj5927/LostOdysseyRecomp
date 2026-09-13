@@ -95,19 +95,25 @@ int wmain(int argc, wchar_t **argv) {
     };
     updater::StartupOptions options;
     auto configure = [&] { error.clear(); return updater::ConfigureStandalone(localHelper, options, error); };
-    Expect(!configure(), "missing manifest rejected");
-    { Child child; Expect(child.Start(localHelper, L"", unrelated), "real noargs helper starts hidden"); Expect(child.Finish() != 0, "real noargs helper rejects missing manifest"); }
-    Write(install / "manifest.json", "not json"); Expect(!configure(), "malformed manifest rejected");
-    manifest("0.5.0", true); Expect(!configure(), "development package rejected");
-    manifest("invalid"); Expect(!configure(), "invalid installed version rejected");
-    manifest("0.5.0", false, false); Expect(!configure(), "missing executable manifest entry rejected");
+    Expect(configure() && options.currentVersion == "0.0.0", "missing metadata permits recovery update");
+    { Child child; Expect(child.Start(localHelper, L"", unrelated), "real noargs helper starts hidden"); Expect(child.Finish() == 0, "real noargs helper without manifest respects opt-out"); }
+    Write(install / "manifest.json", "not json"); Expect(configure(), "malformed manifest permits recovery update");
+    manifest("0.5.0", true); Expect(configure(), "development package permits update");
+    manifest("invalid"); Expect(configure(), "invalid installed version permits recovery update");
+    manifest("0.5.0", false, false); Expect(configure(), "missing executable manifest entry permits update");
     manifest();
     Expect(configure(), "formal older installed version accepted with newer helper");
     Expect(options.currentVersion == "0.5.0", "installed manifest version selected");
+    Write(install / "source-version.txt", "0.5.4\n");
+    Expect(configure() && options.currentVersion == "0.5.4", "payload version wins over stale manifest");
+    Write(install / "manifest.json", "{\"version\":\"0.5.0\"}");
+    fs::remove(install / "source-version.txt");
+    Expect(configure() && options.currentVersion == "0.5.0", "version-only manifest accepted without hashes");
+    manifest();
     Expect(fs::equivalent(options.installRoot, install) && fs::equivalent(options.executable, game), "Unicode install resolved independently of cwd");
-    fs::rename(game, install / "game.saved"); Expect(!configure(), "missing game rejected");
+    fs::rename(game, install / "game.saved"); Expect(configure() && options.currentVersion == "0.0.0", "missing game permits fresh install despite stale metadata");
     fs::rename(install / "game.saved", game);
-    Write(game, "tampered"); Expect(!configure(), "tampered game rejected");
+    Write(game, "tampered"); Expect(configure(), "modified game permits update");
     fs::copy_file(self, game, fs::copy_options::overwrite_existing);
     for (auto status : {updater::StartupStatus::UpToDate, updater::StartupStatus::Offline, updater::StartupStatus::Disabled, updater::StartupStatus::Cancelled}) {
         outcome = status;
@@ -136,6 +142,9 @@ int wmain(int argc, wchar_t **argv) {
         SetEvent(stop); Expect(child.Finish() == 0, "other installation fake game exits on event");
     }
     CloseHandle(ready); CloseHandle(stop);
+    fs::remove(game);
+    fs::remove(install / "manifest.json");
+    Expect(configure() && options.currentVersion == "0.0.0", "updater-only folder is installable");
     const auto marker = root / "ready-context.txt";
     const auto probe = helper.parent_path() / "LoUpdaterProbe.exe";
     Expect(fs::is_regular_file(probe), "WIN32 updated-process probe exists");
@@ -150,19 +159,11 @@ int wmain(int argc, wchar_t **argv) {
     for (int i = 0; i < 200; ++i) {
         std::ifstream input(resultPath);
         result.assign(std::istreambuf_iterator<char>(input), {});
-        if (fs::exists(marker) && result.find("updated=9.9.9") != std::string::npos) break;
+        if (result.find("updated=9.9.9") != std::string::npos) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(25));
     }
     Expect(result.find("updated=9.9.9") != std::string::npos, "real helper installs staged standalone update");
-    Expect(fs::exists(marker), "updated WIN32 probe launched after handoff");
-    std::ifstream contextInput(marker, std::ios::binary);
-    const std::string context((std::istreambuf_iterator<char>(contextInput)), {});
-    contextInput.close();
-    const auto installUtf8 = fs::canonical(install).u8string();
-    Expect(context.find("cwd=" + std::string(installUtf8.begin(), installUtf8.end()) + "\n") != std::string::npos,
-           "standalone handoff launches game in installation directory");
-    Expect(context.find("arg=standalone-\xe4\xb8\xad\xe6\x96\x87") != std::string::npos,
-           "standalone handoff preserves Unicode arguments");
+    Expect(!fs::exists(marker), "updated game never launches without consent in silent mode");
     Expect(updater::Sha256File(game, error) == updater::Sha256File(probe, error), "game payload replaced with exact probe");
     fs::current_path(oldCwd);
     std::error_code cleanup;

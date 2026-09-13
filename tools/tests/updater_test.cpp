@@ -347,8 +347,9 @@ int wmain(int argc, wchar_t **argv)
     const std::wstring parentCommand = Quote(self.wstring()) + L" --parent " + Quote(successStage.runnerPath.wstring()) +
                                        L" " + Quote(successStage.planPath.wstring());
     Expect(LaunchAndWait(parentCommand, parentExit) && parentExit == 0, "helper becomes ready before old process exits");
-    for (int i = 0; i < 100 && !fs::exists(marker2); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    Expect(fs::exists(marker2), "helper replaces files then launches the updated executable");
+    for (int i = 0; i < 100 && Read(successRoot / "install/.update/last-result.txt").find("updated=") == std::string::npos; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    Expect(!fs::exists(marker2), "helper does not launch without user consent");
+    Expect(Read(successRoot / "install/.update/last-result.txt").find("updated=") != std::string::npos, "helper completes installation without launching");
     Expect(Read(successRoot / "install/bin/runtime.dll") == "new-runtime", "successful helper installs payload");
     Expect(Read(successRoot / "install/settings.ini") == "automatic_updates=0\n" &&
            Read(successRoot / "install/game-path.txt") == "D:/owned-game\n" &&
