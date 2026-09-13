@@ -1,10 +1,18 @@
 # Project status
 
+## Published v0.5.6 — 2026-09-13
+
+Source version **0.5.6** is published at [GitHub](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6), with Release CI [34726533463](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34726533463) succeeding for source commit `7124f4b3912df715167acf01f469974045cc3e08` and publication at `2026-09-13T00:05:47Z`. The Windows ZIP is 44,255,182 bytes with SHA-256 `ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9`; the standalone updater is 849,920 bytes with SHA-256 `d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74` and is byte-identical to the copy extracted from the ZIP. All 50 manifest files passed hash and CRC checks with clean source-version provenance. The four public assets passed anonymous HTTP 200 and hash/size verification. The release includes the updater manifest transaction fix, Issue #16 particle-material compatibility fallback, PPC prebuilt CI path and the city renderer work; bounded gameplay validation remains separate.
+
+The published package runtime SHA-256 is `1fff598e1a0872da2a7728ceb9921aa2e4a1bff0bd818c224827b84eaf3f5aaa`; CI package verification did not repeat gameplay. The separate local main executable `d50c240d24bcd6cda7a1abc23107fa97f11d18dc5a68167310da6e6f892fe0ed` supplies the retained D3D12/local Asia Disc 3 target-scene validation. Whole-game, Vulkan, other-region and player acceptance remain unverified.
+
+Evidence: `out/v0.5.6/release/{published-release.json,public-download-check.json,delivery-verification.json,ci-run.json,ci-ppc-consumption.json,ppc-ci-upload.json,release-source.json}`.
+
 ## Published v0.5.4 — 2026-09-11
 
 Source version **0.5.4** is published at [GitHub](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.4), with Release CI [34550200618](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34550200618) succeeding for commit `2ad94d418bb0478417ab9589109f1f685ed92eb3`. The ZIP is 44,237,061 bytes with SHA-256 `104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218`; the standalone updater is 848,896 bytes with SHA-256 `7285d0f24331387973a44e4240353d7857f1967163440fb49ba0546c7b9dd844` and is byte-identical to the copy extracted from the ZIP. All 50 manifest files passed hash, CRC, version 0.5.4 and clean-build provenance checks. The runtime executable hash is `3c3b4073f1b7abbcce38747dc08763335ac019edf560df849177176d0399f949`.
 
-All four public assets matched the local verification artifacts and returned anonymous HTTP 200 responses; the GitHub latest-release API reports v0.5.4. Evidence: `out/v0.5.4/release/{delivery-verification.json,public-download-check.json,published-release.json}`. The release includes the PPC generation guard, optional external assembly profiler, extended F1 archive wait and confirmed installer drag-dispatch fix. Focused validation and package integrity passed; no whole-game, visual or complete F1 acceptance is claimed.
+All four public assets matched the local verification artifacts and returned anonymous HTTP 200 responses; at that historical checkpoint, the GitHub latest-release API reported v0.5.4. Evidence: `out/v0.5.4/release/{delivery-verification.json,public-download-check.json,published-release.json}`. The release includes the PPC generation guard, optional external assembly profiler, extended F1 archive wait and confirmed installer drag-dispatch fix. Focused validation and package integrity passed; no whole-game, visual or complete F1 acceptance is claimed.
 
 ## Published v0.5.3 — 2026-09-10
 
@@ -24,13 +32,13 @@ The standalone updater retains the behavior validated for [v0.5.1](https://githu
 
 ## Current validation and limits
 
-The bug-fix implementation and its recorded local validation are committed as `2019cd017ab939d0b728cec340f7835c2082e615` and are included in the local `main` alongside its existing city-performance work. These fixes have not been pushed or released.
+The bug-fix implementation and its recorded local validation are committed as `2019cd017ab939d0b728cec340f7835c2082e615` and are included in the pushed `main` alongside its existing city-performance work. The 0.5.6 release is published; hosted CI and package verification passed.
 
-### Main 0.5.6 build and PPC provenance — local, unpublished
+### Local main 0.5.6 gameplay validation and PPC provenance
 
 The merged local `main` at source version 0.5.6 built successfully with the normal CMake Release configuration in 173.782 seconds. The runtime executable SHA-256 is `d50c240d24bcd6cda7a1abc23107fa97f11d18dc5a68167310da6e6f892fe0ed`; the updater SHA-256 is `732681bf2a1c74106bb1ea90b32912b3269304dea3abe8ba351f6e1d5b94cc3e`. The build used no diagnostic object overlay or battle bridge. Evidence: `out/main-bugfix-0.5.6/REPORT.md`, `artifacts.json` and `build-result.json`.
 
-The 0.5.6 PPC key is `50b8ad415be405b302252558e0fd960913c3ce6a15d991ae3607142f1a3821a5`. The imported library is byte-identical to the verified library with SHA-256 `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`; only the source-version fingerprint was re-exported and no PPC recompilation occurred. The remote private cache lacked the current key at the audit; the exact upload has since completed at private commit `6a6ed03152431a232165e35b19b7f94f09bbbda9`. `lo.ppcAutoSync=false` remains unchanged. Hosted CI and release verification remain pending. Evidence: `out/main-bugfix-0.5.6/ppc-bundle/REPORT.md`, `upload-plan.md` and `out/v0.5.6/release/ppc-upload.json`.
+The producer PPC key is `50b8ad415be405b302252558e0fd960913c3ce6a15d991ae3607142f1a3821a5`, uploaded at private commit `6a6ed03152431a232165e35b19b7f94f09bbbda9`. The CI-compatible key is `d89197759478260d7e135b654993d57cff30127f1d41cf30c410fd0ae4be27f4`, uploaded at private commit `a6cd91ea35261dd202b78e93b4acb65973369d07` for runner representation. Both use the byte-identical verified library SHA-256 `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`; no PPC recompilation occurred. The 19 key differences are fully explained by five line-ending differences and fourteen symlink placeholder/target-content representations; 250 generated outputs, 471 PPC headers, CMake fingerprints and the Release compile contract are identical. CI run `34726533463` completed Resolve, Record, Retrieve, Restore, Release build and packaging successfully. The resulting draft was published after package verification. `lo.ppcAutoSync=false` remains unchanged. Evidence: `out/main-bugfix-0.5.6/ppc-bundle/REPORT.md`, `upload-plan.md`, `out/v0.5.6/release/ppc-ci-upload.json` and `out/v0.5.6/release/ppc-ci-compatible-plan/compatibility-provenance.json`.
 
 The main-binary target-scene replay passed on D3D12/local Asia Disc 3 using the new 0.5.6 executable (SHA-256 `d50c240d24bcd6cda7a1abc23107fa97f11d18dc5a68167310da6e6f892fe0ed`). It completed the unsuppressed freeze sequence, subsequent map229/menu progression and visible movement. This remains bounded scene validation, not whole-game, Vulkan, other-region or player acceptance; do not substitute the retained source-0.5.4 gameplay evidence for validation of this executable.
 
@@ -42,7 +50,7 @@ GitHub Issues [#14](https://github.com/freefrank/LostOdysseyRecomp/issues/14), [
 - **#15:** The log shows a successful 206,000-byte first-save write and a later full read, then continued rendering until the window closed; the reported first-save progression hang therefore remains unresolved. The updater staging defect is fixed for subsequent transactions using the new `StageArchive`: the transaction now applies `manifest.json` itself and rolls back on failure. The focused `LoUpdaterTest --manifest-transaction` run passed three scenarios with zero failures: successful update and post-apply rollback, failure after manifest replacement, and tamper rejection, including plan serialization round-trip. This does not automatically repair an already mixed installation or remove old resources, and is updater transaction coverage only; no helper/game launch, network update or player acceptance is claimed. `PrepareAtStartup` compares manifest and executable source versions only; `up-to-date` does not prove every payload is current. The logged `dxcompiler.dll` and `dxil.dll` identities match the retained official v0.5.4 manifest hashes, and `DxcIdentity` hashes the actually loaded module paths; this supports those two DLLs only. Mixed installation is not established as the cause of the reported hang. Evidence: `out/bug-fix-evidence/updater-manifest-build/REPORT.md`.
 - **#16:** The published v0.5.4 executable reproduces the King Train freeze/crash on local Asia Disc 3 D3D12 with the supplied `user08` path. The zero-count cooked and runtime `FParticleVF8336CA10` tables for `gt9_0_map.cs__frzShader1` / raw `xf_shd_aniflz.freeze` explain the null shader read at guest `0x823DFE14`. The narrow `particle_material_compat` fallback preserves sprite parameter updates and original logic, then uses the engine default material only for raw blend 2 when the normal particle shader is absent; its caller guard is limited to the ordinary sprite builder. `LoParticleMaterialCompatTest` compiled and ran with zero failures, covering the material compatibility policy only. The final branch native build in `build/branch-native-r1` succeeded, and `final-reload-01` successfully reread the new slot 11/`user10` checkpoint at the saved position and produced field shot `9326`. The r2 candidate separately demonstrated map 229 movement and a normal menu, but predates the final caller guard and is not final-branch build evidence. Final-branch `final-freeze-01` then completed the target sequence with visible frozen King/guards/carriage frames, later train animation, normal map229/menu progression and visible movement/camera change. Asia Disc 3 D3D12 target-scene validation is complete; Vulkan, other-region coverage and player acceptance remain pending.
 
-Detailed evidence and boundaries are recorded in [Issue #14–#16 triage](notes/issues14-16-triage.md). No new release inclusion is claimed.
+Detailed evidence and boundaries are recorded in [Issue #14–#16 triage](notes/issues14-16-triage.md). The fixes and validation records above are included in published v0.5.6.
 
 ### Issue #6 startup allocation — current diagnosis — 2026-09-12
 
@@ -58,9 +66,9 @@ Pending diagnostic improvements (not implemented): retain the OS build, process/
 
 Opt-in local PPC auto-sync is pushed to github/main as [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c). Enable it with `git config --local lo.ppcAutoSync true`; CMake `LO_PPC_AUTO_SYNC` reads that setting. After a successful PPC library build, the post-build hook runs `ppc_sync.py sync --already-built`. It is not a file watcher. A matching input/compiler key reuses the immutable private `ppc/<key>` branch; a changed key publishes a new branch with shards of at most 40 MiB. CI, imported libraries and `LO_PPC_SYNC_ACTIVE` never upload. The release workflow resolves the library by key from `ppc/<key>` instead of a pinned private SHA; `rebuild_ppc: true` still compiles from source.
 
-Nineteen synthetic sync cases in `tools/tests/test_ppc_sync.py` pass. Built-library roundtrip and change-during-build checks passed. Historically, the real `LoPpcAutoSync` hook uploaded an existing library only to private commit `5e80263491b39dc0012146dd3a31cf5eea533225` on branch `ppc/4d21302a4eef224c82691878fbcb6cd2f427b60d676b3e692e78598257b5d1b4`; a subsequent same-key sync was unchanged and produced no PPC C++ compile or game run. The current local setting is `lo.ppcAutoSync=false`, and the new 0.5.6 key is recorded above as absent from the remote cache. Sparse-clone restore/check and a simulated-CI Release contract key match passed. Evidence: `out/ppc-auto-sync-evidence/build-sync.log`, `github-output.txt`, `github-output-second.txt` and `out/ppc-sync/receipt.json`. The earlier manual prebuilt path remains historical at commit [`2b5b1d1`](https://github.com/freefrank/LostOdysseyRecomp/commit/2b5b1d1) and CI [34553414428](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34553414428). See [release packaging](notes/release-packaging.md).
+Nineteen synthetic sync cases in `tools/tests/test_ppc_sync.py` pass. Built-library roundtrip and change-during-build checks passed. Historically, the real `LoPpcAutoSync` hook uploaded an existing library only to private commit `5e80263491b39dc0012146dd3a31cf5eea533225` on branch `ppc/4d21302a4eef224c82691878fbcb6cd2f427b60d676b3e692e78598257b5d1b4`; a subsequent same-key sync was unchanged and produced no PPC C++ compile or game run. The current local setting is `lo.ppcAutoSync=false`. The new 0.5.6 key was subsequently uploaded to private commit `6a6ed03152431a232165e35b19b7f94f09bbbda9`; hosted CI consumed the compatible retrieved artifact successfully. Sparse-clone restore/check and a simulated-CI Release contract key match passed. Evidence: `out/ppc-auto-sync-evidence/build-sync.log`, `github-output.txt`, `github-output-second.txt` and `out/ppc-sync/receipt.json`. The earlier manual prebuilt path remains historical at commit [`2b5b1d1`](https://github.com/freefrank/LostOdysseyRecomp/commit/2b5b1d1) and CI [34553414428](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34553414428). See [release packaging](notes/release-packaging.md).
 
-This work is Unreleased and is not in published v0.5.4. Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964) passed for `2c0456c`. A new Release, hosted release end-to-end validation and user gameplay acceptance remain pending.
+This workflow is included in published v0.5.6 and was absent from published v0.5.4. Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964) passed for `2c0456c`; user gameplay acceptance remains separate.
 
 ### PPC generation guard — v0.5.4
 
@@ -91,9 +99,9 @@ The Python reporting fixture passed 6 tests (`tools/asm-profiler/test_report.py`
 
 Two isolated 2026-09-11 gameplay captures sampled the published v0.5.4 runtime (SHA-256 `3c3b4073f1b7abbcce38747dc08763335ac019edf560df849177176d0399f949`) with `lo_asm_profiler.exe` (SHA-256 `d6326a19c51e97ee1338364a98f36a7f2cb29aeb537c82f6b100bc3104b9d0f1`). There was no matching PDB beside the EXE, so every EXE sample is unresolved. Both runs used isolated working copies, `LO_AUDIO_MUTE=1` and `LO_TEST_INPUT_FILE` only; original install save timestamps were unchanged. Session 1 (`out/asm-profiler/play-2026-09-11/`) loaded user00 and walked `xenon_scr.fpd` for 15.036 s (5,092 samples, 0 failed, 38 threads). Hottest OS CPU TID 52396 used 8.11 s (that thread: EXE 38.8% + `NtWaitForSingleObject` 36.6% + AMD/D3D12). All-thread wall share was dominated by ntdll waits; EXE was about 2.18%. Heartbeats showed about 36 fps, 1,700–2,300 draws/frame and a 1280×720 frontbuffer; sampling dipped to 15.8 fps (suspend perturbation). Session 2 (`out/asm-profiler/play-2026-09-11-city/`) loaded user01 (02:15 Lv.10) for a city walk on `xenon_scr.fpd` for 15.017 s (10,736 samples, 0 failed, 44 threads). Hottest TID 5092 used 7.27 s (EXE 35.2% + `NtWaitForSingleObject` 39.8% + amdxc64/D3D12). After sampling: about 43–44 fps, about 1,913 draws/frame, 1280×720. The bottleneck picture matches session 1; without a PDB there is no new function-level hotspot. Wall-clock all-thread suspend snapshots include waits. There are no stacks, ETW, cycles or GPU pass timing, and no CPU-utilization, instruction-latency, cache or branch counters. This is diagnostic evidence, not a performance fix, player acceptance or a new Release. Session detail: [assembly profiler gameplay captures](notes/asm-profiler-gameplay.md). Fixture and capture evidence remains under `out/asm-profiler/`.
 
-### GPU command-list ring and descriptor reuse — local, unpublished
+### GPU command-list ring and descriptor reuse — included in published v0.5.6
 
-Branch `perf-gpu-ring` implements a 2-slot D3D12 command-list ring and raises the D3D12 descriptor-set limit to 1800 with 2D texture-set reuse (`b91d279`). A follow-up binds unused 2D/3D/cube banks to static dummy sets, uses BatchCache last-hit, and skips unchanged constant uploads (`ed90fe9`). The work is local and Unreleased: it is not pushed, is not in published v0.5.4, and has no GitHub Release.
+Branch `perf-gpu-ring` implements a 2-slot D3D12 command-list ring and raises the D3D12 descriptor-set limit to 1800 with 2D texture-set reuse (`b91d279`). A follow-up binds unused 2D/3D/cube banks to static dummy sets, uses BatchCache last-hit, and skips unchanged constant uploads (`ed90fe9`). The work is included in published v0.5.6; the retained measurements are diagnostic and are not player acceptance, Vulkan coverage or a 60 FPS claim.
 
 Header fixtures pass: LoRenderBatchPolicyTest 22/22 and LoTextureDescriptorCacheTest 12/12, including a 2000 last-hit loop. An isolated Continue-sequence city walk loaded user01 (Lv.10) at 1280×720 D3D12 TAA=3 cap 60 with `LO_BACKGROUND=1`, `LO_AUDIO_MUTE=1` and `s@120,a@240,a@360,a@480,a@700,a@900`. Screenshots confirm an Uhra street walk. Original install save timestamps were unchanged (user00 2026-09-10 18:22:37, user01 18:28:28).
 
@@ -101,7 +109,7 @@ Ring EXE SHA-256 `5917F389F9FD9E88FDEC6DBD3437ADE76D415F1653FB6924575ACCF478C1B9
 
 These city numbers are diagnostic. They are not 60 fps acceptance, player acceptance, Vulkan coverage or a new Release. Compare note: [GPU ring measured comparison](notes/perf-gpu-ring-compare.md).
 
-### City CPU conversion follow-up — local, unpublished
+### City CPU conversion follow-up — included in published v0.5.6
 
 The measured vertex-cache diagnosis and bounded-cache follow-up are now the
 current city CPU result. With `LO_VERTEX_TIMING=1`, frame 1858 isolated a
@@ -137,12 +145,11 @@ The final executable is `out/perf-ring/run/LostOdysseyRecomp.exe` with SHA-256
 `9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B`; its PDB
 is alongside it. Compilation, linking and provenance completed; the known
 post-build `dxcompiler.dll` copy failure was reused because the run directory
-already contained the DLL. This v0.5.6-targeted work is unpublished and absent
-from the published v0.5.4 package. It establishes neither whole-game behavior,
+already contained the DLL. This v0.5.6-targeted work is included in the published v0.5.6 package; its measured evidence remains tied to source version 0.5.4. It establishes neither whole-game behavior,
 player acceptance nor a new release. Evidence: [city vertex-cache follow-up](notes/city-60fps-handoff.md),
 `out/perf-ring/vertex-stage/{REPORT.md,comparison.json,identity.json,vertex-cache-test-evidence.json}`.
 
-The current source and next release target are v0.5.6. The executable and
+The current source and published release are v0.5.6. The executable and
 performance evidence above remain from the measured source-0.5.4 runtime; no
 rebuild or test rerun was performed for this version increment.
 
@@ -158,7 +165,7 @@ broader-scene and longer-session coverage of bounded-cache eviction and on
 remaining accepted-present timing variability; do not reclassify the TEMP
 comparison as proof of a filesystem root cause.
 
-### Historical SIMD conversion diagnostic — local, unpublished
+### SIMD conversion diagnostic — included in published v0.5.6
 
 The local renderer now uses `gpu::geometry_prepare::CopyDwordsSwapped` for the
 two vertex-buffer conversion paths. Endian 0 uses `memcpy`; endian modes 1/2/3

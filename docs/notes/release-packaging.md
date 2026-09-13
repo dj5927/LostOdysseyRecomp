@@ -66,7 +66,7 @@ applies the checked-in dependency patches, builds Release, then packages the run
 It requires no ISO or archive assets on the runner. A successful local build is not evidence
 that the hosted workflow has run; check the actual Actions result before publishing.
 
-## Local prebuilt PPC library — unreleased
+## Local prebuilt PPC library — historical checkpoint
 
 The release workflow adds a `rebuild_ppc` boolean input, defaulting to `false`.
 The default path restores the PPC static library and receipts from the immutable
@@ -124,23 +124,23 @@ The implementation was pushed to `main` at commit
 [`2b5b1d1d0d3c0a1a2d5404cdc29bbf9f3aa75e4e`](https://github.com/freefrank/LostOdysseyRecomp/commit/2b5b1d1d0d3c0a1a2d5404cdc29bbf9f3aa75e4e).
 The standalone synthetic PPC workflow completed successfully in
 [run 34553414428](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34553414428).
-The hosted release end-to-end run has not yet been performed.
+That historical checkpoint predates the published v0.5.6 release.
 
-Current status, 2026-09-10: resolving the library by `ppc/<key>` instead of a
+Historical status, 2026-09-10: resolving the library by `ppc/<key>` instead of a
 pinned private SHA is pushed to github/main as
 [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c).
 Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
-passed; hosted release end-to-end validation and a new Release remain pending.
-This work is Unreleased and is not in published v0.5.4.
+passed; the v0.5.6 hosted Release CI and publication subsequently passed.
+At that checkpoint, this work was Unreleased and was not in published v0.5.4.
 
-## Local PPC auto-sync — unreleased
+## Local PPC auto-sync — historical checkpoint
 
-Current status, 2026-09-10: the auto-sync source is pushed to github/main as
+Historical status, 2026-09-10: the auto-sync source is pushed to github/main as
 [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c).
 Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
-passed; a new Release remains pending. This work is Unreleased and is not
-in published v0.5.4. There is no user gameplay acceptance and no hosted
-release end-to-end run.
+passed; the v0.5.6 Release subsequently passed. At the historical checkpoint, the
+workflow was absent from published v0.5.4 and had no hosted release end-to-end run.
+User gameplay acceptance remains separate.
 
 The local post-build hook requires `git config --local lo.ppcAutoSync true`.
 The CMake option reads that setting; if an existing cache is `OFF`, reconfigure
@@ -173,26 +173,34 @@ hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actio
 passed, and a new Release remains pending.
 
 `export` requires a new empty output directory; `restore` may use an existing
-output directory according to its normal merge/replace behavior. The PPC flow,
-local validation and private upload are complete. Hosted release end-to-end
-validation, a new release, and user acceptance remain pending.
+output directory according to its normal merge/replace behavior. At the historical
+checkpoint, the PPC flow, local validation and private upload were complete. Hosted release end-to-end
+validation, a new release, and user acceptance remained pending at that checkpoint.
 
-## Current v0.5.6 release preparation — 2026-09-12
+## Published v0.5.6 release — 2026-09-13
 
-The merged local `main` at source version 0.5.6 built successfully with normal CMake
-Release configuration. Its runtime executable SHA-256 is
-`d50c240d24bcd6cda7a1abc23107fa97f11d18dc5a68167310da6e6f892fe0ed`, and the updater
-SHA-256 is `732681bf2a1c74106bb1ea90b32912b3269304dea3abe8ba351f6e1d5b94cc3e`.
-The matching PPC key `50b8ad415be405b302252558e0fd960913c3ce6a15d991ae3607142f1a3821a5`
-was uploaded to the private cache at commit
-`6a6ed03152431a232165e35b19b7f94f09bbbda9`; the library remains byte-identical to
-the verified `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`
-artifact and was not recompiled. Hosted Release CI verification and publication are
-in progress. The local auto-sync setting remains `lo.ppcAutoSync=false`.
-Evidence: `out/main-bugfix-0.5.6/REPORT.md`, `out/main-bugfix-0.5.6/ppc-bundle/REPORT.md`,
-`out/main-bugfix-0.5.6/ppc-bundle/upload-plan.md` and
-`out/v0.5.6/release/ppc-upload.json`.
+The merged `main` source version 0.5.6 was built by Release CI `34726533463` for
+source commit `7124f4b3912df715167acf01f469974045cc3e08`; publication completed at
+`2026-09-13T00:05:47Z`. The producer PPC key
+`50b8ad415be405b302252558e0fd960913c3ce6a15d991ae3607142f1a3821a5` was uploaded at
+private commit `6a6ed03152431a232165e35b19b7f94f09bbbda9`. The CI-compatible key
+`d89197759478260d7e135b654993d57cff30127f1d41cf30c410fd0ae4be27f4` was consumed
+from private commit `a6cd91ea35261dd202b78e93b4acb65973369d07`. The library SHA-256
+remained `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`; no
+generated PPC C++ compilation or new PPC static-library link occurred. The existing
+library was linked into the runtime. The 19 input representation differences
+were explained by five line-ending and fourteen symlink placeholder/target-content
+differences; generated outputs, PPC headers and the Release contract remained
+identical. `lo.ppcAutoSync=false` remains unchanged. This records CI compatibility,
+not source-level key normalization.
 
+The published ZIP is 44,255,182 bytes with SHA-256
+`ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9`; all 50
+manifest files passed hash/CRC and clean source-version provenance checks. The
+standalone updater is 849,920 bytes with SHA-256
+`d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74` and matches
+the ZIP copy. All four anonymous downloads returned HTTP 200 with verified hashes
+and sizes. Evidence: `out/v0.5.6/release/{published-release.json,public-download-check.json,delivery-verification.json,ci-run.json,ci-ppc-consumption.json,ppc-ci-upload.json,release-source.json}`.
 
 ## Verification
 

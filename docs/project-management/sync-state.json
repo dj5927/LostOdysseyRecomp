@@ -846,7 +846,7 @@
         "Source key": "startup-allocation-error-context"
       },
       "title": "Report actionable guest allocation failure context",
-      "body_sha256": "61efab9a44c356e5d9ea6b74c5d4554c5a64abfb21d971baea0cf50577b38d56"
+      "body_sha256": "07c6554efa1f9e62821e2a784cc949021d1ea8b0b5c15c5fb12e1cd37ef4b058"
     },
     "temporal-upscaling-feasibility": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56dwE",
@@ -1885,7 +1885,7 @@
         "Source key": "startup-allocation-reporter-validation"
       },
       "title": "Confirm Issue 6 recovery on the original machine",
-      "body_sha256": "e83be5b09142fc54eef6375b11eaa46e8f59d522ac590f81ef6ec1fab68be12a"
+      "body_sha256": "5aaa17a6f5aa48e49a324d90cd5d8ccb814cd56cf905942592f476a9b75ac028"
     },
     "recompiler-remaining-contracts": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56fO0",
@@ -1982,12 +1982,11 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Runtime",
-        "Status": "Done",
-        "Delivery": "Awaiting validation",
-        "Release": "v0.4.2",
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Release": "v0.5.6",
         "Start date": "2026-09-07",
-        "Target date": "2026-09-08",
-        "Evidence": "The maintainer closed the issue as fixed in v0.4.2. A fresh original-machine diagnostic log and reporter confirmation are still absent. The separately recorded v0.4.0 allocation-diagnostics enhancement is not itself proof of recovery. https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598",
+        "Evidence": "Issue #6 is OPEN. Three v0.5.4 logs on 2026-09-11 each record reserve any address with Win32/preferred error 6; on 2026-09-12 the reporter stated that the same failure persists after a clean extraction. The historic v0.4.0 diagnostic enhancement is implemented, but no repair, root cause or reporter recovery is established. Requested environment details (Windows build, architecture, compatibility layer, RAM/pagefile, ZIP version and older-build result) and the latest complete clean-extraction log are pending. https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559",
         "Source key": "issue-6-report"
       }
     },
@@ -2363,11 +2362,11 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Release Engineering",
-        "Status": "Awaiting validation",
-        "Delivery": "Validated",
-        "Release": "v0.5.4",
+        "Status": "In Progress",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
         "Start date": "2026-09-10",
-        "Evidence": "Automatic sync enabled (lo.ppcAutoSync=true): changed input publishes immutable ppc/<key> branch; matching remote key reused; CI resolves by key, no workflow SHA pin update. 19 sync tests, 2 extraction cases, actionlint, real hook upload of existing lib to private 5e802634, same-key unchanged, sparse restore/hash, CI-contract checks passed. No PPC C++ compile/game run. Pushed 2c0456c to github/main; hosted CI for auto-sync tests not yet confirmed; not in published v0.5.4 package; no player acceptance. Prior 2b5b1d1/CI34553414428 is historical.",
+        "Evidence": "Hosted PPC consumption passed in published v0.5.6: CI 34726533463 retrieved runner key d8919775 from immutable private commit a6cd91ea, restored and checked library ba3e4c4d without generated PPC compilation or a new library link. Producer 50b8ad/6a6ed031 and the representation proof remain historical. lo.ppcAutoSync=false; source-layer key normalization is not implemented.",
         "Source key": "release-reuse-local-ppc-static-library"
       },
       "title": "Reuse a locally built PPC static library in release workflows",
@@ -2391,9 +2390,10 @@
         "Kind": "Bug",
         "Area": "Save & Storage",
         "Status": "In Progress",
-        "Delivery": "In progress",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
         "Start date": "2026-09-12",
-        "Evidence": "Investigation active. Source v0.5.4 log retained 60 fps rendering and audio until user closure; the same save later loaded and a second save did not hang. Two compiler-DLL hashes match the v0.5.4 manifest; other components remain unknown. StageArchive omits manifest.json from ApplyPlan. The associated repair is validated: current-worktree clang-cl /O2 /MT targeted build succeeded and --manifest-transaction completed three scenarios with zero failures, covering plan round trip, post-apply rollback, injected failure after manifest replacement rollback, and manifest-tamper rejection. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records the repair and is integrated with main locally, unpushed and unreleased. No helper/game run or player acceptance. The up-to-date path compares only version, so mixed DLL/resource installs remain unexcluded and the Issue #15 hang cause remains unknown.",
+        "Evidence": "The StageArchive manifest repair is included in published v0.5.6 and package/public-download checks passed. Investigation remains active: the original source-v0.5.4 log retained 60 fps/audio until closure; mixed installs remain unknown because up-to-date compares only version. No helper/game rerun or player acceptance; Issue #15 hang root cause remains unknown.",
         "Source key": "issue15-save-hang-investigation"
       }
     },
@@ -2403,21 +2403,37 @@
         "Kind": "Bug",
         "Area": "Gameplay progression",
         "Status": "Awaiting validation",
-        "Delivery": "Validated",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
         "Start date": "2026-09-12",
-        "Evidence": "Implementation and bounded local validation complete; reporter validation pending. Final branch-native-r1 EXE f2015ad76edd48adf7603221c9618804645224c22fd5ca0bcee1471af55d483f passed final-freeze-01 target sequence on D3D12/Asian Disc 3 from user09, without skipping the King freeze. At 1527.792s raw 0A33A8C0 used missing-particle-shader fallback; stable memory matched xf_shd_aniflz.freeze, GUID 0fd4ca6d4bb67581c9c9f5b8f0af62c0, child table count 16 and particle shader 0. 180 PNG captures completed: shot45508 freeze, shot45823 caboose dialogue, shot47673 exterior; at 1733.599s map229 returned, shot52115 menu, and shots53430-53517 show 30-tick down-input movement/camera change. This run has no coordinate telemetry. Both native checkpoints reload and original seed is unchanged. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records the repair and evidence and is integrated with main locally, unpushed and unreleased. No reporter/player acceptance or Vulkan/other-region coverage.",
+        "Evidence": "The particle compatibility repair is included in published v0.5.6; CI/package/public-download evidence verifies delivery only. Historical bounded local main d50c240d target replay passed on D3D12/local Asian Disc 3 from user09 and was not repeated against the release package. Reporter/player acceptance, Vulkan, other-region and full-game coverage remain pending.",
         "Source key": "issue16-train-freeze-investigation"
       }
+    },
+    "release-v0-5-6": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6rqyg",
+      "fields": {
+        "Kind": "Release",
+        "Area": "Release Engineering",
+        "Status": "Done",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
+        "Start date": "2026-09-12",
+        "Evidence": "Published v0.5.6 at 2026-09-13T00:05:47Z from source 7124f4b3912df715167acf01f469974045cc3e08. CI 34726533463 (workflow fe37c1a4e3be20ce6bc3e339ecadb187b80329cf) succeeded. Delivery verification passed: 44,255,182-byte ZIP SHA-256 ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9, 50 manifest files and CRC/member hashes; updater SHA-256 d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74. All four public assets passed anonymous HTTP 200, size and hash checks.",
+        "Source key": "release-v0-5-6"
+      },
+      "title": "Publish v0.5.6 bug-fix release",
+      "body_sha256": "2d7d4058207dfecdc74659948f1c6e6df446acc2c45b908a2a23e16f3181cc8e"
     },
     "performance-and-shader-startup": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6qLPE",
       "fields": {
-        "Evidence": "Bounded city segment implemented and diagnostically validated in local main commit ae287f2a43a73c6f6bea61c40822c37f40afe052, not pushed or released: 41.8241ms vertex spike was unordered_map insert/rehash, not CopySwapped. A 65,536-entry reserved dense metadata cache with 16-candidate LRU eviction passed LoVertexCacheTest once (3,569,548 checks); it preserves quality, 1280x720 D3D12 AA3, two slots and arena/wait policy. Same-EXE TEMP control files reduced observed post-present max 412.9283->0.4193ms without proving a filesystem cause. Final Hidden route: 1790 frames, mean 59.651463 FPS; fixed 1201-frame window mean 59.918376, 1% low 54.494611, >16.67ms 50.374688%, max frame 22.5913ms, max vertex 2.2981ms, zero rehashes and zero stable draw overruns. Mean>=58 target is met. All-city 1% low 45.989346 and max frame 43.0117 retain entry/load tail. Saves unchanged; final local EXE 9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B. No strict S4, whole-game result or player acceptance.",
+        "Evidence": "The bounded city-performance work is included in published v0.5.6 and package/public-download checks passed. Historical local route evidence remains bounded (mean >=58 met), not strict S4, full-game or player acceptance. Remaining shader-startup/performance investigation stays In Progress.",
         "Kind": "Feature",
         "Area": "Runtime performance",
         "Status": "In Progress",
-        "Delivery": "Validated",
-        "Release": "v0.5.4",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
         "Start date": "2026-09-11",
         "Source key": "performance-and-shader-startup"
       },

@@ -4,13 +4,13 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## v0.5.6 — Unreleased / 未发布
+## v0.5.6 — 2026-09-13 / 已发布
 
 ### English
 
 - Fix updater manifest staging for subsequent transactions using the new `StageArchive`; the focused manifest transaction check passed three scenarios with zero failures. This does not repair already mixed installations, remove old resources or establish the unresolved Issue #15 save-flow hang. See [Issue #14–#16 triage](docs/notes/issues14-16-triage.md) for the #14–#16 investigation boundaries.
 - For Issue #16, add a narrow particle-material compatibility fallback for the zero-entry `xf_shd_aniflz.freeze` shader case; `LoParticleMaterialCompatTest` compiled and ran with zero failures. Final-branch D3D12/local Asia Disc 3 validation completed the target freeze sequence and subsequent map229/menu progression. Vulkan, other-region coverage and player acceptance remain pending. See the [triage record](docs/notes/issues14-16-triage.md).
-- Build and validate the merged local `main` at source version 0.5.6 with normal CMake Release configuration: the D3D12/local Asia Disc 3 target freeze sequence, map229/menu progression and visible movement all passed on the new binary. Release CI selects the matching PPC artifact by fingerprint; the matching 0.5.6 PPC cache entry is uploaded, with hosted verification in progress. Detailed hashes and boundaries are in [current status](docs/STATUS.md).
+- Build and validate the merged local `main` at source version 0.5.6 with normal CMake Release configuration: the D3D12/local Asia Disc 3 target freeze sequence, map229/menu progression and visible movement all passed on the local binary. Release CI completed the formal build with the matching PPC artifact. The downloaded package passed hash/CRC checks for all 50 manifest files and clean source-version provenance; gameplay validation of the local binary is retained separately. Detailed hashes and boundaries are in [current status](docs/STATUS.md).
 - Bound the renderer's vertex metadata cache to 65,536 reserved entries. Full
   caches evict from at most 16 rotating candidates, eliminating the old
   `unordered_map` growth path: the diagnostic capture measured a 41.8241 ms
@@ -23,8 +23,8 @@ One record of completed changes, with unpublished work separated from verified r
   1600–2800 window reached 59.918 FPS mean and 54.495 FPS 1% low, with zero
   draw over-budget samples and zero rehashes. This meets the requested mean
   threshold on the route, but is not a locked 60 FPS result, strict S4 pass,
-  whole-game validation or player acceptance. The current release target is
-  v0.5.6 and remains unpublished; the measurement build is source version
+  whole-game validation or player acceptance. These changes are included in
+  v0.5.6; the measurement build is source version
   0.5.4. See [city vertex-cache follow-up](docs/notes/city-60fps-handoff.md).
 
 - Keep `LO_VERTEX_TIMING` disabled by default; the added previous-swap,
@@ -45,9 +45,11 @@ One record of completed changes, with unpublished work separated from verified r
   clang-cl PPC export and isolated prebuilt CMake checks pass. The four-shard
   library is 138,454,798 bytes with SHA256
   `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`; private
-  commit `77f076e0e03966736cbf8919ce793bafadce82d9` was read back and matched.
-  Hosted release end-to-end validation, a new release and user acceptance remain
-  pending.
+  commit `a6cd91ea35261dd202b78e93b4acb65973369d07` was read back and consumed by Release CI.
+  The CI-compatible cache preserves the original library and records five line-ending
+  and fourteen symlink-representation differences; all 250 generated outputs,
+  471 PPC headers and the Release compile contract are identical. Hosted Release CI
+  and package verification passed; user acceptance remains separate.
 
 - Add opt-in local PPC auto-sync. Enable it with local Git config
   `git config --local lo.ppcAutoSync true`; the CMake option reads that setting,
@@ -59,11 +61,11 @@ One record of completed changes, with unpublished work separated from verified r
   `LO_PPC_SYNC_ACTIVE` never upload. The auto-sync source is pushed to
   github/main as [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c).
   Hosted [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
-  passed; hosted release end-to-end validation and a new Release remain pending. Nineteen
+  passed; hosted Release CI and package verification also passed. Nineteen
   synthetic sync cases pass. Separately, the built-library roundtrip and
   change-during-build checks pass, and the real local auto-sync branch/upload
-  plus same-key unchanged check pass. This work stays Unreleased and is not in
-  published v0.5.4.
+  plus same-key unchanged check pass. This workflow is included in v0.5.6 and was absent
+  from published v0.5.4.
 
 - Add a 2-slot D3D12 command-list ring, raise the D3D12 descriptor-set
   limit to 1800, reuse 2D texture descriptor sets, bind unused 2D/3D/cube
@@ -77,9 +79,9 @@ One record of completed changes, with unpublished work separated from verified r
   `02E303F1462546FB98236446E24B2397DF762179923DE1D7C02852317ED37BC4`
   about 56.0 fps, 28–60, bind-path only with no fps win versus the ring
   run). Published v0.5.4 city diagnostic was 31–44 fps with about 5.2
-  batches. The two EXEs are not a laboratory A/B. This work is on local
-  branch `perf-gpu-ring` (`b91d279`, `ed90fe9`), is not pushed, is not in
-  published v0.5.4, and is not player acceptance or a 60 fps claim. See
+  batches. The two EXEs are not a laboratory A/B. Commits `b91d279` and `ed90fe9`
+  are included in v0.5.6; the cited measurements remain historical diagnostics,
+  with no player acceptance or 60 fps claim. See
   [GPU ring compare](docs/notes/perf-gpu-ring-compare.md).
 
 - Move the vertex dword endian copy helper into `geometry_prepare.h` and add an
@@ -90,15 +92,15 @@ One record of completed changes, with unpublished work separated from verified r
   still had a 41.736 ms vertex hitch, a separate 47.467 ms flush sample and a
   779.572 ms load-in present interval, so the change does not establish a
   performance gain or 60 fps acceptance. Both redirected-log runs avoided the
-  earlier 200–400 ms flush class, but residual stalls remain. This work is
-  local, unpublished, and absent from the published v0.5.4 package (the local
-  source version remains 0.5.4). See [city 60 FPS handoff](docs/notes/city-60fps-handoff.md).
+  earlier 200–400 ms flush class, but residual stalls remain. The implementation
+  is included in v0.5.6; the cited local measurement build retains source version
+  0.5.4. See [city 60 FPS handoff](docs/notes/city-60fps-handoff.md).
 
 ### 简体中文
 
 - 修复使用新版 `StageArchive` 的后续更新事务中的 manifest staging；manifest 事务定向检查 3 个场景零失败。该修复不会自动修复已经混装的安装、清理旧资源，也不能证明 #15 存档流程卡顿的原因。#14–#16 调查边界见[分流记录](docs/notes/issues14-16-triage.md)。
 - 针对 Issue #16 的零项 `xf_shd_aniflz.freeze` shader 情况增加窄范围 particle-material 兼容回退；`LoParticleMaterialCompatTest` 已编译并运行且零失败。最终分支 D3D12／亚洲 Disc 3 验证已完成目标冻结过场及后续 map229／菜单流程。Vulkan、其他地区覆盖和玩家验收仍待完成，见[分流记录](docs/notes/issues14-16-triage.md)。
-- 使用普通 CMake Release 配置成功构建并验证合入本地 `main` 的 0.5.6 源码：新二进制已通过 D3D12／亚洲 Disc 3 目标冻结过场、map229／菜单流程和可见移动。Release CI 按 fingerprint 选择匹配的 PPC artifact；匹配的 0.5.6 PPC 缓存已上传，托管核验仍在进行。详细 hash 和边界见[当前状态](docs/STATUS.md)。
+- 使用普通 CMake Release 配置成功构建并验证合入本地 `main` 的 0.5.6 源码：本地二进制已通过 D3D12／亚洲 Disc 3 目标冻结过场、map229／菜单流程和可见移动。Release CI 已使用匹配的 PPC artifact 完成正式构建；下载的安装包通过全部 50 个 manifest 文件的 hash／CRC 及干净源码版本 provenance 检查。本地二进制的游戏实测记录保持独立。详细 hash 和边界见[当前状态](docs/STATUS.md)。
 - 将渲染器顶点 metadata cache 限制为预留 65,536 项。缓存满时最多检查 16 个轮转候选并淘汰，消除了旧
   `unordered_map` 扩容路径：诊断捕获中一次 262,144 到 524,288 bucket 的 rehash 插入耗时 41.8241 ms，
   而该帧全部 495 次 endian copy 合计仅 0.0254 ms。`LoVertexCacheTest` 一次通过 3,569,548 项检查。
@@ -106,7 +108,7 @@ One record of completed changes, with unpublished work separated from verified r
   `original_saves_changed=false`；最终全城市样本平均 59.651 FPS、1% low 45.989 FPS，最差 accepted-present
   间隔 43.0117 ms。固定 1600–2800 窗口平均 59.918 FPS、1% low 54.495 FPS，draw 超预算为 0、rehash 为 0。
   这满足该路线请求的平均帧率门槛，但不能称为全程锁 60 FPS、严格 S4 通过、全游戏验证或玩家验收。
-  当前发布目标为 0.5.6，仍未发布；测量构建仍为 source version 0.5.4。见[城市 vertex-cache 后续记录](docs/notes/city-60fps-handoff.md)。
+  这些改动包含在 0.5.6 中；测量构建仍为 source version 0.5.4。见[城市 vertex-cache 后续记录](docs/notes/city-60fps-handoff.md)。
 
 - `LO_VERTEX_TIMING` 默认关闭；新增的 previous-swap、post-present 和 command-processor-idle 字段是诊断测量，
   不是优化收益。有界缓存运行中的 412.9283 ms post-present 样本，在将驱动输入／截图控制移到 TEMP 后降至
@@ -121,8 +123,9 @@ One record of completed changes, with unpublished work separated from verified r
   receipt／hash 校验。13 项合成 bundle 检查、本地 Release／x64 clang-cl PPC
   导出和隔离 prebuilt CMake 检查均已通过。四片库大小为 138,454,798 字节，SHA256
   为 `ba3e4c4dff009d6d8e844c007186a6e5040266875bca6423f8fe26f8d27fb21b`；私有
-  commit `77f076e0e03966736cbf8919ce793bafadce82d9` 远端读回并匹配。托管 release
-  端到端验证、新版本发布和用户验收仍待完成。
+  commit `a6cd91ea35261dd202b78e93b4acb65973369d07` 已远端读回，并由 Release CI 实际使用。
+  CI 兼容缓存保留原库，记录五项行尾及十四项符号链接表示差异；全部 250 个生成文件、471 个 PPC 头文件和
+  Release 编译契约完全相同。托管 Release CI 和包检查已通过；用户验收保持独立。
 
 - 增加可选的本地 PPC 自动同步。必须先用 Git 本地配置
   `git config --local lo.ppcAutoSync true` 启用；CMake 选项读取该设置，已有缓存
@@ -133,9 +136,9 @@ One record of completed changes, with unpublished work separated from verified r
   `LO_PPC_SYNC_ACTIVE` 不会上传。auto-sync 源码已推送到 github/main，提交为
   [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c)。托管
   [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964)
-  已通过；托管 release 端到端验证与新的 Release 仍待完成。19 项合成同步用例通过；另外，built-library
+  已通过；托管 Release CI 和包检查也已通过。19 项合成同步用例通过；另外，built-library
   roundtrip、change-during-build、真实本地自动同步 branch／上传及同 key unchanged
-  检查均已通过。该改动属于未发布内容，不包含在已发布的 v0.5.4 中。
+  检查均已通过。该流程包含在 v0.5.6 中，此前未包含在已发布的 v0.5.4 中。
 
 - 增加 D3D12 双槽 command-list 环缓冲，将 D3D12 描述符集上限提到 1800，
   复用 2D 纹理描述符集，未使用的 2D／3D／cube bank 绑定静态 dummy 集，
@@ -148,8 +151,8 @@ One record of completed changes, with unpublished work separated from verified r
   `02E303F1462546FB98236446E24B2397DF762179923DE1D7C02852317ED37BC4`
   约 56.0 fps，28–60，仅 bind 路径，相对环缓冲一轮没有帧率收益）。
   已发布 v0.5.4 城市诊断为 31–44 fps、约 5.2 个 batch。两份 EXE 不是
-  实验室 A/B。该改动在本地分支 `perf-gpu-ring`（`b91d279`、`ed90fe9`），
-  尚未推送，不包含在已发布的 v0.5.4 中，不是玩家验收，也不宣称 60 fps。
+  实验室 A/B。提交 `b91d279`、`ed90fe9` 包含在 v0.5.6 中；上述测量仍为历史诊断，
+  不构成玩家验收，也不宣称 60 fps。
   见[GPU 环缓冲实测对比](docs/notes/perf-gpu-ring-compare.md)。
 
 - 将顶点 dword endian copy helper 移到 `geometry_prepare.h`，为 endian 1／2／3
@@ -158,8 +161,8 @@ One record of completed changes, with unpublished work separated from verified r
   同一 Hidden 城市脚本的复测为 `original_saves_changed=false`；SIMD 运行仍有
   41.736 ms 顶点卡顿、另一个 47.467 ms flush 样本以及 779.572 ms 的载入期
   present 间隔，因此不能据此宣称性能提升或 60 fps 验收。两次重定向日志运行
-  都未复现之前 200–400 ms 的 flush 类别，但残余卡顿仍在。该改动只在本地、尚未
-  发布，不在已发布的 v0.5.4 包中（本地源码版本仍为 0.5.4）。见[城市 60 FPS handoff](docs/notes/city-60fps-handoff.md)。
+  都未复现之前 200–400 ms 的 flush 类别，但残余卡顿仍在。该实现包含在 v0.5.6 中，
+  上述本地测量构建仍保留 source version 0.5.4。见[城市 60 FPS handoff](docs/notes/city-60fps-handoff.md)。
 
 ## v0.5.4 — 2026-09-11
 

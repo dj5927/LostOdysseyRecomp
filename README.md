@@ -19,6 +19,11 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## New in v0.5.6
+
+- Fix updater manifest transactions, add the narrow Issue #16 particle-material fallback, and include the PPC prebuilt release path with bounded renderer performance improvements.
+- Published Windows x64 package: [v0.5.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6). The Issue #16 fix passed the target scene on a local main build using D3D12/Asia Disc 3; the formal package passed integrity checks. Whole-game, Vulkan, other-region and player acceptance remain unverified.
+
 ## New in v0.5.4
 
 - Guard PPC source generation against stale inputs, incomplete output and obsolete 64-bit jump-table switches.

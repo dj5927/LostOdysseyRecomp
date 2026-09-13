@@ -19,6 +19,11 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## v0.5.6 新增
+
+- 修复更新器 manifest 事务，增加 Issue #16 的窄范围 particle-material 回退，并加入 PPC 预编译发布路径及有界的渲染性能改进。
+- Windows x64 发布包：[v0.5.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6)。#16 修复已在本地 main 构建上通过 D3D12／亚洲 Disc 3 目标场景；正式发布包已通过完整性检查。全游戏、Vulkan、其他区域及玩家验收仍未覆盖。
+
 ## v0.5.4 新增
 
 - 防止 PPC 源码生成使用过期输入、残缺输出或旧式 64 位跳转表 switch。

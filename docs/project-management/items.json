@@ -1663,7 +1663,7 @@
     {
       "key": "startup-allocation-error-context",
       "title": "Report actionable guest allocation failure context",
-      "body": "<!-- lo-project:startup-allocation-error-context -->\n\nPreserve the original OS failure and log operation, view/address/size/offset and memory context during startup mapping failures.\n\n## Recorded evidence\n\n186 injected failures plus actual alias allocation/release passed without changing the mapping contract.\n\n## Acceptance and limits\n\nThe maintainer closed Issue #6 with the v0.4.2 repair statement. These diagnostic changes and local allocation checks do not establish original-machine recovery or root cause; shared causation with Issue #5 remains unproven.\n\nIssue #6 is closed as of 2026-09-08; no post-release original-machine reporter log or retest is recorded.\n\n## Dates and scope\n\nUTC dates of the earliest/latest cited implementation or research commits; these are observed work checkpoints, not inferred requirement dates. Target date records the last cited historical checkpoint, not a future commitment.\n\nCompleted delivery only; do not infer closure of linked reports or later regression tasks.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/commit/c7281748e5ccfed4f76cd3389c94b17cec1eac51\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.4.0\n- [docs/notes/handoff-v0.4.0-followup.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/notes/handoff-v0.4.0-followup.md) (source document)\n- [docs/STATUS.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/STATUS.md) (source document)\n",
+      "body": "<!-- lo-project:startup-allocation-error-context -->\n\nPreserve the original OS failure and log operation, view/address/size/offset and memory context during startup mapping failures.\n\n## Recorded evidence\n\n186 injected failures plus actual alias allocation/release passed without changing the mapping contract.\n\n## Acceptance and limits\n\nThis diagnostic enhancement is implemented and released in v0.4.0. It does not establish a recovery or root cause on the reporter's machine; shared causation with Issue #5 remains unproven.\n\nIssue #6 is OPEN. The reporter supplied three v0.5.4 logs on 2026-09-11, each recording `reserve any address` with Win32/preferred error 6, and reported the same failure from a clean extraction on 2026-09-12. A Windows build reply and original-machine recovery remain pending.\n\n## Dates and scope\n\nUTC dates of the earliest/latest cited implementation or research commits; these are observed work checkpoints, not inferred requirement dates. Target date records the last cited historical checkpoint, not a future commitment.\n\nCompleted delivery only; do not infer closure of linked reports or later regression tasks.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/commit/c7281748e5ccfed4f76cd3389c94b17cec1eac51\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.4.0\n- [docs/notes/handoff-v0.4.0-followup.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/notes/handoff-v0.4.0-followup.md) (source document)\n",
       "issue_url": null,
       "fields": {
         "Kind": "Infrastructure",
@@ -1684,7 +1684,11 @@
         ],
         "existingIssueUrls": [
           "https://github.com/freefrank/LostOdysseyRecomp/issues/6",
-          "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598"
+          "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092",
+          "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308",
+          "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337",
+          "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343",
+          "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559"
         ],
         "releaseUrls": [
           "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.4.0"
@@ -4150,7 +4154,7 @@
     {
       "key": "startup-allocation-reporter-validation",
       "title": "Confirm Issue 6 recovery on the original machine",
-      "body": "<!-- lo-project:startup-allocation-reporter-validation -->\n\nIssue #6 已由维护者关闭并称 v0.4.2 修复；原机器复测仍无证据。\n\n## Scope and completion criteria\n\n- [ ] 取得原报告者使用官方 v0.4.2+ 的结果与必要的新日志\n- [ ] 核验失败操作、原始 OS 错误和地址映射上下文\n- [ ] 不要把已发布诊断增强当成同根因修复或报告者验收\n\n## Validation and acceptance\n\n原机器成功或失败结果才能缩小边界；保持已关闭Issue，不由本清单擅自重开。\n\n维护者关闭，不存在原报告者修复后验收；该验证 draft 与关闭报告本身分开。\n\nstage_detail: Awaiting validation\n\nrelated_issue_url: https://github.com/freefrank/LostOdysseyRecomp/issues/6\n\n## Sources\n\n- [docs/STATUS.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/STATUS.md) (repository reference; working-tree requirements may be newer)\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598\n",
+      "body": "<!-- lo-project:startup-allocation-reporter-validation -->\n\nIssue #6 is OPEN. Three v0.5.4 reporter logs on 2026-09-11 each record `reserve any address` with Win32/preferred error 6; on 2026-09-12 the reporter stated that the same failure persists after a clean extraction.\n\n## Scope and completion criteria\n\n- [ ] Obtain the requested Windows edition/version/build, architecture, compatibility-mode/layer, RAM/pagefile, ZIP version and whether an older build worked\n- [ ] Obtain the latest complete clean-extraction log\n- [ ] Correlate the failing operation, original OS error and address-mapping context without treating a suggested API change as a diagnosed cause\n- [ ] Obtain a reporter recovery result before calling the issue fixed\n\n## Validation and acceptance\n\nThe historic v0.4.0 diagnostic enhancement remains implemented, but its allocation checks do not prove original-machine recovery. The new logs establish recurrence only; no repair, root cause or successful reporter acceptance is recorded.\n\nstage_detail: Awaiting validation\n\nrelated_issue_url: https://github.com/freefrank/LostOdysseyRecomp/issues/6\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559\n",
       "issue_url": null,
       "fields": {
         "Kind": "Infrastructure",
@@ -4162,8 +4166,11 @@
         "Target date": null
       },
       "source_refs": [
-        "docs/STATUS.md",
-        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598"
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092",
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308",
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337",
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343",
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559"
       ],
       "source_lines": [],
       "record_type": "backlog"
@@ -4179,7 +4186,7 @@
         "Status": "In Progress",
         "Delivery": "In progress",
         "Evidence": "Generated-source guard sub-scope: ppc_codegen generate produced 247 C++ units with 843 .u32/zero .u64 selectors and unchanged instruction-stream hashes for 246 units; seven guard fixtures and CMake/LoPpcCodegenCheck dependency checks passed. Historical 3,258/109/843-table-44,523 evidence was reused without rerun. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. Its 44,237,061-byte ZIP SHA-256 is 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218; 50 file hash/CRC/version/clean-provenance and four anonymous 200-download asset checks passed. Remaining PPC contracts, game run, Issue #14 root cause and player acceptance remain open.",
-        "Release": "v0.5.4",
+        "Release": "v0.5.6",
         "Start date": "2026-09-10",
         "Target date": null
       },
@@ -4320,21 +4327,25 @@
     {
       "key": "issue-6-report",
       "title": "[Bug]  failed to reserve the 4 GiB guest address space",
-      "body": "<!-- lo-project:issue-6-report -->\n\nThe maintainer closed the issue as fixed in v0.4.2. A fresh original-machine diagnostic log and reporter confirmation are still absent. The separately recorded v0.4.0 allocation-diagnostics enhancement is not itself proof of recovery.\n\nTracker state: CLOSED. Dates represent report creation and closure, not implementation or acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598\n",
+      "body": "<!-- lo-project:issue-6-report -->\n\nIssue #6 is OPEN. The reporter supplied three v0.5.4 logs on 2026-09-11, each recording `reserve any address` with Win32/preferred error 6, then reported the same failure after a clean extraction on 2026-09-12. The historic v0.4.0 allocation-diagnostics enhancement remains separate from a repair or reporter acceptance.\n\nTracker state: OPEN. Dates represent report creation and the latest recurrence checkpoint, not implementation or acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343\n",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/6",
       "record_type": "issue",
       "source_refs": [
-        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598"
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092",
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308",
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337",
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343",
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559"
       ],
       "fields": {
         "Kind": "Bug",
         "Area": "Runtime",
-        "Status": "Done",
-        "Delivery": "Awaiting validation",
-        "Release": "v0.4.2",
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Release": "v0.5.6",
         "Start date": "2026-09-07",
-        "Target date": "2026-09-08",
-        "Evidence": "The maintainer closed the issue as fixed in v0.4.2. A fresh original-machine diagnostic log and reporter confirmation are still absent. The separately recorded v0.4.0 allocation-diagnostics enhancement is not itself proof of recovery. https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5580296598"
+        "Target date": null,
+        "Evidence": "Issue #6 is OPEN. Three v0.5.4 logs on 2026-09-11 each record reserve any address with Win32/preferred error 6; on 2026-09-12 the reporter stated that the same failure persists after a clean extraction. The historic v0.4.0 diagnostic enhancement is implemented, but no repair, root cause or reporter recovery is established. Requested environment details (Windows build, architecture, compatibility layer, RAM/pagefile, ZIP version and older-build result) and the latest complete clean-extraction log are pending. https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559"
       }
     },
     {
@@ -4902,23 +4913,28 @@
     {
       "key": "release-reuse-local-ppc-static-library",
       "title": "Reuse a locally built PPC static library in release workflows",
-      "body": "<!-- lo-project:release-reuse-local-ppc-static-library -->\n\nReduce GitHub release-build time by reusing the locally compiled PPC static library when its documented provenance and compatibility checks pass.\n\n## Scope and completion criteria\n\n- [x] Identify and retrieve the intended local PPC static-library artifact in the release workflow.\n- [x] Verify its provenance and compatibility before it replaces the GitHub PPC compilation step.\n- [x] Preserve a clear failure path when the artifact is absent or incompatible.\n- [x] Automatically synchronize the private PPC build input when the relevant local PPC inputs change.\n- [ ] Record a hosted release-workflow build/package result after implementation.\n\n## Current status\n\nAutomatic synchronization is implemented and enabled through `lo.ppcAutoSync=true`; the local Release cache is on. Changed local PPC inputs publish an immutable `ppc/<key>` branch; a matching remote key is reused without rebuild or upload. CI resolves by key without mutating a workflow SHA pin. CI/imported/recursive paths cannot upload, auth/network failures are not cache misses, and XEX keeps its fixed pin.\n\nNineteen sync tests, two directly affected extraction cases and actionlint for both workflows passed. A real `LoPpcAutoSync` hook uploaded only the existing library to private commit `5e80263491b39dc0012146dd3a31cf5eea533225`; no PPC C++ compile or game run occurred. The following same-key check was unchanged. Private sparse-clone/restore/hash and simulated-CI Release contract checks passed.\n\nThis implementation is pushed as [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c) to github/main. No new hosted CI has run; it is not in the published v0.5.4 package, and no player acceptance is recorded. The earlier manual [`2b5b1d1`](https://github.com/freefrank/LostOdysseyRecomp/commit/2b5b1d1) and synthetic CI remain historical evidence.\n\n## Sources\n\n- `out/ppc-auto-sync-evidence/build-sync.log`\n- `out/ppc-auto-sync-evidence/github-output.txt`\n- `out/ppc-auto-sync-evidence/github-output-second.txt`\n- `out/ppc-sync/receipt.json`\n- User automatic-synchronization implementation evidence recorded on 2026-09-10\n",
+      "body": "<!-- lo-project:release-reuse-local-ppc-static-library -->\n\n## Published v0.5.6 hosted consumption\n\nCI 34726533463 retrieved immutable runner key `d8919775…` from private commit `a6cd91ea…`, restored and checked `LostOdysseyRecompLib.lib` SHA-256 `ba3e4c4d…` without generated PPC compilation or a new library link. The resulting v0.5.6 release is public and download-verified.\n\n`lo.ppcAutoSync=false` remains current. The original producer `50b8ad…`/`6a6ed031…` and its five line-ending/fourteen Git-symlink representation proof remain historical; source-layer key normalization is not implemented.\n\n## Sources\n\n- `out/v0.5.6/release/ci-ppc-consumption.json`\n- `out/v0.5.6/release/ppc-ci-upload.json`\n- `out/v0.5.6/release/public-download-check.json`\n",
       "issue_url": null,
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Release Engineering",
-        "Status": "Awaiting validation",
-        "Delivery": "Validated",
-        "Release": "v0.5.4",
+        "Status": "In Progress",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
         "Start date": "2026-09-10",
         "Target date": null,
-        "Evidence": "Automatic sync enabled (lo.ppcAutoSync=true): changed input publishes immutable ppc/<key> branch; matching remote key reused; CI resolves by key, no workflow SHA pin update. 19 sync tests, 2 extraction cases, actionlint, real hook upload of existing lib to private 5e802634, same-key unchanged, sparse restore/hash, CI-contract checks passed. No PPC C++ compile/game run. Pushed 2c0456c to github/main; hosted CI for auto-sync tests not yet confirmed; not in published v0.5.4 package; no player acceptance. Prior 2b5b1d1/CI34553414428 is historical."
+        "Evidence": "Hosted PPC consumption passed in published v0.5.6: CI 34726533463 retrieved runner key d8919775 from immutable private commit a6cd91ea, restored and checked library ba3e4c4d without generated PPC compilation or a new library link. Producer 50b8ad/6a6ed031 and the representation proof remain historical. lo.ppcAutoSync=false; source-layer key normalization is not implemented."
       },
       "source_refs": [
         "out/ppc-auto-sync-evidence/build-sync.log",
         "out/ppc-auto-sync-evidence/github-output.txt",
         "out/ppc-auto-sync-evidence/github-output-second.txt",
         "out/ppc-sync/receipt.json",
+        "out/main-bugfix-0.5.6/ppc-bundle/REPORT.md",
+        "out/main-bugfix-0.5.6/ppc-bundle/upload-plan.md",
+        "out/v0.5.6/release/ppc-upload.json",
+        "out/v0.5.6/release/ppc-ci-upload.json",
+        "out/v0.5.6/release/ci-identity-run34726123985/root-cause-proof.json",
         "User automatic-synchronization implementation evidence recorded on 2026-09-10",
         "https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c"
       ],
@@ -4955,11 +4971,11 @@
         "Kind": "Feature",
         "Area": "Runtime performance",
         "Status": "In Progress",
-        "Delivery": "Validated",
-        "Release": "v0.5.4",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
         "Start date": "2026-09-11",
         "Target date": null,
-        "Evidence": "Bounded city segment implemented and diagnostically validated in local main commit ae287f2a43a73c6f6bea61c40822c37f40afe052, not pushed or released: 41.8241ms vertex spike was unordered_map insert/rehash, not CopySwapped. A 65,536-entry reserved dense metadata cache with 16-candidate LRU eviction passed LoVertexCacheTest once (3,569,548 checks); it preserves quality, 1280x720 D3D12 AA3, two slots and arena/wait policy. Same-EXE TEMP control files reduced observed post-present max 412.9283->0.4193ms without proving a filesystem cause. Final Hidden route: 1790 frames, mean 59.651463 FPS; fixed 1201-frame window mean 59.918376, 1% low 54.494611, >16.67ms 50.374688%, max frame 22.5913ms, max vertex 2.2981ms, zero rehashes and zero stable draw overruns. Mean>=58 target is met. All-city 1% low 45.989346 and max frame 43.0117 retain entry/load tail. Saves unchanged; final local EXE 9D9460248FEB72AC7239ABD40AC1DA6619847F176CF4AA38AD6F725C6923852B. No strict S4, whole-game result or player acceptance."
+        "Evidence": "The bounded city-performance work is included in published v0.5.6 and package/public-download checks passed. Historical local route evidence remains bounded (mean >=58 met), not strict S4, full-game or player acceptance. Remaining shader-startup/performance investigation stays In Progress."
       },
       "source_refs": [
         "docs/notes/perf-gpu-ring-compare.md",
@@ -4999,7 +5015,7 @@
         "Area": "Gameplay progression",
         "Status": "In Progress",
         "Delivery": "In progress",
-        "Release": null,
+        "Release": "v0.5.6",
         "Start date": "2026-09-12",
         "Target date": null,
         "Evidence": "Investigation active. The original attached log is historical source v0.5.0 (LR 829DFDCC, CTR 829DFEF0). A second reporter log is historical source v0.4.2 (LR 823CB53C, CTR 0), with a virtual call at guest 823CB538 matching a call site discussed in docs/notes/issue12-root-cause.md, but without an object-freeing capture. Neither log establishes a current-version reproduction or a shared root cause. The current gc_render_flush.cpp repair exists at 17e3ab7. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records this task's current work and is integrated with main locally, unpushed and unreleased; no new runtime validation or reporter acceptance is recorded."
@@ -5022,16 +5038,19 @@
         "Kind": "Bug",
         "Area": "Save & Storage",
         "Status": "In Progress",
-        "Delivery": "In progress",
-        "Release": null,
+        "Delivery": "Released",
+        "Release": "v0.5.6",
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "Investigation active. Source v0.5.4 log retained 60 fps rendering and audio until user closure; the same save later loaded and a second save did not hang. Two compiler-DLL hashes match the v0.5.4 manifest; other components remain unknown. StageArchive omits manifest.json from ApplyPlan. The associated repair is validated: current-worktree clang-cl /O2 /MT targeted build succeeded and --manifest-transaction completed three scenarios with zero failures, covering plan round trip, post-apply rollback, injected failure after manifest replacement rollback, and manifest-tamper rejection. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records the repair and is integrated with main locally, unpushed and unreleased. No helper/game run or player acceptance. The up-to-date path compares only version, so mixed DLL/resource installs remain unexcluded and the Issue #15 hang cause remains unknown."
+        "Evidence": "The StageArchive manifest repair is included in published v0.5.6 and package/public-download checks passed. Investigation remains active: the original source-v0.5.4 log retained 60 fps/audio until closure; mixed installs remain unknown because up-to-date compares only version. No helper/game rerun or player acceptance; Issue #15 hang root cause remains unknown."
       },
       "source_refs": [
         "https://github.com/freefrank/LostOdysseyRecomp/issues/15",
         "LostOdysseyRecomp/stage.cpp",
-        "2019cd017ab939d0b728cec340f7835c2082e615"
+        "2019cd017ab939d0b728cec340f7835c2082e615",
+        "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6",
+        "out/v0.5.6/release/delivery-verification.json",
+        "out/v0.5.6/release/public-download-check.json"
       ],
       "source_lines": [],
       "record_type": "backlog"
@@ -5044,16 +5063,49 @@
         "Kind": "Bug",
         "Area": "Gameplay progression",
         "Status": "Awaiting validation",
-        "Delivery": "Validated",
-        "Release": null,
+        "Delivery": "Released",
+        "Release": "v0.5.6",
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "Implementation and bounded local validation complete; reporter validation pending. Final branch-native-r1 EXE f2015ad76edd48adf7603221c9618804645224c22fd5ca0bcee1471af55d483f passed final-freeze-01 target sequence on D3D12/Asian Disc 3 from user09, without skipping the King freeze. At 1527.792s raw 0A33A8C0 used missing-particle-shader fallback; stable memory matched xf_shd_aniflz.freeze, GUID 0fd4ca6d4bb67581c9c9f5b8f0af62c0, child table count 16 and particle shader 0. 180 PNG captures completed: shot45508 freeze, shot45823 caboose dialogue, shot47673 exterior; at 1733.599s map229 returned, shot52115 menu, and shots53430-53517 show 30-tick down-input movement/camera change. This run has no coordinate telemetry. Both native checkpoints reload and original seed is unchanged. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records the repair and evidence and is integrated with main locally, unpushed and unreleased. No reporter/player acceptance or Vulkan/other-region coverage."
+        "Evidence": "The particle compatibility repair is included in published v0.5.6; CI/package/public-download evidence verifies delivery only. Historical bounded local main d50c240d target replay passed on D3D12/local Asian Disc 3 from user09 and was not repeated against the release package. Reporter/player acceptance, Vulkan, other-region and full-game coverage remain pending."
       },
       "source_refs": [
         "https://github.com/freefrank/LostOdysseyRecomp/issues/16",
         "out/issue16-investigation/analysis.md",
-        "2019cd017ab939d0b728cec340f7835c2082e615"
+        "out/main-bugfix-0.5.6/REPORT.md",
+        "out/main-bugfix-0.5.6/main-freeze-01/validation.json",
+        "2019cd017ab939d0b728cec340f7835c2082e615",
+        "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6",
+        "out/v0.5.6/release/delivery-verification.json",
+        "out/v0.5.6/release/public-download-check.json"
+      ],
+      "source_lines": [],
+      "record_type": "backlog"
+    },
+    {
+      "key": "release-v0-5-6",
+      "title": "Publish v0.5.6 bug-fix release",
+      "body": "<!-- lo-project:release-v0-5-6 -->\n\n## Published v0.5.6\n\nPublished 2026-09-13T00:05:47Z as the public latest non-prerelease from `7124f4b3912df715167acf01f469974045cc3e08`. CI 34726533463 succeeded. The 44,255,182-byte ZIP SHA-256 is `ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9`; provenance, 50 member hashes/CRCs and all four anonymous public-download checks passed.\n\n## Boundaries\n\nPackage verification does not repeat the bounded D3D12/Asian Disc 3 validation, establish full-game/Vulkan/other-region coverage, or establish reporter/player acceptance.\n\n## Sources\n\n- `out/v0.5.6/release/delivery-verification.json`\n- `out/v0.5.6/release/public-download-check.json`\n- `out/v0.5.6/release/ci-run.json`",
+      "issue_url": null,
+      "fields": {
+        "Kind": "Release",
+        "Area": "Release Engineering",
+        "Status": "Done",
+        "Delivery": "Released",
+        "Release": "v0.5.6",
+        "Start date": "2026-09-12",
+        "Target date": null,
+        "Evidence": "Published v0.5.6 at 2026-09-13T00:05:47Z from source 7124f4b3912df715167acf01f469974045cc3e08. CI 34726533463 (workflow fe37c1a4e3be20ce6bc3e339ecadb187b80329cf) succeeded. Delivery verification passed: 44,255,182-byte ZIP SHA-256 ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9, 50 manifest files and CRC/member hashes; updater SHA-256 d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74. All four public assets passed anonymous HTTP 200, size and hash checks."
+      },
+      "source_refs": [
+        "out/v0.5.6/release/ppc-upload.json",
+        "out/main-bugfix-0.5.6/REPORT.md",
+        "7124f4b3912df715167acf01f469974045cc3e08",
+        "https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34725715600",
+        "https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34726123985",
+        "https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34726533463",
+        "out/v0.5.6/release/ppc-ci-upload.json",
+        "out/v0.5.6/release/ci-identity-run34726123985/root-cause-proof.json"
       ],
       "source_lines": [],
       "record_type": "backlog"

@@ -1,8 +1,9 @@
 # City 60 FPS handoff — 2026-09-12
 
-Diagnostic work, not player acceptance and not a new Release. The current
-source and next release target are **0.5.6**; the measured executable remains
-from source version **0.5.4**. Do not push unless asked.
+Diagnostic work, not player acceptance. The current source and release target
+are **0.5.6**; the measured executable remains from source version **0.5.4**.
+The 0.5.6 release was published on 2026-09-13; the measurements below retain
+their original source and validation identity.
 
 Session: `ses_f6c1d11f0ffeuJGmPTH4jjhMvK`. Goal: city exploration 60 FPS via CPU efficiency only (no GPU/quality/resolution fallback). S4 gate: mean + `>16.67 ms` ratio + 1% low on the same Hidden city path.
 
@@ -15,7 +16,7 @@ Session: `ses_f6c1d11f0ffeuJGmPTH4jjhMvK`. Goal: city exploration 60 FPS via CPU
 - 先commit
 - ok,收尾，commit，总结，写一个给别的agent的handoff，今天就到这里了
 
-## What landed on `main` (unpushed)
+## What landed on `main` (historical checkpoint)
 
 Ahead of `github/main` by 9 after the wrap-up commit below (was 8 before `frame_timing`).
 
@@ -29,7 +30,7 @@ This session:
 | `bae54b6` | `PreparePresent` records COPY_SOURCE on the still-open swap list; `AcquireResolvedSurface` is lookup-only (no second Flush). Fixes city `gpu_batches` 2.005 → ~1.00 and fence 8.97 → ~0.005 |
 | `frame_timing` (this wrap-up) | Snapshot under mutex, then skip the 1s `LOG_INFO` pair when `gpu::render_timing::Enabled()`; still logs outside the lock if only `LO_FRAME_TIMING` |
 
-Historical session constraint: do **not** commit `AGENTS.md`, `ROADMAP.md`, `ROADMAP.zh-CN.md`, `docs/project/items.json` (pre-existing docs drift), `.omo/`, `.stignore`, `nul`, or dirty submodules. The current commit includes the synchronized roadmaps and Project records; it excludes the pre-existing `AGENTS.md` edit, `.omo/`, `.stignore`, `nul` and dirty submodules. Push remains unauthorized.
+Historical session constraint (2026-09-12): do **not** commit `AGENTS.md`, `ROADMAP.md`, `ROADMAP.zh-CN.md`, `docs/project/items.json` (pre-existing docs drift), `.omo/`, `.stignore`, `nul`, or dirty submodules. The then-current commit included the synchronized roadmaps and Project records; it excluded the pre-existing `AGENTS.md` edit, `.omo/`, `.stignore`, `nul` and dirty submodules. This paragraph records that checkpoint and does not define the current release authorization.
 
 ## City harness (reuse, do not invent)
 
@@ -120,9 +121,7 @@ The implementation moves `CopyDwordsSwapped` into `gpu/geometry_prepare.h`,
 uses SSSE3 for four dwords at a time for endian modes 1/2/3, retains scalar
 tail/fallback behavior and uses `memcpy` for endian 0. The focused fixture
 passed 16,685,865 checks, including unaligned offsets and inaccessible-page
-tail guards (`out/perf-ring/simd-copy/geometry_prepare_test.log`). This is
-implementation and diagnostic evidence only; S4, player acceptance and a
-release remain pending. The current source and next release target are version
+tail guards (`out/perf-ring/simd-copy/geometry_prepare_test.log`). This is implementation and diagnostic evidence only; S4 and player acceptance remain separate. The v0.5.6 publication does not change this bounded diagnostic scope. The current source and published release are version
 0.5.6; the measured build remains source version 0.5.4. This work is absent
 from the published v0.5.4 package. Full raw evidence is in
 `out/perf-ring/city-simd-comparison.json` and the two runtime logs named there.
@@ -143,6 +142,6 @@ validation and player acceptance open.
 
 - CPU-only. No GPU upscale, resolution drop, quality drop, or hardware-upgrade story.
 - Hidden `LO_BACKGROUND=1`. Never steal focus. Report `original_saves_changed`; non-zero invalidates the run.
-- Current source and next release target: version 0.5.6. The measured source-0.5.4 executable and evidence are retained; this version increment did not trigger a rebuild or rerun. This commit is local and unpublished; push remains unauthorized.
+- Current source and release target: version 0.5.6. The measured source-0.5.4 executable and evidence are retained; this version increment did not trigger a rebuild or rerun. The measurements remain historical diagnostic evidence for the release preparation.
 - Do not treat menu FPS or mean-only as S4. Item 3 timers are locate-only (~0.39 ms), not savings.
 - `tools/benchmark_city.ps1` does not exist; use `out/perf-ring/drive-city.ps1`.
