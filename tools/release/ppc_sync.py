@@ -1,10 +1,11 @@
-"""Publish opted-in local PPC builds to immutable private input branches."""
+"""Synchronize opted-in PPC builds onto private main with immutable receipts."""
 import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -40,8 +41,8 @@ def enabled(root):
     return result.stdout.strip().lower() == "true"
 
 
-def remote_commit(key):
-    ref = f"refs/heads/ppc/{key}"
+def remote_commit():
+    ref = "refs/heads/main"
     result = run([*GIT_AUTH, "ls-remote", "--exit-code", REMOTE, ref], check=False)
     if result.returncode == 2:
         return None
@@ -54,7 +55,18 @@ def remote_commit(key):
 
 def remote_manifest(commit):
     path = f"repos/{REPOSITORY}/contents/ppc/manifest.json?ref={quote(commit, safe='')}"
-    return json.loads(run(["gh", "api", path, "-H", "Accept: application/vnd.github.raw+json"]).stdout)
+    result = run(["gh", "api", path, "-H", "Accept: application/vnd.github.raw+json"], check=False)
+    if result.returncode and "(HTTP 404)" in result.stderr:
+        return None
+    result.check_returncode()
+    return json.loads(result.stdout)
+
+
+def matching_manifest(manifest, evidence):
+    if manifest is None or any(manifest.get(k) != v for k, v in evidence.items()):
+        return False
+    validate_manifest(manifest, evidence)
+    return True
 
 
 def validate_manifest(manifest, evidence):
@@ -101,38 +113,48 @@ def publish(root, build_dir, key, evidence, already_built):
     parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="upload-", dir=parent) as temporary:
         checkout = Path(temporary)
-        def git(*args, check=True):
-            return run([*GIT_AUTH, *args], cwd=checkout, check=check)
-        git("init", "--quiet")
-        git("remote", "add", "origin", REMOTE)
-        # Each immutable cache branch is independent of the XEX/main history.
-        git("symbolic-ref", "HEAD", f"refs/heads/ppc/{key}")
-        (checkout / ".gitattributes").write_text("ppc/*.bin binary\nppc/*.json text eol=lf\n", encoding="utf-8")
+        bundle = checkout / "bundle"
         writer = ppc_prebuilt.write_bundle_from_built if already_built else ppc_prebuilt.export
-        writer(root, build_dir, checkout / "ppc")
+        writer(root, build_dir, bundle)
         if identity(root, build_dir) != (key, evidence):
             raise ValueError("PPC source/contract changed during synchronization")
-        manifest = ppc_prebuilt.load_manifest(checkout / "ppc")
+        manifest = ppc_prebuilt.load_manifest(bundle)
         validate_manifest(manifest, evidence)
-        git("add", "--", ".gitattributes", "ppc")
-        git("-c", "user.name=PPC build sync", "-c", "user.email=ppc-sync@users.noreply.github.com",
-            "commit", "--quiet", "-m", f"Cache PPC build {key}")
-        commit = git("rev-parse", "HEAD").stdout.strip()
-        # Recheck after building: another machine may have published meanwhile.
-        concurrent = remote_commit(key)
-        if concurrent:
-            other = remote_manifest(concurrent)
-            validate_manifest(other, evidence)
-            return concurrent, other
-        pushed = git("push", "origin", f"HEAD:refs/heads/ppc/{key}", check=False)
-        if pushed.returncode:
-            concurrent = remote_commit(key)
-            if not concurrent:
+        # Keep the frozen bundle outside the worktree during resets/retries.
+        worktree = checkout / "worktree"
+        worktree.mkdir()
+        def git(*args, check=True):
+            return run([*GIT_AUTH, *args], cwd=worktree, check=check)
+        git("init", "--quiet")
+        git("remote", "add", "origin", REMOTE)
+        for attempt in range(4):
+            git("fetch", "--no-tags", "origin", "refs/heads/main")
+            base = git("rev-parse", "FETCH_HEAD").stdout.strip()
+            git("checkout", "--detach", "--force", base)
+            existing_path = worktree / "ppc/manifest.json"
+            existing = json.loads(existing_path.read_text(encoding="utf-8")) if existing_path.exists() else None
+            if matching_manifest(existing, evidence):
+                return base, existing
+            if identity(root, build_dir) != (key, evidence):
+                raise ValueError("PPC source/contract changed during synchronization")
+            destination = worktree / "ppc"
+            if destination.exists():
+                shutil.rmtree(destination)
+            shutil.copytree(bundle, destination)
+            # Existing root attributes and every non-PPC path remain byte-for-byte intact.
+            (destination / ".gitattributes").write_text("*.bin binary\n*.json text eol=lf\n", encoding="utf-8")
+            git("add", "-A", "--", "ppc")
+            git("-c", "user.name=PPC build sync", "-c", "user.email=ppc-sync@users.noreply.github.com",
+                "commit", "--quiet", "-m", f"Sync PPC build {key}")
+            commit = git("rev-parse", "HEAD").stdout.strip()
+            pushed = git("push", "origin", "HEAD:refs/heads/main", check=False)
+            if not pushed.returncode:
+                return commit, manifest
+            # Only retry a genuine concurrent advance; authentication/policy failures
+            # against an unchanged main must remain visible.
+            if remote_commit() == base or attempt == 3:
                 pushed.check_returncode()
-            other = remote_manifest(concurrent)
-            validate_manifest(other, evidence)
-            return concurrent, other
-        return commit, manifest
+        raise RuntimeError("PPC main push retries exhausted")
 
 
 def sync(root, caller, already_built=False, force=False):
@@ -152,17 +174,14 @@ def sync(root, caller, already_built=False, force=False):
     try:
         build_dir = release_build(root, caller)
         key, evidence = identity(root, build_dir)
-        commit = remote_commit(key)
-        if commit:
-            expected = remote_manifest(commit)
-            validate_manifest(expected, evidence)
+        commit = remote_commit()
+        expected = remote_manifest(commit) if commit else None
+        if matching_manifest(expected, evidence):
             print(f"PPC sync: unchanged ({key})")
         else:
             commit, expected = publish(root, build_dir, key, evidence,
                                        already_built and build_dir == caller)
-        # Read back by immutable commit and ensure the branch still names it.
-        if remote_commit(key) != commit:
-            raise ValueError("PPC branch changed or disappeared during synchronization")
+        # Main may legitimately advance after our push; verify the immutable commit.
         actual = remote_manifest(commit)
         validate_manifest(actual, evidence)
         for field in ("schema", "fingerprint", "contract", "library", "chunks"):
@@ -171,7 +190,7 @@ def sync(root, caller, already_built=False, force=False):
         if identity(root, build_dir) != (key, evidence):
             raise ValueError("PPC inputs changed during synchronization")
         receipt(root, key, commit)
-        print(f"PPC sync: ready ppc/{key} ({commit})")
+        print(f"PPC sync: ready main cache {key} ({commit})")
         return key, commit
     finally:
         if previous is None:

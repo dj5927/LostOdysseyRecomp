@@ -69,7 +69,7 @@ that the hosted workflow has run; check the actual Actions result before publish
 ## Local prebuilt PPC library — historical checkpoint
 
 The release workflow adds a `rebuild_ppc` boolean input, defaulting to `false`.
-The default path restores the PPC static library and receipts from the immutable
+At this historical checkpoint, the default path restored the PPC static library and receipts from the immutable
 private `ppc/<key>` branch selected by the input/compiler key. The XEX input still
 comes from the separately pinned private input commit and is checked against its
 pinned SHA256. Both paths
@@ -101,8 +101,8 @@ python tools/release/ppc_prebuilt.py check --bundle out/ppc-prebuilt --build-dir
 ```
 
 `export` only incrementally builds the PPC library and is retained for offline
-diagnostics. The current upload path is the post-build hook or
-`ppc_sync.py sync`; it resolves PPC by immutable `ppc/<key>` branch and does not
+diagnostics. At that historical checkpoint, the upload path was the post-build hook or
+`ppc_sync.py sync`; it resolved PPC by immutable `ppc/<key>` branch and did not
 require a PPC workflow SHA update. Do not place bundles in the public checkout or
 release assets.
 
@@ -146,10 +146,10 @@ The local post-build hook requires `git config --local lo.ppcAutoSync true`.
 The CMake option reads that setting; if an existing cache is `OFF`, reconfigure
 with `-DLO_PPC_AUTO_SYNC=ON` as needed, while `OFF` disables the hook. CMake alone
 does not grant the script's upload authorization. After a successful source PPC library build, it invokes
-`ppc_sync.py sync --already-built`. A matching input and compiler-argument SHA256
-key reuses the existing immutable private branch without compilation or upload;
-a changed key creates `ppc/<key>` with dynamically sized shards of at most 40 MiB
-and retains older branches.
+`ppc_sync.py sync --already-built`. At that historical checkpoint, a matching input
+and compiler-argument SHA256 key reused the existing immutable private branch without
+compilation or upload; a changed key created `ppc/<key>` with dynamically sized shards
+of at most 40 MiB and retained older branches.
 
 The hook is excluded for CI, imported libraries and `LO_PPC_SYNC_ACTIVE`. Release
 callers reuse the already-built library. Other configurations may create the
@@ -176,6 +176,28 @@ passed, and a new Release remains pending.
 output directory according to its normal merge/replace behavior. At the historical
 checkpoint, the PPC flow, local validation and private upload were complete. Hosted release end-to-end
 validation, a new release, and user acceptance remained pending at that checkpoint.
+
+## Current PPC main synchronization — 2026-09-13
+
+The PPC synchronization update publishes an ordinary fast-forward of the private
+`freefrank/LostOdysseyRecomp-build-inputs` `main` branch, preserving unrelated archive
+files and retaining the existing `ppc/<key>` branches as historical build-selection
+references. Concurrent advances are retried within a bounded limit; the flow does not
+create new PPC branches. The latest private cache identity is already on private `main`
+at `9e387adc045fe3b8ba4e6d1956812d11050bc9ed`. The implementation remains unreleased;
+real GitHub Release CI has not yet proved this new workflow.
+
+Release CI checks out private `main` with the SSH deploy key, validates the PPC
+fingerprint and compile contract before restoring the library, and records the immutable
+private checkout HEAD in the PPC identity artifact. A mismatch fails with guidance to
+synchronize the matching cache or dispatch with `rebuild_ppc` enabled. `lo.ppcAutoSync`
+remains unset locally; this documentation does not claim that the hook is enabled
+automatically. `actionlint` passed for the workflow change. The PPC sync suite
+passed 23 tests, including six bare-Git integration cases for single-ref main updates,
+unrelated blob preservation, stale PPC cleanup, bounded concurrent retry behavior,
+same-key no-op, identity rejection and policy rejection. Two isolated synthetic workflow
+checks also passed: a matching manifest recorded the checkout commit, while an input
+mismatch was rejected. Runtime/gameplay validation remains separate.
 
 ## Published v0.5.6 release — 2026-09-13
 

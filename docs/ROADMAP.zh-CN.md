@@ -8,6 +8,11 @@
 
 [v0.5.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6) 已于 2026-09-13（UTC）公开发布，为当前最新版本。Release CI、干净包来源、全部 50 个成员 hash／CRC 及四个匿名公开下载均通过。历史 v0.5.4 产物和测量保留其原身份；源码提交、hash 和验证边界见 [STATUS](STATUS.md)。
 
+<a id="v070-frame-generation"></a>
+## v0.7.0 插帧计划
+
+- [ ] **DLSS-G 与 FSR Frame Generation：**Windows PC 的 v0.7.0 计划要求 D3D12 与 Vulkan 均完成 2× DLSS-G 和 2× FSR Frame Generation。四个提供方／API 组合分别验收；D3D12 的输入定位不能推迟 Vulkan。P0 固定 SDK、能力、队列和呈现路线；P1 核实原生 velocity 覆盖；P2 完成相机、刚体和骨骼运动；P3 冻结颜色／UI／帧输入；P4 建立两 API；P5／P6 分别接入 FSR FG 与 DLSS-G；P7 验收四组合；P8 准备另行授权的发布。FSR Super Resolution 与锐化保留为 Issue #10 的独立范围，不算插帧完成。本次仅完成规划，尚未开始实现、SDK 验证、游戏测试、玩家验收或发布。见[完整计划](notes/v0.7.0-frame-generation-plan.md)。
+
 <a id="v050-pc-graphics"></a>
 <a id="下一主版本v050--pc-vulkan-与-direct3d-11"></a>
 ## PC 图形方向
@@ -18,7 +23,7 @@ D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定�
 ## 当前事项与验收边界
 
 - [x] **v0.5.4 发布：**已于 2026-09-11T01:36:30Z 从 `2ad94d418bb0478417ab9589109f1f685ed92eb3` 公开发布；CI 34550200618 通过。44,237,061-byte ZIP 的 SHA-256 为 `104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218`；包来源、版本、全部 50 个文件 hash/CRC 及四个匿名资源下载均通过。本条只记录发布交付；各项运行时和玩家验收边界仍见下文。
-- [~] **发布流程复用 PPC 库：**自动精确 key 同步已实现。历史 opt-in hook（`lo.ppcAutoSync=true`）仅把既有库上传至私有 commit `5e80263491b39dc0012146dd3a31cf5eea533225`，同 key 随后保持 unchanged；没有编译 PPC C++ 或运行游戏。当前 `lo.ppcAutoSync=false`；本地输入变化不会上传，除非另获授权。19 个 sync fixture、两项直接受影响的抽取 case、两份 workflow actionlint、sparse-clone/restore/hash 与 CI-contract 检查均通过。CI 按 key 解析而不再更新 workflow SHA pin；CI/imported/recursive 路径不可上传，auth/network 失败不视为 cache miss。实现已作为 [`2c0456c`](https://github.com/freefrank/LostOdysseyRecomp/commit/2c0456c) 推送到 github/main。托管 [PPC prebuilt tests](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34565564964) 已通过；未包含在已发布的 v0.5.4 安装包中，也无玩家验收。此前手动路径的 [`2b5b1d1`](https://github.com/freefrank/LostOdysseyRecomp/commit/2b5b1d1) 与[合成 CI](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34553414428)保留为历史证据。
+- [~] **发布流程复用 PPC 库：**direct-main 同步的实现和本地验证已完成。每次获授权的 PPC 同步复用冻结 bundle，并将该 bundle 直接推送到私有 `main`，不创建分支；不可变 commit receipt 保留在本地。同一输入 identity 保持 no-op，保留私有仓库无关文件，最多四次并发重试。Release CI 通过 SSH 获取私有 `main` 快照，校验 fingerprint 与 contract，在本地记录 receipt commit 后才恢复库。23 个 PPC sync 测试包含 6 个 bare-Git 集成测试，均已通过一次；两项合成 workflow 检查和 actionlint 也通过。该实现尚未经过 hosted Release CI 验证，因此已发布 v0.5.6 的消费以及早期 opt-in／手动路径证据仍属历史；尚无玩家验收。
 - [x] **PPC 0.5.6 fingerprint 审核：**[Release CI 34726533463](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34726533463) 已通过 v0.5.6 的 hosted PPC 消费与发布。runner key `d8919775…` 获取不可变私有 cache `a6cd91ea…`，恢复并校验库 `ba3e4c4d…`，没有生成 PPC 编译或新库链接。在 v0.5.6 当次发布时，其公开非预发布版本为 Latest；当前 Latest 为 v0.5.7。四个公开资产均通过匿名 HTTP 200、大小和 hash 核验。producer `50b8ad…`/`6a6ed031…` 和五项行尾／十四项 symlink 的表示差异证明保留为历史。`lo.ppcAutoSync=false`；源层 key 规范化尚未实现。
 - [x] **安装器拖动闪退：**v0.5.4 已公开包含本地验收的 `PostMessageW` 修复，针对 v0.5.3 安装器拖动卡顿／退出。message-only HWND DragDispatch case 通过 1/1；旧 fixture 仍受未变的前台 setup 断言限制。用户于 2026-09-10 验收报告的拖动路径；更广安装器交互覆盖仍为独立事项。
 - [~] **更新器简化：**v0.5.7 已作为 Latest 从 954d0e17 发布，CI 34743383193 通过。PPC key 3260d975 复用经审核的 v0.5.6 原始库，未改 PPC 代码。公开 ZIP、50 个 manifest payload、独立 updater 和两个 sidecar 均已完成匿名交付核验。既有 synthetic updater 证据保持独立；尚无真实更新交易、可见提示交互或玩家验收。

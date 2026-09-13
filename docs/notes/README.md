@@ -16,6 +16,7 @@
 | [v0.4.0 后续实现、正式包与验收范围](handoff-v0.4.0-followup.md) |
 | [凯姆首战身体阴影 v0.4.0 复查（2026-09-07 用户挂起，未确认复现）](kaim-body-shadow-v040.md) |
 | [DLSS/FSR 时域超分研究：官方契约、当前证据与后续接入](temporal-upscaling-feasibility.md) |
+| [v0.7.0 DLSS-G 与 FSR FG 开发计划（D3D12／Vulkan，规划中）](v0.7.0-frame-generation-plan.md) |
 | [多手柄与键盘输入（v0.2.1 已发布；IME 问题待修）](controller-input.md) |
 | [Debug Menu 渲染状态捕获、后台 ZIP 与日志保留](render-state-capture.md) |
 | [两套零售版本兼容、语言与发布验证](europe-support.md) |

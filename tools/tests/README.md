@@ -66,12 +66,25 @@ packaging evidence](../../docs/notes/release-packaging.md).
 
 ## PPC auto-sync boundary
 
-The local auto-sync hook is a post-build action authorized by Git config
+The current synchronization implementation fast-forwards the private PPC cache on
+`main`, preserves unrelated archive files and retries bounded concurrent advances. It
+retains existing `ppc/<key>` branches for historical build selection and does not create
+new PPC refs. Release CI validates the synchronized manifest fingerprint and compile
+contract before restore and records the immutable private `main` HEAD in its identity
+artifact. `actionlint` passed for the workflow change. The PPC sync suite passed
+23 tests in 19.858s, including six bare-Git integration cases covering single-ref main
+updates, unrelated blob preservation, stale PPC cleanup, bounded concurrent retry
+behavior, same-key no-op, identity rejection and policy rejection. Two isolated synthetic
+workflow checks also passed: matching input recorded the checkout commit, and mismatched
+input was rejected. This documentation does not claim that local auto-sync is enabled
+automatically.
+
+Historical hook behavior: the local auto-sync hook was a post-build action authorized by Git config
 `git config --local lo.ppcAutoSync true`; CMake `LO_PPC_AUTO_SYNC` reads that
 setting and may need reconfiguration when a cache is `OFF`. It is not a file watcher. The
-read-only `ppc_sync.py key` command can inspect the deterministic key, while
-`sync` may reuse an existing private branch or upload a changed bundle in shards
-of at most 40 MiB. CI, imported libraries and `LO_PPC_SYNC_ACTIVE` are excluded.
+read-only `ppc_sync.py key` command could inspect the deterministic key, while
+`sync` could reuse an existing private branch or upload a changed bundle in shards
+of at most 40 MiB. CI, imported libraries and `LO_PPC_SYNC_ACTIVE` were excluded.
 Nineteen synthetic sync cases pass; the built-library roundtrip and
 change-during-build cases were also verified separately. The real target, same-key unchanged check and sparse
 restore/check are recorded in the [release packaging evidence](../../docs/notes/release-packaging.md).

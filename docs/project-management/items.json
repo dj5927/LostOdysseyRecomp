@@ -3623,34 +3623,24 @@
     {
       "key": "frame-generation-research",
       "title": "Evaluate frame generation integration",
-      "body": "<!-- lo-project:frame-generation-research -->\n\nFG 作为未来研究；已移除的禁用设置控件不代表功能已实现或需求取消。\n\n## Scope and completion criteria\n\n- [ ] 核对 SDK 接口、硬件/驱动与分发约束\n- [ ] 评估帧节奏、UI、输入延迟、交换链与重置契约\n- [ ] 建立原生帧性能基线并给出采用/停止门槛\n\n## Validation and acceptance\n\n先验证接口与帧输入可用性，再以实际游戏输出评估；倍增 FPS 数字不等于正确运动。\n\n尚未完成所列场景验收；实现/发布/测试与用户验收独立。\n\nDependencies (source keys): `native-object-motion`, `temporal-color-exposure`.\n\nstage_detail: Not started\n\n## Sources\n\n- [docs/notes/temporal-upscaling-feasibility.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/notes/temporal-upscaling-feasibility.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.zh-CN.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.zh-CN.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.zh-CN.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.zh-CN.md) (repository reference; working-tree requirements may be newer)\n",
+      "body": "<!-- lo-project:frame-generation-research -->\n\n## v0.7.0 frame-generation plan\n\nThe planned Windows PC delivery requires 2× DLSS-G and 2× FSR Frame Generation on both D3D12 and Vulkan. Each of the four provider/API combinations has independent acceptance gates; D3D12 diagnosis does not defer Vulkan. This plan does not include FSR Super Resolution or sharpening, DLSS SR, higher multipliers, DX11, Switch, Linux/Steam Deck, or a release date.\n\nP0 fixes SDK, licensing, device, queue and presentation routes. P1 validates the retained native-velocity path and same-frame coverage before fallback work. P2 completes camera, rigid and skeletal motion vectors; P3 freezes color/UI/frame inputs and reset/lifetime rules; P4 establishes both API foundations; P5 and P6 implement FSR FG and DLSS-G on both APIs; P7 accepts the four combinations; P8 prepares a separately authorized release.\n\nThis is planning only: implementation, SDK validation, game tests, player acceptance and publication have not started.\n\nDependencies (source keys): `native-object-motion`, `temporal-color-exposure`, `issue10-fsr-upscaling-frame-generation`.\n\nstage_detail: Planning complete; implementation not started\n\n## Sources\n\n- [v0.7.0 frame-generation plan](https://github.com/freefrank/LostOdysseyRecomp/blob/main/docs/notes/v0.7.0-frame-generation-plan.md)\n- [docs/notes/temporal-upscaling-feasibility.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/notes/temporal-upscaling-feasibility.md) (repository reference; working-tree requirements may be newer)\n- https://github.com/freefrank/LostOdysseyRecomp/issues/10\n",
       "issue_url": null,
       "fields": {
         "Kind": "Research",
         "Area": "Temporal rendering",
         "Status": "Todo",
         "Delivery": "Not started",
-        "Release": null,
+        "Release": "v0.7.0",
         "Start date": null,
-        "Target date": null
+        "Target date": null,
+        "Evidence": "The v0.7.0 plan defines required 2× DLSS-G and FSR Frame Generation delivery on D3D12 and Vulkan, with four independent acceptance gates. It is planning only: no implementation, SDK validation, game test, player acceptance, or release has started."
       },
       "source_refs": [
+        "docs/notes/v0.7.0-frame-generation-plan.md",
         "docs/notes/temporal-upscaling-feasibility.md",
-        "docs/ROADMAP.md",
-        "docs/ROADMAP.zh-CN.md",
-        "docs/ROADMAP.md#phase-4-modernization",
-        "docs/ROADMAP.zh-CN.md#阶段-4现代化"
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/10"
       ],
-      "source_lines": [
-        {
-          "path": "docs/ROADMAP.md",
-          "line": 194
-        },
-        {
-          "path": "docs/ROADMAP.zh-CN.md",
-          "line": 194
-        }
-      ],
+      "source_lines": [],
       "record_type": "backlog"
     },
     {
@@ -4667,7 +4657,7 @@
     {
       "key": "issue10-fsr-upscaling-frame-generation",
       "title": "[Feature] FSR Support",
-      "body": "<!-- lo-project:issue10-fsr-upscaling-frame-generation -->\n\nOpen Issue #10 requests FSR upscaling with adjustable sharpening. The maintainer's Issue comment also identifies future FSR frame generation and upscaling as roadmap work.\n\n## Status and scope\n\nThis is an unstarted future graphics request, outside the current v0.5.0 commitment. No API choice, implementation, benchmark, compatibility result, player acceptance, package, or delivery date is established.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/10\n- https://github.com/freefrank/LostOdysseyRecomp/issues/10#issuecomment-5586831250\n",
+      "body": "<!-- lo-project:issue10-fsr-upscaling-frame-generation -->\n\nOpen Issue #10 requests FSR upscaling with adjustable sharpening. The maintainer's Issue comment also identifies future FSR frame generation and upscaling as roadmap work.\n\n## Frame-generation plan association\n\nThe v0.7.0 plan tracks FSR Frame Generation 2× with DLSS-G through `frame-generation-research`, requiring separate D3D12 and Vulkan acceptance. That plan is not implementation or validation evidence.\n\nFSR upscaling and adjustable sharpening remain separate Issue #10 scope. They are not counted as frame-generation delivery and receive no v0.7.0 completion claim from this association.\n\n## Status and scope\n\nThis is an unstarted future graphics request. No API implementation, benchmark, compatibility result, player acceptance, package, or delivery date is established.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/10\n- https://github.com/freefrank/LostOdysseyRecomp/issues/10#issuecomment-5586831250\n- [v0.7.0 frame-generation plan](https://github.com/freefrank/LostOdysseyRecomp/blob/main/docs/notes/v0.7.0-frame-generation-plan.md)\n",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/10",
       "fields": {
         "Kind": "Feature",
@@ -4677,11 +4667,12 @@
         "Release": null,
         "Start date": null,
         "Target date": null,
-        "Evidence": "Open future request for FSR upscaling/sharpening; maintainer also noted future FSR frame generation. No implementation, validation, acceptance, release, or v0.5.0 commitment."
+        "Evidence": "Issue #10 retains separate FSR upscaling/sharpening scope. Its FSR Frame Generation association is planned under frame-generation-research for v0.7.0 D3D12/Vulkan 2× work; no implementation, validation, acceptance, or release has started."
       },
       "source_refs": [
         "https://github.com/freefrank/LostOdysseyRecomp/issues/10",
-        "https://github.com/freefrank/LostOdysseyRecomp/issues/10#issuecomment-5586831250"
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/10#issuecomment-5586831250",
+        "docs/notes/v0.7.0-frame-generation-plan.md"
       ],
       "source_lines": [],
       "record_type": "backlog"
@@ -4913,7 +4904,7 @@
     {
       "key": "release-reuse-local-ppc-static-library",
       "title": "Reuse a locally built PPC static library in release workflows",
-      "body": "<!-- lo-project:release-reuse-local-ppc-static-library -->\n\n## Published v0.5.6 hosted consumption\n\nCI 34726533463 retrieved immutable runner key `d8919775…` from private commit `a6cd91ea…`, restored and checked `LostOdysseyRecompLib.lib` SHA-256 `ba3e4c4d…` without generated PPC compilation or a new library link. The resulting v0.5.6 release is public and download-verified.\n\n`lo.ppcAutoSync=false` remains current. The original producer `50b8ad…`/`6a6ed031…` and its five line-ending/fourteen Git-symlink representation proof remain historical; source-layer key normalization is not implemented.\n\n## Sources\n\n- `out/v0.5.6/release/ci-ppc-consumption.json`\n- `out/v0.5.6/release/ppc-ci-upload.json`\n- `out/v0.5.6/release/public-download-check.json`\n",
+      "body": "<!-- lo-project:release-reuse-local-ppc-static-library -->\n\n## Direct-main synchronization — implementation and local validation complete\n\nEach authorized PPC synchronization reuses its frozen bundle and pushes that bundle directly to the private repository `main`; it creates no branch. The immutable commit receipt is retained locally. Matching input identity is a no-op. The sync preserves unrelated private-repository files and uses at most four concurrent retry attempts.\n\nThe release workflow snapshots private `main` over SSH, validates the PPC fingerprint and contract, records the receipt commit locally, and only then restores the library. Twenty-three PPC sync tests, including six bare-Git integrations, passed once; two synthetic workflow checks and actionlint also passed. Hosted Release CI has not yet validated this implementation.\n\n## Historical delivery\n\nCI 34726533463 retrieved an immutable runner cache, restored and checked `LostOdysseyRecompLib.lib` without generated PPC compilation or a new library link. That v0.5.6 delivery evidence, prior producers, and representation proof remain historical.\n\n## Sources\n\n- `out/v0.5.6/release/ci-ppc-consumption.json`\n- `out/v0.5.6/release/ppc-ci-upload.json`\n- `out/v0.5.6/release/public-download-check.json`\n",
       "issue_url": null,
       "fields": {
         "Kind": "Infrastructure",
@@ -4923,7 +4914,7 @@
         "Release": "v0.5.6",
         "Start date": "2026-09-10",
         "Target date": null,
-        "Evidence": "Hosted PPC consumption passed in published v0.5.6: CI 34726533463 retrieved runner key d8919775 from immutable private commit a6cd91ea, restored and checked library ba3e4c4d without generated PPC compilation or a new library link. Producer 50b8ad/6a6ed031 and the representation proof remain historical. lo.ppcAutoSync=false; source-layer key normalization is not implemented."
+        "Evidence": "Direct-main PPC synchronization implementation and local validation are complete: frozen-bundle push, matching-identity no-op, no branch creation, local immutable commit receipt and SSH main snapshot/validate/local-record/restore workflow. Twenty-three sync tests (including six bare-Git integrations), two synthetic workflow checks and actionlint passed. Hosted Release CI has not yet validated it; published v0.5.6 consumption evidence remains historical."
       },
       "source_refs": [
         "out/ppc-auto-sync-evidence/build-sync.log",

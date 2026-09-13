@@ -1,6 +1,13 @@
 # Temporal upscaling feasibility: DLSS, FSR and shared inputs
 
-## Current conclusion — 2026-09-07
+## Follow-up plan — 2026-09-13
+
+The separate [v0.7.0 DLSS-G and FSR FG development plan](v0.7.0-frame-generation-plan.md)
+defines the next research and implementation gates. D3D12 and Vulkan are both required,
+with DLSS-G and FSR FG combinations validated independently. The plan is not implemented,
+tested, accepted or published; this note's evidence and limitations remain in force.
+
+## Current conclusion — historical checkpoint, 2026-09-07
 
 The v0.4.0 feasibility deliverable is complete: this document preserves the official contracts, source audit, proposed common inputs, integration risks and staged route. Later implementation established a selectable experimental camera-based TAA path and bounded actual-game validation. DLSS/FSR vendor backends are not implemented. This is local development, unpushed and unpublished, with no new user acceptance; the published baseline remains v0.3.0.
 

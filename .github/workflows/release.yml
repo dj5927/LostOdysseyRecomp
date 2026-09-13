@@ -63,7 +63,7 @@ jobs:
           call tools\build_tools.bat || exit /b 1
           out\build\tools\xexdump.exe LostOdysseyRecompLib\private\disc1\default.xex LostOdysseyRecompLib\private\image_disc1.bin || exit /b 1
           python tools\ppc_codegen.py generate || exit /b 1
-      - name: Resolve matching PPC library
+      - name: Compute required PPC identity
         if: ${{ !inputs.rebuild_ppc }}
         id: ppc
         shell: cmd
@@ -92,12 +92,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: freefrank/LostOdysseyRecomp-build-inputs
-          ref: refs/heads/ppc/${{ steps.ppc.outputs.key }}
+          ref: main
           path: out/ppc-input
           sparse-checkout: /ppc/
           sparse-checkout-cone-mode: false
           ssh-key: ${{ secrets.LO_BUILD_INPUT_KEY }}
           persist-credentials: false
+      - name: Verify synchronized PPC identity
+        if: ${{ !inputs.rebuild_ppc }}
+        run: |
+          @'
+          import json
+          from pathlib import Path
+          import subprocess
+          import sys
+          sys.path.insert(0, str(Path('tools/release').resolve()))
+          import ppc_sync
+          identity_path = Path('out/ppc-cache-identity.json')
+          required = json.loads(identity_path.read_text())
+          manifest = json.loads(Path('out/ppc-input/ppc/manifest.json').read_text())
+          ppc_sync.validate_manifest(manifest, {k: required[k] for k in ('fingerprint', 'contract')})
+          required['private_commit'] = subprocess.check_output(
+              ['git', '-C', 'out/ppc-input', 'rev-parse', 'HEAD'], text=True).strip()
+          identity_path.write_text(json.dumps(required, indent=2) + '\n', encoding='utf-8')
+          print('Verified PPC main snapshot ' + required['private_commit'])
+          '@ | python
+          if ($LASTEXITCODE -ne 0) { throw 'PPC main does not match this source/compile identity. Synchronize the matching PPC library or dispatch with rebuild_ppc enabled.' }
       - name: Restore synchronized PPC library
         if: ${{ !inputs.rebuild_ppc }}
         run: |

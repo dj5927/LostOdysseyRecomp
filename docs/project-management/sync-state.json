@@ -1628,10 +1628,12 @@
         "Area": "Temporal rendering",
         "Status": "Todo",
         "Delivery": "Not started",
-        "Source key": "frame-generation-research"
+        "Source key": "frame-generation-research",
+        "Release": "v0.7.0",
+        "Evidence": "The v0.7.0 plan defines required 2× DLSS-G and FSR Frame Generation delivery on D3D12 and Vulkan, with four independent acceptance gates. It is planning only: no implementation, SDK validation, game test, player acceptance, or release has started."
       },
       "title": "Evaluate frame generation integration",
-      "body_sha256": "8e9c22a7929ad703a4ff5af74139e591650debcaca571a5c2c0f038827e74e80"
+      "body_sha256": "56564bd5113a0f156230cf8b09aa58fa0cb02242b861587a5e800f709d788ac5"
     },
     "hdr-output-tonemapping": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56e64",
@@ -2202,7 +2204,7 @@
         "Area": "Graphics features",
         "Status": "Todo",
         "Delivery": "Not started",
-        "Evidence": "Open future request for FSR upscaling/sharpening; maintainer also noted future FSR frame generation. No implementation, validation, acceptance, release, or v0.5.0 commitment.",
+        "Evidence": "Issue #10 retains separate FSR upscaling/sharpening scope. Its FSR Frame Generation association is planned under frame-generation-research for v0.7.0 D3D12/Vulkan 2× work; no implementation, validation, acceptance, or release has started.",
         "Source key": "issue10-fsr-upscaling-frame-generation"
       }
     },
@@ -2366,11 +2368,11 @@
         "Delivery": "Released",
         "Release": "v0.5.6",
         "Start date": "2026-09-10",
-        "Evidence": "Hosted PPC consumption passed in published v0.5.6: CI 34726533463 retrieved runner key d8919775 from immutable private commit a6cd91ea, restored and checked library ba3e4c4d without generated PPC compilation or a new library link. Producer 50b8ad/6a6ed031 and the representation proof remain historical. lo.ppcAutoSync=false; source-layer key normalization is not implemented.",
+        "Evidence": "Direct-main PPC synchronization implementation and local validation are complete: frozen-bundle push, matching-identity no-op, no branch creation, local immutable commit receipt and SSH main snapshot/validate/local-record/restore workflow. Twenty-three sync tests (including six bare-Git integrations), two synthetic workflow checks and actionlint passed. Hosted Release CI has not yet validated it; published v0.5.6 consumption evidence remains historical.",
         "Source key": "release-reuse-local-ppc-static-library"
       },
       "title": "Reuse a locally built PPC static library in release workflows",
-      "body_sha256": "065ef4da44558a36989d7bf71907938794bd31346d8dadea61ae3990237703be"
+      "body_sha256": "c2538622e9445fc12c0b088b9134555769e3b3b2b9c6d6d45e6888ed4ea3509c"
     },
     "issue14-cage-crash-investigation": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6qSZo",
