@@ -4,7 +4,7 @@
 
 Track the v0.5.0 backend and QOL requirements in the bilingual roadmaps and [QOL requirements](docs/notes/v0.5.0-qol-requirements.md). Recording a requirement does not authorize its implementation.
 
-The user requested a `+0.0.2` version increment after the local city-performance commits, advancing the source and release target from `0.5.4` to `0.5.6`, and then explicitly requested uploading the matching PPC cache and publishing `v0.5.6`. This authorizes the current release's commit, push, tag and GitHub Release. The user subsequently requested committing the updater simplification as `0.5.6-hotfix1`; keep that source version until another version change is requested. This hotfix request authorizes a local commit only, not a push, tag or publication. Do not add a version number for each implementation, subtask or validation. Preserve `v0.5.4` and earlier artifact versions as historical provenance, including the city performance measurements made with a source-`0.5.4` binary. Future publication requires an explicit request.
+The current user request authorizes publishing `v0.5.7` from `main`, including the version update, release commits, pushes, tag and GitHub Release. Verify the PPC input/compiler identity and synchronize a matching private PPC cache when needed before release CI consumes it. Keep source version `0.5.7` until another version change is requested. Do not add a version number for each subtask or validation. Preserve `v0.5.6`, the former `0.5.6-hotfix1` candidate, and earlier artifact versions as historical provenance, including city measurements made with a source-`0.5.4` binary. Future publication beyond this request requires explicit authorization.
 
 ## Project management agent
 

@@ -4,7 +4,21 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## v0.5.6-hotfix1 — Unreleased / 未发布
+## v0.5.7 — Candidate / 待发布候选
+
+### English
+
+- Allow an updater-only installation, stale or malformed local metadata, or a missing game executable to use the latest-release recovery path, then ask whether to launch the game with **No** as the default. Download integrity checks, safe extraction and rollback remain enabled.
+- Remove proven inactive shadow-loop work and reuse identical adjacent color-resolve copies within a command batch; shader cache version 22 rejects older binaries and startup bundles. Offline shader, cache and resolve checks passed, while gameplay, hardware-power and cross-scene validation remain separate.
+- Include the guarded HDR16 TAA bloom prefilter and the material vertex-shader jitter repair. The user accepted the HDR-off/materials-on fix for the reported lighting-flicker scene; other scenes and hardware remain unverified.
+
+### 简体中文
+
+- 允许 updater-only 安装、过期或损坏的本地 metadata 以及缺少游戏可执行文件的安装使用最新 Release 恢复路径，随后询问是否启动游戏并默认选择**否**。下载完整性校验、安全解压和回滚仍然保留。
+- 消除已证明安全的阴影循环空转，并在同一 command batch 内复用相邻且完全相同的 color-resolve 复制；shader cache 版本 22 拒绝旧二进制和启动 bundle。离线 shader、cache 与 resolve 检查已通过，游戏、硬件功耗和跨场景验证仍需单独判断。
+- 纳入有界的 HDR16 TAA bloom prefilter 与材质顶点 shader jitter 修复。用户已在报告的光影闪烁场景接受 HDR 关闭、materials 开启的修复；其他场景和硬件仍未覆盖。
+
+## v0.5.6-hotfix1 development record / 开发记录
 
 ### English
 
@@ -13,7 +27,7 @@ One record of completed changes, with unpublished work separated from verified r
 - Focused checks recorded before the suffix-only version metadata change passed on source version 0.5.6: `LoUpdaterStandaloneTest` 44/44, updater version/asset/integrity/staging/rollback/helper/preservation checks, and the Unicode caller-CWD helper-context check. These are synthetic hidden-process checks; no real game, public download or visible Yes/No dialog interaction was performed.
 - Remove inactive shadow-loop iterations where safety can be proved, and skip identical adjacent color-resolve copies within one command batch. Shader cache version 22 rejects older binaries and startup bundles. Local shader and GPU pixel checks passed; gameplay validation and publication remain pending.
 - Add a guarded TAA bloom prefilter candidate for the identified HDR16 bloom inputs larger than 1280x720 and within the supported 8x extent, with linear reconstruction after the area filter and a `LoBloomPrefilterTest` fixture. The measured 3840x2160-to-1280x720 case is conditionally enabled for AA3 and the matching scene draw, with `LO_DISABLE_BLOOM_PREFILTER=1` available for comparison. D3D12 and Vulkan fixture runs, captured-input checks and the linear response checks passed. The bloom-only candidates stabilized the upper large robots; the remaining lower-enemy lighting flicker was addressed by the material jitter repair below. Bounded AA3/jitter/history/bloom controls and geometry tracing supported the diagnosis. These changes remain unpublished.
-- Fix three material vertex shader paths that omitted TAA jitter, leaving depth and material positions misaligned; add slot 7 and pass the 131,457-check `LoTemporalJitterTest --captured-static-layers` selector across 32 phases, two worlds and 720p/4K. The user confirmed the HDR-off/materials-on candidate removes the flicker from the whole lighting target in the reproduced scene. This scene acceptance does not establish whole-game or cross-hardware coverage. Local repair branch: `trail/fix-taa-lighting`; it remains unpublished and not pushed.
+- Fix three material vertex shader paths that omitted TAA jitter, leaving depth and material positions misaligned; add slot 7 and pass the 131,457-check `LoTemporalJitterTest --captured-static-layers` selector across 32 phases, two worlds and 720p/4K. The user confirmed the HDR-off/materials-on candidate removes the flicker from the whole lighting target in the reproduced scene. This scene acceptance does not establish whole-game or cross-hardware coverage. The repair is included in the current main candidate; publication remains pending.
 
 ### 简体中文
 
@@ -22,7 +36,7 @@ One record of completed changes, with unpublished work separated from verified r
 - 后缀版本 metadata 改动前，以 source version 0.5.6 记录的定向检查已通过：`LoUpdaterStandaloneTest` 44/44、更新器版本／asset／完整性／staging／回滚／helper／保留行为检查，以及 Unicode 调用方工作目录的 helper context 检查。这些是隐藏的合成进程检查，未运行真实游戏、公开下载或可见 Yes/No 对话框交互。
 - 在可证明安全的条件下消除阴影循环空转，并跳过同一提交批次内相邻、完全相同的颜色 resolve 复制。shader cache 版本 22 拒绝旧二进制和启动 bundle。本地 shader 与 GPU 像素检查已通过；游戏实景验证和发布仍待完成。
 - 为已定位的、大于 1280x720 且不超过 8 倍尺寸的 HDR16 bloom 输入增加有条件启用的 TAA bloom prefilter 候选，并在面积滤波后使用线性重建，同时增加 `LoBloomPrefilterTest` 夹具。实测的 3840x2160 到 1280x720 场景仅在 AA3 和匹配的 scene draw 命中时启用，并可用 `LO_DISABLE_BLOOM_PREFILTER=1` 做对照。D3D12／Vulkan 夹具、捕获输入检查和线性响应检查均已通过。仅包含 bloom 修补的候选稳定了上方大型机器人；下方敌人剩余的光影闪烁由下述材质 jitter 修补解决。有限范围的 AA3／jitter／history／bloom 控制和 geometry trace 用于本次诊断。改动尚未发布。
-- 修复三条材质顶点 shader 路径漏加 TAA jitter 导致的 depth/material 错位，补充 slot 7，并通过 `LoTemporalJitterTest --captured-static-layers` 的 131,457 项、32 相位、双 world、720p/4K 检查。用户确认 HDR 关闭、materials 开启的候选在复现场景中使整个光影目标不再闪烁。该场景验收不代表全游戏或跨硬件覆盖。本地修复分支为 `trail/fix-taa-lighting`，仍未发布且未推送。
+- 修复三条材质顶点 shader 路径漏加 TAA jitter 导致的 depth/material 错位，补充 slot 7，并通过 `LoTemporalJitterTest --captured-static-layers` 的 131,457 项、32 相位、双 world、720p/4K 检查。用户确认 HDR 关闭、materials 开启的候选在复现场景中使整个光影目标不再闪烁。该场景验收不代表全游戏或跨硬件覆盖。修复已纳入当前 main 候选，发布仍待完成。
 
 ## v0.5.6 — 2026-09-13 / 已发布
 

@@ -24,6 +24,11 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 - 修复更新器 manifest 事务，增加 Issue #16 的窄范围 particle-material 回退，并加入 PPC 预编译发布路径及有界的渲染性能改进。
 - Windows x64 发布包：[v0.5.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.6)。#16 修复已在本地 main 构建上通过 D3D12／亚洲 Disc 3 目标场景；正式发布包已通过完整性检查。全游戏、Vulkan、其他区域及玩家验收仍未覆盖。
 
+## 即将发布的 v0.5.7 — 候选版
+
+- 当前 main 候选版允许 updater-only 安装和过期 metadata 恢复，更新后询问是否启动并默认选择**否**，同时包含有界的阴影循环和 resolve-copy 优化、HDR16 TAA bloom prefilter，以及材质顶点 shader jitter 修复。
+- HDR 关闭、materials 开启的修复已在报告的光影闪烁场景中通过用户验收。候选版尚未发布；其他场景和硬件仍未覆盖。
+
 ## v0.5.4 新增
 
 - 防止 PPC 源码生成使用过期输入、残缺输出或旧式 64 位跳转表 switch。
@@ -40,7 +45,7 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 
 发布包不需要安装 Python 或 Visual Studio。后续启动会复用着色器缓存；更新程序时请保留存档和档案文件夹。
 
-已发布的更新器会检查 GitHub 最新 Release：数字版本更高时更新，数字版本相同但 `-后缀` 不同时也会触发更新。尚未发布的本地 `v0.5.6-hotfix1` 目标另外允许从只有 updater 的空目录以及过期或损坏的本地 metadata 恢复。更新成功后，该本地 helper 会询问是否启动游戏，默认选择**否**；silent 运行会完成更新但不启动游戏。下载完整性校验、安全解压和回滚仍然保留。
+已发布的更新器会检查 GitHub 最新 Release：数字版本更高时更新，数字版本相同但 `-后缀` 不同时也会触发更新。尚未发布的 `v0.5.7` 候选版另外允许从只有 updater 的空目录以及过期或损坏的本地 metadata 恢复。更新成功后，该候选版 helper 会询问是否启动游戏，默认选择**否**；silent 运行会完成更新但不启动游戏。下载完整性校验、安全解压和回滚仍然保留。
 
 | 要求 | 支持范围 |
 | :--- | :--- |
