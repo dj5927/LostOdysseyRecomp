@@ -19,6 +19,11 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## New in v0.5.8
+
+- Published Windows x64 package: [v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8). It extends current-scene TAA jitter coverage with seven reviewed main-camera paths and adds bounded sampled-content SIMD plus `LO_QUERY_TRACE` caching.
+- These changes retain limited diagnostic and fixed-scene evidence. Original-scene TAA visual acceptance and a stable whole-game 60 FPS result remain unverified. See the [changelog](CHANGELOG.md) for details.
+
 ## New in v0.5.7
 
 - Published Windows x64 package: [v0.5.7](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7). It recovers updater-only installations and stale metadata, asks before launching after an update with **No** as the default, and includes guarded shadow-loop and resolve-copy reductions, the HDR16 TAA bloom prefilter, and the material vertex-shader jitter repair.

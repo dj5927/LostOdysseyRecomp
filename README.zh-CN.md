@@ -19,6 +19,11 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## v0.5.8 新增
+
+- 已发布 Windows x64 包：[v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8)。扩展当前场景 TAA jitter 覆盖，加入七条已审阅的主相机路径，并增加有界的 sampled-content SIMD 和 `LO_QUERY_TRACE` 缓存优化。
+- 这些改动保留限定诊断和固定场景证据。原场景 TAA 画面验收及稳定的全游戏 60 FPS 结果仍未验证。详细内容见[更新日志](CHANGELOG.md)。
+
 ## v0.5.7 新增
 
 - 已发布 Windows x64 包：[v0.5.7](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7)。它支持 updater-only 安装和过期 metadata 恢复，更新后会询问是否启动并默认选择**否**，同时包含有界的阴影循环与 resolve-copy 优化、HDR16 TAA bloom prefilter 和材质顶点 shader jitter 修复。
