@@ -2450,10 +2450,11 @@
         "Release": null,
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "Local gpu-perf implementation and Release build completed, unpublished. Bounded structural LoopEnd repair optimized eight of nine existing predLoop guest shaders; one retains original path. Eleven guard cases, twelve GPU cases across 64 lanes, independent group-64 reference and cache v22 99 checks passed. Production PS a195 SPIR-V exactly matches the previously timed probe, so single-frame ABBA/PNG evidence is reused without new GPU measurement. Complex loops and general Xbox 64-group semantics remain unproven; gameplay validation, player acceptance and release remain pending."
+        "Evidence": "Local gpu-perf implementation and prior fixture validation remain recorded. Alignment merge https://github.com/freefrank/LostOdysseyRecomp/commit/1d139c933f0e62d8bd445572876d5e3ae3d40d0d (parents 4715b60 and b39c2c9) is pushed to origin and GitHub; reviewed merged paths match the previously tested working code, so checks were not rerun. Bounded LoopEnd repair optimized eight of nine existing predLoop shaders; one remains conservative. Complex loops, gameplay validation, player acceptance and release remain pending.",
+        "Source key": "vulkan-ps-loopend-predicate-exit"
       },
       "title": "Fix Vulkan pixel-shader LoopEnd predicate exit",
-      "body_sha256": "facc218673c744f7bb1980203b81244b1b612faac565fd3bd335b167fea8e715"
+      "body_sha256": "c4d0e15372da9194507c33afcb8b8e0d6278cf7fba4ff9f5f7b086993c841f6a"
     },
     "adjacent-resolve-copy-elision": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6sbAY",
@@ -2465,10 +2466,11 @@
         "Release": null,
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "Local gpu-perf implementation and Release build completed, unpublished. Adjacent identical resolve copies are elided only for same source/target allocation, format and region; all interference invalidates and side effects remain. Thirty CPU cases and existing FP16-copy GPU fixtures passed on Vulkan and D3D12 (three allocations, two passes each), with zero pixel difference and correct hit counts. Actual game hit, cross-scene behavior and player acceptance remain pending."
+        "Evidence": "Local gpu-perf implementation and prior synthetic fixture validation remain recorded. Alignment merge https://github.com/freefrank/LostOdysseyRecomp/commit/1d139c933f0e62d8bd445572876d5e3ae3d40d0d (parents 4715b60 and b39c2c9) is pushed to origin and GitHub; reviewed merged paths match the previously tested working code, so checks were not rerun. Adjacent resolve-copy elision remains bounded to immediately adjacent matching source/target/format/region copies. Actual game hits, cross-scene validation, player acceptance and release remain pending.",
+        "Source key": "adjacent-resolve-copy-elision"
       },
       "title": "Eliminate redundant adjacent resolve copies",
-      "body_sha256": "ae62cb51cdcda2332bfe2c38360e65eec604f5a04d9560a721911d89ec747384"
+      "body_sha256": "a6742aa94b4e3e164462e842bf58407564079d23ba879a79fab96c4ba50db6f1"
     }
   }
 }
