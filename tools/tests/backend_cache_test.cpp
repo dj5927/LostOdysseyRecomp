@@ -116,6 +116,7 @@ int main(int argc,char** argv) {
     std::vector<cache::Identity> changes{spirv,dxbc};
     auto changed=dxil;changed.compiler+="-other-validator";changes.push_back(changed);
     changed=dxil;++changed.translatorVersion;changes.push_back(changed);
+    changed=dxil;changed.translatorVersion=21;changes.push_back(changed);
     changed=dxil;changed.options+=";Zi";changes.push_back(changed);
     changed=dxil;changed.variant="linked-vs-variant-2";changes.push_back(changed);
     changed=dxil;changed.format=cache::Format::Dxbc;changes.push_back(changed);
@@ -123,8 +124,10 @@ int main(int argc,char** argv) {
     changed=dxil;changed.compiler.clear();changes.push_back(changed);
     const auto xex=sc::Bytes("synthetic-xex");
     const auto snapshot=sc::Snapshot(root/"game",root/"cache",dxil,xex);
-    CHECK(snapshot==sc::Snapshot(root/"game",root/"cache",false,dxil.compiler,xex));
-    CHECK(sc::Snapshot(root/"game",root/"cache",spirv,xex)==
+    // v21 alone has the frozen untyped bundle identity. A translation change
+    // must reject those stored binaries AND HLSL rather than silently reuse them.
+    CHECK(snapshot!=sc::Snapshot(root/"game",root/"cache",false,dxil.compiler,xex));
+    CHECK(sc::Snapshot(root/"game",root/"cache",spirv,xex)!=
         sc::Snapshot(root/"game",root/"cache",true,spirv.compiler,xex));
     sc::Record record;record.hash=hash;record.info.isPixelShader=true;record.info.hlsl=source;record.binary=binaries[0];
     const auto bundle=root/"legacy-compatible.bundle";

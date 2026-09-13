@@ -13,6 +13,15 @@ if(MSVC)
 else()
     target_compile_options(LoPollWaitTest PRIVATE -UNDEBUG)
 endif()
+add_executable(LoResolveCopyPolicyTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/resolve_copy_policy_test.cpp)
+target_include_directories(LoResolveCopyPolicyTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoResolveCopyPolicyTest PRIVATE cxx_std_20)
+target_compile_definitions(LoResolveCopyPolicyTest PRIVATE NOMINMAX)
+if(MSVC)
+    target_compile_options(LoResolveCopyPolicyTest PRIVATE /UNDEBUG)
+else()
+    target_compile_options(LoResolveCopyPolicyTest PRIVATE -UNDEBUG)
+endif()
 set(LO_PRIVATE_DIR ${CMAKE_SOURCE_DIR}/LostOdysseyRecompLib/private)
 
 # Logging stubs for every kernel import without an implementation. Regenerated
@@ -365,6 +374,15 @@ if(WIN32)
     target_compile_features(LoShaderAluTest PRIVATE cxx_std_20)
     target_compile_definitions(LoShaderAluTest PRIVATE NOMINMAX)
     target_link_libraries(LoShaderAluTest PRIVATE fmt::fmt d3d12 dxgi)
+
+    add_executable(LoShaderLoopTest EXCLUDE_FROM_ALL
+        ${CMAKE_SOURCE_DIR}/tools/tests/shader_loop_test.cpp
+        ${LO_RUNTIME_ROOT}/gpu/shader/xenos_translator.cpp
+        ${LO_RUNTIME_ROOT}/gpu/shader/dxc_compiler.cpp)
+    target_include_directories(LoShaderLoopTest PRIVATE ${LO_RUNTIME_ROOT})
+    target_compile_features(LoShaderLoopTest PRIVATE cxx_std_20)
+    target_compile_definitions(LoShaderLoopTest PRIVATE NOMINMAX)
+    target_link_libraries(LoShaderLoopTest PRIVATE fmt::fmt d3d12 dxgi)
     if(LO_BUILD_GPU)
         add_executable(LoRenderResolutionGpuTest EXCLUDE_FROM_ALL
             ${CMAKE_SOURCE_DIR}/tools/tests/render_resolution_gpu_test.cpp
@@ -477,6 +495,7 @@ if(WIN32 AND LO_BUILD_GPU)
     add_executable(LoBackendDeviceTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/backend_device_test.cpp)
     add_executable(LoBackendCacheTest EXCLUDE_FROM_ALL
         ${CMAKE_SOURCE_DIR}/tools/tests/backend_cache_test.cpp ${LO_RUNTIME_ROOT}/gpu/shader/dxc_compiler.cpp)
+    target_link_libraries(LoBackendCacheTest PRIVATE fmt::fmt)
     add_executable(LoBackendLifecycleTest EXCLUDE_FROM_ALL
         ${CMAKE_SOURCE_DIR}/tools/tests/backend_lifecycle_test.cpp
         ${LO_RUNTIME_ROOT}/gpu/presentation.cpp ${LO_RUNTIME_ROOT}/gpu/shader/dxc_compiler.cpp)

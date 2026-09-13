@@ -4866,6 +4866,49 @@
       "source_refs": [],
       "source_lines": [],
       "record_type": "backlog"
+    },
+    {
+      "key": "vulkan-ps-loopend-predicate-exit",
+      "title": "Fix Vulkan pixel-shader LoopEnd predicate exit",
+      "body": "<!-- lo-project:vulkan-ps-loopend-predicate-exit -->\n\nCorrect the Xenos pixel-shader LoopEnd translation when its predicate ends a loop. Preserve Xbox 64-lane exit semantics and add regression coverage for related shaders.\n\n## Diagnosis evidence\n\nRelease v0.5.6, Vulkan, RTX 5080, 3840x2160 capture frame 12462: PS `a195c4db25859691` has a CF LoopEnd whose predicate break is missing from translation. The loop executes 255 iterations although at most eight are effective, producing empty work. The recompiled baseline matched the captured SPIR-V; a one-line offline shader-only probe with `if (!p0) break` produced a byte-identical final PNG. After all games exited, ABBA means fell from 7.711424 to 1.244464 ms for affected shadow draws (83.9%) and from 14.026832 to 7.1088 ms for all timed events (49.3%).\n\n## Limits\n\nInitial diagnosis was a single-frame offline probe. Current local implementation is a bounded structural production repair for the proven LoopEnd pattern, validated by the recorded guards and synthetic GPU cases. Complex-loop coverage, gameplay validation, player acceptance and release remain pending; it does not establish FPS or power change.\n\n## Sources\n\n- `out/gpu-profile-20260912/ab-01/ab-counters.json`\n- `docs/notes/gpu-shadow-loop-audit-2026-09-12.md`",
+      "issue_url": null,
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Vulkan shader translation",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
+        "Release": null,
+        "Start date": "2026-09-12",
+        "Target date": null,
+        "Evidence": "Local gpu-perf implementation and Release build completed, unpublished. Bounded structural LoopEnd repair optimized eight of nine existing predLoop guest shaders; one retains original path. Eleven guard cases, twelve GPU cases across 64 lanes, independent group-64 reference and cache v22 99 checks passed. Production PS a195 SPIR-V exactly matches the previously timed probe, so single-frame ABBA/PNG evidence is reused without new GPU measurement. Complex loops and general Xbox 64-group semantics remain unproven; gameplay validation, player acceptance and release remain pending."
+      },
+      "source_refs": [
+        "out/gpu-profile-20260912/ab-01/ab-counters.json",
+        "docs/notes/gpu-shadow-loop-audit-2026-09-12.md"
+      ],
+      "source_lines": [],
+      "record_type": "backlog"
+    },
+    {
+      "key": "adjacent-resolve-copy-elision",
+      "title": "Eliminate redundant adjacent resolve copies",
+      "body": "<!-- lo-project:adjacent-resolve-copy-elision -->\n\nRemove redundant adjacent resolve copies only when source, target allocation, format and region match; invalidate on interference and preserve side effects.\n\n## Validation boundary\n\nLocal implementation and synthetic validation completed. Actual game hit, cross-scene behavior and player acceptance remain pending.",
+      "issue_url": null,
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Vulkan resolve copies",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
+        "Release": null,
+        "Start date": "2026-09-12",
+        "Target date": null,
+        "Evidence": "Local gpu-perf implementation and Release build completed, unpublished. Adjacent identical resolve copies are elided only for same source/target allocation, format and region; all interference invalidates and side effects remain. Thirty CPU cases and existing FP16-copy GPU fixtures passed on Vulkan and D3D12 (three allocations, two passes each), with zero pixel difference and correct hit counts. Actual game hit, cross-scene behavior and player acceptance remain pending."
+      },
+      "source_refs": [
+        "out/gpu-profile-20260912/analysis-02/duplicate-resolve-implementation.md"
+      ],
+      "source_lines": [],
+      "record_type": "backlog"
     }
   ]
 }

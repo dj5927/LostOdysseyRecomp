@@ -2319,6 +2319,36 @@
       },
       "title": "Diagnose reported 4K TAA ground and shadow blacking",
       "body_sha256": "8cf69c098fcb77953d34ad9e4dbd4b2abeb833accd45020b0e055c8a0cda46e4"
+    },
+    "vulkan-ps-loopend-predicate-exit": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6sV44",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Vulkan shader translation",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
+        "Release": null,
+        "Start date": "2026-09-12",
+        "Target date": null,
+        "Evidence": "Local gpu-perf implementation and Release build completed, unpublished. Bounded structural LoopEnd repair optimized eight of nine existing predLoop guest shaders; one retains original path. Eleven guard cases, twelve GPU cases across 64 lanes, independent group-64 reference and cache v22 99 checks passed. Production PS a195 SPIR-V exactly matches the previously timed probe, so single-frame ABBA/PNG evidence is reused without new GPU measurement. Complex loops and general Xbox 64-group semantics remain unproven; gameplay validation, player acceptance and release remain pending."
+      },
+      "title": "Fix Vulkan pixel-shader LoopEnd predicate exit",
+      "body_sha256": "facc218673c744f7bb1980203b81244b1b612faac565fd3bd335b167fea8e715"
+    },
+    "adjacent-resolve-copy-elision": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6sbAY",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Vulkan resolve copies",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
+        "Release": null,
+        "Start date": "2026-09-12",
+        "Target date": null,
+        "Evidence": "Local gpu-perf implementation and Release build completed, unpublished. Adjacent identical resolve copies are elided only for same source/target allocation, format and region; all interference invalidates and side effects remain. Thirty CPU cases and existing FP16-copy GPU fixtures passed on Vulkan and D3D12 (three allocations, two passes each), with zero pixel difference and correct hit counts. Actual game hit, cross-scene behavior and player acceptance remain pending."
+      },
+      "title": "Eliminate redundant adjacent resolve copies",
+      "body_sha256": "ae62cb51cdcda2332bfe2c38360e65eec604f5a04d9560a721911d89ec747384"
     }
   }
 }

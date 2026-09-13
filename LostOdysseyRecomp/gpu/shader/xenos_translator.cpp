@@ -376,6 +376,10 @@ float4 max4(float4 src0)
             uint32_t exportedInterpolators = 0;
             bool exportsPosition = false;
             uint32_t cfByteSize = 0;
+            bool usesLoopAddress = false;
+            bool hasControlFlowJump = false;
+            uint32_t loopStartCount = 0;
+            uint32_t loopEndCount = 0;
 
             template<typename... Args>
             void print(fmt::format_string<Args...> f, Args&&... args) { out += fmt::format(f, std::forward<Args>(args)...); }
@@ -480,6 +484,7 @@ float4 max4(float4 src0)
                         }
                         else if (cf.opcode == ControlFlowOpcode::CondJmp)
                         {
+                            hasControlFlowJump = true;
                             if (cf.condJmp.isUnconditional || cf.condJmp.direction)
                                 simpleControlFlow = false;
                             else
@@ -487,8 +492,13 @@ float4 max4(float4 src0)
                         }
                         else if (cf.opcode == ControlFlowOpcode::CondCall || cf.opcode == ControlFlowOpcode::Return)
                         {
+                            hasControlFlowJump = true;
                             note("unsupported control flow: call/return");
                         }
+                        else if (cf.opcode == ControlFlowOpcode::LoopStart)
+                            ++loopStartCount;
+                        else if (cf.opcode == ControlFlowOpcode::LoopEnd)
+                            ++loopEndCount;
                     }
                 }
                 cfByteSize = instrSize;
@@ -531,6 +541,9 @@ float4 max4(float4 src0)
                             {
                                 AluInstruction alu;
                                 memcpy(&alu, w, 12);
+                                // Be conservative even if a relative slot is unused by this ALU.
+                                usesLoopAddress |= !alu.constAddressRegisterRelative &&
+                                    (alu.const0Relative || alu.const1Relative);
                                 if (alu.src1Select) maxTemp = std::max<uint32_t>(maxTemp, alu.src1Register & 0x3F);
                                 if (alu.src2Select) maxTemp = std::max<uint32_t>(maxTemp, alu.src2Register & 0x3F);
                                 if (alu.src3Select) maxTemp = std::max<uint32_t>(maxTemp, alu.src3Register & 0x3F);
@@ -1240,6 +1253,84 @@ float4 max4(float4 src0)
                 println("if (XeBool({}u) == {})", boolAddress, condition ? "true" : "false");
             }
 
+            bool CanExitInactiveLoop(uint32_t endPc, const ControlFlowLoopEndInstruction& end) const
+            {
+                // Xenos breaks when ALL 64 invocations match the predicate. Host
+                // waves need not have that width. A per-invocation exit is equivalent
+                // only when its remaining iterations cannot change observable state.
+                // Prove that every body instruction is masked by the opposite value:
+                // once inactive, no instruction can reactivate p0 or write anything.
+                // aL is the sole unconditional loop write, so require it to be dead
+                // throughout the shader. Keep complex/nested loops on the old path.
+                if (!end.isPredicatedBreak || !simpleControlFlow || hasControlFlowJump ||
+                    usesLoopAddress || loopStartCount != 1 || loopEndCount != 1 ||
+                    !end.address || end.address > endPc)
+                    return false;
+                auto readCf = [&](uint32_t pc) {
+                    return ReadCfPair((pc / 2) * 3).cf[pc & 1];
+                };
+                const auto start = readCf(end.address - 1);
+                if (start.opcode != ControlFlowOpcode::LoopStart || start.loopStart.isRepeat ||
+                    start.loopStart.loopId != end.loopId || start.loopStart.address != endPc + 1)
+                    return false;
+                for (uint32_t pc = end.address; pc < endPc; ++pc)
+                {
+                    const auto cf = readCf(pc);
+                    switch (cf.opcode)
+                    {
+                    case ControlFlowOpcode::Nop:
+                        continue;
+                    case ControlFlowOpcode::Exec:
+                    case ControlFlowOpcode::CondExec:
+                    case ControlFlowOpcode::CondExecPred:
+                    case ControlFlowOpcode::CondExecPredClean:
+                        break;
+                    default:
+                        return false;
+                    }
+                    const uint32_t address = CfExecAddress(cf), count = CfExecCount(cf);
+                    if (uint64_t(address + count) * 3 > dwordCount)
+                        return false;
+                    uint32_t sequence = CfExecSequence(cf);
+                    for (uint32_t i = 0; i < count; ++i, sequence >>= 2)
+                    {
+                        uint32_t w[3];
+                        ReadInstruction(address + i, w);
+                        if (sequence & 1)
+                        {
+                            FetchInstruction fetch;
+                            memcpy(&fetch, w, 12);
+                            if (fetch.opcode == FetchOpcode::VertexFetch)
+                            {
+                                if (!fetch.vertexFetch.isPredicated ||
+                                    fetch.vertexFetch.predicateCondition == end.condition)
+                                    return false;
+                            }
+                            else
+                            {
+                                const auto& tf = fetch.textureFetch;
+                                if (!tf.isPredicated || tf.predCondition == end.condition)
+                                    return false;
+                                // Match the explicit-LOD path in recompile(TextureFetch).
+                                // Implicit derivatives require neighbors still in the loop.
+                                if (tf.opcode != FetchOpcode::GetTextureWeights &&
+                                    (tf.opcode != FetchOpcode::TextureFetch || tf.useCompLod ||
+                                     tf.useRegLod || tf.useRegGradients || tf.lodBias != 0))
+                                    return false;
+                            }
+                        }
+                        else
+                        {
+                            AluInstruction alu;
+                            memcpy(&alu, w, 12);
+                            if (!alu.isPredicated || alu.predicateCondition == end.condition)
+                                return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
             void Emit()
             {
                 EmitDeclarations();
@@ -1339,6 +1430,11 @@ float4 max4(float4 src0)
                         case ControlFlowOpcode::LoopEnd:
                             if (simpleControlFlow)
                             {
+                                if (CanExitInactiveLoop(pc - 1, cf.loopEnd))
+                                {
+                                    indent(); out += "// Inactive loop iterations have no observable effects.\n";
+                                    indent(); println("if ({}p0) break;", cf.loopEnd.condition ? "" : "!");
+                                }
                                 --indentation;
                                 indent(); out += "}\n";
                             }

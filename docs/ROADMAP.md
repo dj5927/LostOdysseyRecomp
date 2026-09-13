@@ -41,3 +41,6 @@ Use the [Project](https://github.com/users/freefrank/projects/3) for item status
 <a id="phase-3-work-toward-a-complete-playthrough"></a>
 <a id="phase-4-modernization"></a>
 <a id="phase-5-optional-exploration"></a>
+
+- [~] **Vulkan pixel-shader LoopEnd predicate exit:** local gpu-perf implementation and Release build completed. The bounded structural repair optimizes eight of nine existing predLoop shaders and conservatively retains one; guard, 64-lane GPU/reference and cache checks passed. Production SPIR-V matches the prior probe, so prior single-frame timing/PNG evidence is reused. Complex loops, game validation, player acceptance and release remain pending.
+- [~] **Adjacent resolve-copy elision:** local gpu-perf implementation removes only immediately adjacent identical source/target/format/region copies while invalidating on all interference. CPU and D3D12/Vulkan FP16 fixtures passed; actual game hits and cross-scene validation remain pending.

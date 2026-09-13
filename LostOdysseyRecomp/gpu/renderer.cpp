@@ -35,6 +35,7 @@
 #include <os/logger.h>
 #include <os/shader_log.h>
 #include "render_timing.h"
+#include "resolve_copy_policy.h"
 #include <os/log_file.h>
 #include <os/capture_archive.h>
 #include <version.h>
@@ -401,6 +402,12 @@ namespace gpu::renderer
             std::unordered_map<uint32_t, std::vector<ResolvedSurface>> resolved;
             uint64_t resolveWriteOrdinal = 0;
             uint64_t nextTargetAllocation = 0;
+            resolve_copy::ConsecutiveCopies consecutiveResolveCopies;
+            const bool resolveCopyReuse = [] {
+                const char* value = getenv("LO_RESOLVE_COPY_REUSE");
+                return !value || std::string_view(value) != "0";
+            }();
+            uint32_t resolveCopiesRecorded = 0, resolveCopiesSkipped = 0;
             std::array<uint64_t, 2> bindingRecordedFrame{~0ull, ~0ull};
             temporal::SceneObservation temporalScene;
             std::shared_ptr<taa_collection::SparseDepthGPU> sparseCollector;
@@ -1054,6 +1061,7 @@ namespace gpu::renderer
 
             void TransferRegion(HostTexture& src, HostTexture& dst, uint32_t srcClass, uint32_t dstClass)
             {
+                consecutiveResolveCopies.Invalidate();
                 // Only the 32-bit classes share a word layout; wider ones are left alone.
                 if (srcClass > kClass7e3 || dstClass > kClass7e3)
                     return;
@@ -1153,6 +1161,7 @@ namespace gpu::renderer
             // converting formats along the way.
             bool BlitRegion(HostTexture& src, HostTexture& dst, uint32_t x0, uint32_t y0, uint32_t w, uint32_t h)
             {
+                consecutiveResolveCopies.Invalidate();
                 RenderPipeline* pipeline = GetBlitPipeline(dst.format);
                 if (!pipeline)
                     return false;
@@ -1217,6 +1226,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             {
                 if (!listOpen)
                 {
+                    consecutiveResolveCopies.Invalidate();
                     if (render_timing::Enabled() && !timingInitialized) {
                         timingInitialized = true;
                         timingQueries = device->createQueryPool(2);
@@ -1234,6 +1244,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 
             void Flush()
             {
+                consecutiveResolveCopies.Invalidate();
                 if (!listOpen)
                     return;
                 if (timingQueries) commandList->writeTimestamp(timingQueries.get(), 1);
@@ -2118,6 +2129,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     renderTargets.erase(it);
                 }
 
+                consecutiveResolveCopies.Invalidate();
                 auto tex = std::make_unique<HostTexture>();
                 tex->allocationSerial = ++nextTargetAllocation;
                 tex->format = depth ? RenderFormat::D32_FLOAT_S8_UINT : ClassHostFormat(colorClass);
@@ -2746,6 +2758,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 
             void DrawImpl(const DrawInfo& info)
             {
+                const uint32_t modeControl = Reg(REG_RB_MODECONTROL) & 7;
+                // All draw-side writes, including uploads, AA, alias transfers and
+                // optimized clears, are outside the consecutive-resolve window.
+                if (modeControl != 6) consecutiveResolveCopies.Invalidate();
                 ApplyInternalResolution();
                 // LO_DRAW_LIMIT=<n>: only record the first n draws of each frame,
                 // to bisect which pass ruins the image.
@@ -2773,7 +2789,6 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
                 Begin();
 
-                uint32_t modeControl = Reg(REG_RB_MODECONTROL) & 7;
                 if (modeControl == 6)
                 {
                     Resolve();
@@ -4166,6 +4181,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             void ResolveDepthOnGpu(HostTexture& depth, uint32_t destBase, uint32_t destFormat, uint32_t destPitch, uint32_t destHeight,
                                    uint32_t x0, uint32_t y0, uint32_t w, uint32_t h)
             {
+                consecutiveResolveCopies.Invalidate();
                 Begin();
                 const uint32_t guestW = std::clamp<uint32_t>(std::max(destPitch, x0 + w), 1, 8192);
                 const uint32_t guestH = std::clamp<uint32_t>(std::max(destHeight, y0 + h), 1, 8192);
@@ -4268,10 +4284,12 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 ResolvedSurface& rs = ResolvedSlot(destBase, destFormat);
                 if (!rs.tex || rs.tex->format != destHost || rs.tex->width != texW || rs.tex->height != texH)
                 {
+                    consecutiveResolveCopies.Invalidate();
                     if (rs.tex) retiredTextures.push_back(std::move(rs.tex));
                     rs.writeOrdinal = 0; // The replacement allocation contains no previous resolve.
                     rs.writeWidth = rs.writeHeight = 0;
                     rs.tex = std::make_unique<HostTexture>();
+                    rs.tex->allocationSerial = ++nextTargetAllocation;
                     rs.tex->format = destHost;
                     rs.tex->width = texW;
                     rs.tex->height = texH;
@@ -4313,9 +4331,18 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 {
                     Transition(color, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
                     Transition(*rs.tex, RenderTextureLayout::COPY_DEST, RenderBarrierStage::COPY);
-                    RenderBox box{ int32_t(x0), int32_t(y0), int32_t(x0 + w), int32_t(y0 + h), 0, 1 };
-                    commandList->copyTextureRegion(RenderTextureCopyLocation::Subresource(rs.tex->texture.get()),
-                        RenderTextureCopyLocation::Subresource(color.texture.get()), x0, y0, 0, &box);
+                    const resolve_copy::Copy copy{color.allocationSerial, rs.tex->allocationSerial,
+                        color.width, color.height, texW, texH, uint32_t(color.format), x0, y0, w, h};
+                    if (resolveCopyReuse && consecutiveResolveCopies.CanReuse(copy))
+                        ++resolveCopiesSkipped;
+                    else
+                    {
+                        RenderBox box{ int32_t(x0), int32_t(y0), int32_t(x0 + w), int32_t(y0 + h), 0, 1 };
+                        commandList->copyTextureRegion(RenderTextureCopyLocation::Subresource(rs.tex->texture.get()),
+                            RenderTextureCopyLocation::Subresource(color.texture.get()), x0, y0, 0, &box);
+                        ++resolveCopiesRecorded;
+                    }
+                    consecutiveResolveCopies.Record(copy);
                 }
                 else if (!BlitRegion(color, *rs.tex, x0, y0, w, h))
                     return;
@@ -4338,7 +4365,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             {
                 ScopedTimer timer{ tResolve };
                 nResolve++;
+                consecutiveResolveCopies.BeginResolve();
                 ResolveImpl();
+                consecutiveResolveCopies.EndResolve();
             }
 
             void ResolveImpl()
@@ -4520,6 +4549,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 Begin();
                 if (copyControl & 0x100)
                 {
+                    consecutiveResolveCopies.Invalidate();
                     uint32_t clear = Reg(REG_RB_COLOR_CLEAR);
                     RenderColor c(float((clear >> 16) & 0xFF) / 255.0f, float((clear >> 8) & 0xFF) / 255.0f, float(clear & 0xFF) / 255.0f, float(clear >> 24) / 255.0f);
                     Transition(*color, RenderTextureLayout::COLOR_WRITE, RenderBarrierStage::GRAPHICS);
@@ -4537,6 +4567,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 
             void ClearDepthTarget(uint32_t pitch, uint32_t rtHeight)
             {
+                consecutiveResolveCopies.Invalidate();
                 uint32_t depthInfo = Reg(REG_RB_DEPTH_INFO);
                 HostTexture* depth = GetRenderTarget(depthInfo & 0xFFF, (depthInfo >> 16) & 1, pitch, rtHeight, true);
                 if (!depth || !depth->texture) return;
@@ -4767,6 +4798,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             static const bool stats = getenv("LO_GPU_STATS") != nullptr;
             static auto lastFrame = std::chrono::steady_clock::now();
             g_renderer->Flush();
+            if ((stats || render_timing::Enabled()) && (render_timing::Enabled() || g_renderer->frame % 60 == 0))
+                LOG_INFO("renderer resolve copies frame={} recorded={} skipped={} reuse={} scope=current_frame_consecutive_color_resolves",
+                    g_renderer->frame, g_renderer->resolveCopiesRecorded, g_renderer->resolveCopiesSkipped, g_renderer->resolveCopyReuse);
+            g_renderer->resolveCopiesRecorded = g_renderer->resolveCopiesSkipped = 0;
             if (render_timing::Enabled()) {
                 Renderer& r = *g_renderer;
                 const render_timing::CpuSegments cpu{r.drawsThisFrame, r.nShader, r.nPipeline, r.nTexture, r.nResolve,
@@ -4903,13 +4938,17 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
     void InvalidateGuestRange(uint32_t physicalAddress, uint32_t size)
     {
         if (g_renderer)
+        {
+            g_renderer->consecutiveResolveCopies.Invalidate();
             g_renderer->InvalidateRange(physicalAddress, size);
+        }
     }
 
     plume::RenderTexture* AcquireResolvedSurface(uint32_t physicalAddress, uint32_t& width, uint32_t& height, uint32_t& format)
     {
         if (!g_renderer)
             return nullptr;
+        g_renderer->consecutiveResolveCopies.Invalidate();
         auto* rs = g_renderer->NewestResolved(physicalAddress & 0x1FFFFFFF);
         if (!rs)
             return nullptr;

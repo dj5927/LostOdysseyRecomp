@@ -1,6 +1,7 @@
 // GPU regression for padded FP16 resolves: initialize the placed RT before
 // partial copies, and preserve pixels outside subsequent copy rectangles.
 #include <plume_render_interface.h>
+#include "../../LostOdysseyRecomp/gpu/resolve_copy_policy.h"
 #include <array>
 #include <cstdint>
 #include <cstdio>
@@ -37,23 +38,54 @@ int main(int argc, char** argv) {
         auto commands = queue->createCommandList();
         auto fence = device->createCommandFence();
         if (!srcFb || !dstFb || !readback || !commands || !fence) return 2;
+        gpu::resolve_copy::ConsecutiveCopies copies;
         for (unsigned pass = 0; pass < 2; ++pass) {
+            copies.Invalidate(); // A submitted batch cannot supply reuse evidence.
             commands->begin();
             commands->barriers(RenderBarrierStage::GRAPHICS, RenderTextureBarrier(src.get(), RenderTextureLayout::COLOR_WRITE));
             commands->setFramebuffer(srcFb.get());
-            commands->clearColor(0, pass ? RenderColor(1, .75f, .5f, .25f) : RenderColor(.25f, .5f, .75f, 1));
+            commands->clearColor(0, RenderColor(.25f, .5f, .75f, 1));
             // This is deliberately once per allocation, not once per resolve.
             if (pass == 0 && !skipInit) {
                 commands->barriers(RenderBarrierStage::GRAPHICS, RenderTextureBarrier(dst.get(), RenderTextureLayout::COLOR_WRITE));
                 commands->setFramebuffer(dstFb.get());
                 commands->clearColor(0, RenderColor(0, 0, 0, 0));
             }
-            commands->barriers(RenderBarrierStage::COPY, RenderTextureBarrier(src.get(), RenderTextureLayout::COPY_SOURCE));
-            commands->barriers(RenderBarrierStage::COPY, RenderTextureBarrier(dst.get(), RenderTextureLayout::COPY_DEST));
             const RenderBox box = pass ? RenderBox{16, 8, 80, 40, 0, 1} : RenderBox{0, 0, copyWidth, dstHeight, 0, 1};
-            commands->copyTextureRegion(RenderTextureCopyLocation::Subresource(dst.get()),
-                RenderTextureCopyLocation::Subresource(src.get()), box.left, box.top, 0, &box);
-            commands->barriers(RenderBarrierStage::GRAPHICS, RenderTextureBarrier(dst.get(), RenderTextureLayout::SHADER_READ));
+            unsigned recorded = 0, skipped = 0, resolveOrdinal = 0;
+            const auto resolve = [&] {
+                copies.BeginResolve();
+                commands->barriers(RenderBarrierStage::COPY, RenderTextureBarrier(src.get(), RenderTextureLayout::COPY_SOURCE));
+                commands->barriers(RenderBarrierStage::COPY, RenderTextureBarrier(dst.get(), RenderTextureLayout::COPY_DEST));
+                const gpu::resolve_copy::Copy copy{allocation * 2 + 1, allocation * 2 + 2,
+                    srcWidth, srcHeight, dstWidth, dstHeight, uint32_t(format),
+                    uint32_t(box.left), uint32_t(box.top), uint32_t(box.right - box.left), uint32_t(box.bottom - box.top)};
+                if (copies.CanReuse(copy)) ++skipped;
+                else {
+                    commands->copyTextureRegion(RenderTextureCopyLocation::Subresource(dst.get()),
+                        RenderTextureCopyLocation::Subresource(src.get()), box.left, box.top, 0, &box);
+                    ++recorded;
+                }
+                copies.Record(copy);
+                commands->barriers(RenderBarrierStage::GRAPHICS, RenderTextureBarrier(dst.get(), RenderTextureLayout::SHADER_READ));
+                ++resolveOrdinal; // Logical resolve side effects also run on reuse.
+                copies.EndResolve();
+            };
+            resolve();
+            resolve();
+            if (pass) {
+                // A source clear in the SAME batch must force a new pixel copy.
+                // Without invalidation the exact FP16 readback below stays wrong.
+                copies.Invalidate();
+                commands->barriers(RenderBarrierStage::GRAPHICS, RenderTextureBarrier(src.get(), RenderTextureLayout::COLOR_WRITE));
+                commands->setFramebuffer(srcFb.get());
+                commands->clearColor(0, RenderColor(1, .75f, .5f, .25f));
+                resolve();
+                resolve();
+            }
+            const unsigned expectedCopies = pass ? 2 : 1;
+            if (recorded != expectedCopies || skipped != expectedCopies || resolveOrdinal != expectedCopies * 2) return 1;
+            copies.Invalidate(); // External readback ends the consecutive window.
             commands->barriers(RenderBarrierStage::COPY, RenderTextureBarrier(dst.get(), RenderTextureLayout::COPY_SOURCE));
             commands->copyTextureRegion(RenderTextureCopyLocation::PlacedFootprint(readback.get(), format, dstWidth, dstHeight, 1, rowPitch / 8, 0),
                 RenderTextureCopyLocation::Subresource(dst.get()));
@@ -78,11 +110,11 @@ int main(int argc, char** argv) {
                 }
             }
             readback->unmap();
-            std::printf("allocation=%u pass=%u initialized=%d mismatch_pixels=%zu nonzero_components=%zu\n",
-                allocation, pass, !skipInit, mismatch, nonzero);
+            std::printf("allocation=%u pass=%u initialized=%d mismatch_pixels=%zu nonzero_components=%zu copies=%u skipped=%u resolves=%u\n",
+                allocation, pass, !skipInit, mismatch, nonzero, recorded, skipped, resolveOrdinal);
             if (mismatch) return 1;
         }
     }
-    std::puts("PASS: padded FP16 resolve, partial update preservation, reallocation");
+    std::puts("PASS: padded FP16 resolve, partial update preservation, reallocation, consecutive copy reuse, source clear invalidation");
     return 0;
 }

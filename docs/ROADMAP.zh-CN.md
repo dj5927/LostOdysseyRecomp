@@ -41,3 +41,6 @@ D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定�
 <a id="阶段-3推进完整通关"></a>
 <a id="阶段-4现代化"></a>
 <a id="阶段-5可选探索"></a>
+
+- [~] **相邻重复 resolve copy 消除：**本地 gpu-perf 实现只消除源、目标 allocation、format 与 region 相同且立即相邻的 copy，并在所有干扰时失效。CPU 与 D3D12/Vulkan FP16 fixture 已通过；实际游戏命中和跨场景验证仍待完成。
+- [~] **Vulkan 像素着色器 LoopEnd 谓词退出：**本地有界结构修复已实现并完成 guard、64-lane GPU/reference 与 cache 验证；复杂循环、实机游戏、玩家验收和发布仍待完成。
