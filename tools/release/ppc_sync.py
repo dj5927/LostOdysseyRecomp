@@ -28,9 +28,7 @@ def run(command, *, cwd=None, check=True):
 def identity(root, build_dir):
     evidence = {"fingerprint": ppc_prebuilt.fingerprint(root),
                 "contract": ppc_prebuilt.compile_contract(root, build_dir)[0]}
-    key = hashlib.sha256(json.dumps(evidence, sort_keys=True, separators=(",", ":"),
-                                    ensure_ascii=True).encode("utf-8")).hexdigest()
-    return key, evidence
+    return evidence_key(evidence), evidence
 
 
 def enabled(root):
@@ -91,6 +89,26 @@ def receipt(root, key, commit):
     path = root / "out/ppc-sync/receipt.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"key": key, "commit": commit, "repository": REPOSITORY}, indent=2) + "\n", encoding="utf-8")
+
+
+def evidence_key(evidence):
+    return hashlib.sha256(json.dumps(evidence, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=True).encode("utf-8")).hexdigest()
+
+
+def library_reusable(manifest, fingerprint):
+    """True when the remote library can keep its chunks and only root CMakeLists changed."""
+    if manifest is None:
+        return False
+    remote = manifest.get("fingerprint") or {}
+    if any(remote.get(field) != fingerprint.get(field) for field in ("inputs", "outputs", "headers")):
+        return False
+    remote_cmake = remote.get("cmake") or {}
+    local_cmake = fingerprint.get("cmake") or {}
+    expected = {"CMakeLists.txt", "LostOdysseyRecompLib/CMakeLists.txt"}
+    if set(remote_cmake) != expected or set(local_cmake) != expected:
+        return False
+    return remote_cmake.get("LostOdysseyRecompLib/CMakeLists.txt") == local_cmake.get("LostOdysseyRecompLib/CMakeLists.txt")
 
 
 def is_release(build_dir):
@@ -157,6 +175,90 @@ def publish(root, build_dir, key, evidence, already_built):
         raise RuntimeError("PPC main push retries exhausted")
 
 
+def publish_fingerprint(root, fingerprint):
+    """Rewrite only ppc/manifest.json when the private library chunks stay valid."""
+    parent = root / "out/ppc-sync"
+    parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="fingerprint-", dir=parent) as temporary:
+        worktree = Path(temporary) / "worktree"
+        worktree.mkdir()
+        def git(*args, check=True):
+            return run([*GIT_AUTH, *args], cwd=worktree, check=check)
+        git("init", "--quiet")
+        git("remote", "add", "origin", REMOTE)
+        for attempt in range(4):
+            git("fetch", "--no-tags", "origin", "refs/heads/main")
+            base = git("rev-parse", "FETCH_HEAD").stdout.strip()
+            git("checkout", "--detach", "--force", base)
+            existing_path = worktree / "ppc/manifest.json"
+            if not existing_path.exists():
+                raise ValueError("Private PPC manifest is missing; rebuild and sync before publishing")
+            existing = json.loads(existing_path.read_text(encoding="utf-8"))
+            evidence = {"fingerprint": fingerprint, "contract": existing["contract"]}
+            if matching_manifest(existing, evidence):
+                return base, existing, evidence_key(evidence)
+            if not library_reusable(existing, fingerprint):
+                raise ValueError("PPC library identity changed; rebuild and sync before publishing")
+            existing["fingerprint"] = fingerprint
+            validate_manifest(existing, evidence)
+            existing_path.write_text(json.dumps(existing, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+            git("add", "--", "ppc/manifest.json")
+            key = evidence_key(evidence)
+            git("-c", "user.name=PPC build sync", "-c", "user.email=ppc-sync@users.noreply.github.com",
+                "commit", "--quiet", "-m", f"Sync PPC fingerprint {key}")
+            commit = git("rev-parse", "HEAD").stdout.strip()
+            pushed = git("push", "origin", "HEAD:refs/heads/main", check=False)
+            if not pushed.returncode:
+                return commit, existing, key
+            if remote_commit() == base or attempt == 3:
+                pushed.check_returncode()
+        raise RuntimeError("PPC main push retries exhausted")
+
+
+def ensure_push(root, check_only=False):
+    """Keep the private PPC cache aligned with source identity before public push.
+
+    Version bumps change only the root CMakeLists fingerprint. Those retarget the
+    existing library chunks. Any other PPC input change still requires a rebuild.
+    """
+    if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.environ.get("LO_PPC_SYNC_ACTIVE"):
+        print("PPC ensure-push: skipped (CI or recursive build)")
+        return None
+    fingerprint = ppc_prebuilt.fingerprint(root)
+    commit = remote_commit()
+    remote = remote_manifest(commit) if commit else None
+    if remote is None:
+        raise ValueError("Private PPC cache is missing; rebuild and sync before publishing")
+    evidence = {"fingerprint": fingerprint, "contract": remote["contract"]}
+    key = evidence_key(evidence)
+    if matching_manifest(remote, evidence):
+        receipt(root, key, commit)
+        print(f"PPC ensure-push: unchanged ({key})")
+        return key, commit
+    if not library_reusable(remote, fingerprint):
+        raise ValueError("PPC library identity changed; rebuild and sync before publishing")
+    if check_only:
+        print(f"PPC ensure-push: would retarget cmake fingerprint ({key})")
+        return key, commit
+    previous = os.environ.get("LO_PPC_SYNC_ACTIVE")
+    os.environ["LO_PPC_SYNC_ACTIVE"] = "1"
+    try:
+        commit, expected, key = publish_fingerprint(root, fingerprint)
+        actual = remote_manifest(commit)
+        validate_manifest(actual, evidence)
+        for field in ("schema", "fingerprint", "contract", "library", "chunks"):
+            if actual[field] != expected[field]:
+                raise ValueError("PPC upload readback metadata mismatch")
+        receipt(root, key, commit)
+        print(f"PPC ensure-push: retargeted cmake fingerprint {key} ({commit})")
+        return key, commit
+    finally:
+        if previous is None:
+            os.environ.pop("LO_PPC_SYNC_ACTIVE", None)
+        else:
+            os.environ["LO_PPC_SYNC_ACTIVE"] = previous
+
+
 def sync(root, caller, already_built=False, force=False):
     if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.environ.get("LO_PPC_SYNC_ACTIVE"):
         print("PPC sync: skipped (CI or recursive build)")
@@ -211,9 +313,16 @@ def main():
         else:
             command.add_argument("--already-built", action="store_true")
             command.add_argument("--force", action="store_true")
+    ensure = commands.add_parser("ensure-push")
+    ensure.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
+    ensure.add_argument("--check-only", action="store_true")
     args = parser.parse_args()
     try:
-        root, build_dir = args.root.resolve(), args.build_dir.resolve()
+        root = args.root.resolve()
+        if args.command == "ensure-push":
+            ensure_push(root, args.check_only)
+            return 0
+        build_dir = args.build_dir.resolve()
         if args.command == "key":
             key, _ = identity(root, build_dir)
             print(key)

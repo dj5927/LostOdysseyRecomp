@@ -144,6 +144,78 @@ class PpcSyncTests(unittest.TestCase):
                 sync.sync(self.root, self.build, force=True)
         self.assertFalse((self.root / "out/ppc-sync/receipt.json").exists())
 
+    def cmake_fingerprint(self, root_cmake="root"):
+        return {
+            "inputs": {"source": "abc"},
+            "outputs": {"lib": "def"},
+            "headers": {"mmio": "ghi"},
+            "cmake": {
+                "CMakeLists.txt": root_cmake,
+                "LostOdysseyRecompLib/CMakeLists.txt": "lib-cmake",
+            },
+        }
+
+    def test_library_reusable_allows_root_cmake_only(self):
+        fingerprint = self.cmake_fingerprint("new-root")
+        manifest = {"fingerprint": self.cmake_fingerprint("old-root")}
+        self.assertTrue(sync.library_reusable(manifest, fingerprint))
+
+    def test_library_reusable_rejects_lib_cmake_or_inputs(self):
+        fingerprint = self.cmake_fingerprint()
+        lib = {"fingerprint": self.cmake_fingerprint()}
+        lib["fingerprint"]["cmake"]["LostOdysseyRecompLib/CMakeLists.txt"] = "changed"
+        self.assertFalse(sync.library_reusable(lib, fingerprint))
+        inputs = {"fingerprint": self.cmake_fingerprint()}
+        inputs["fingerprint"]["inputs"] = {"source": "other"}
+        self.assertFalse(sync.library_reusable(inputs, fingerprint))
+        self.assertFalse(sync.library_reusable(None, fingerprint))
+
+    def test_ensure_push_skips_in_ci(self):
+        with patch.dict(os.environ, {"CI": "1"}), patch.object(sync, "remote_commit") as remote:
+            self.assertIsNone(sync.ensure_push(self.root))
+            remote.assert_not_called()
+
+    def test_ensure_push_unchanged_does_not_upload(self):
+        self.evidence["fingerprint"] = self.cmake_fingerprint()
+        self.manifest["fingerprint"] = self.cmake_fingerprint()
+        with patch.object(sync, "remote_commit", return_value=SHA), patch.object(sync, "remote_manifest", return_value=self.manifest), patch.object(sync, "publish_fingerprint") as publish:
+            key, commit = sync.ensure_push(self.root)
+            publish.assert_not_called()
+            self.assertEqual(SHA, commit)
+            self.assertEqual(sync.evidence_key({"fingerprint": self.cmake_fingerprint(), "contract": self.evidence["contract"]}), key)
+
+    def test_ensure_push_check_only_retargets_without_upload(self):
+        self.evidence["fingerprint"] = self.cmake_fingerprint("new-root")
+        remote = copy.deepcopy(self.manifest)
+        remote["fingerprint"] = self.cmake_fingerprint("old-root")
+        with patch.object(sync, "remote_commit", return_value=SHA), patch.object(sync, "remote_manifest", return_value=remote), patch.object(sync, "publish_fingerprint") as publish:
+            key, commit = sync.ensure_push(self.root, check_only=True)
+            publish.assert_not_called()
+            self.assertEqual(SHA, commit)
+            self.assertEqual(sync.evidence_key({"fingerprint": self.cmake_fingerprint("new-root"), "contract": self.evidence["contract"]}), key)
+
+    def test_ensure_push_rejects_library_changes(self):
+        self.evidence["fingerprint"] = self.cmake_fingerprint()
+        remote = copy.deepcopy(self.manifest)
+        remote["fingerprint"] = self.cmake_fingerprint()
+        remote["fingerprint"]["inputs"] = {"source": "other"}
+        with patch.object(sync, "remote_commit", return_value=SHA), patch.object(sync, "remote_manifest", return_value=remote), patch.object(sync, "publish_fingerprint") as publish:
+            with self.assertRaisesRegex(ValueError, "library identity changed"):
+                sync.ensure_push(self.root)
+            publish.assert_not_called()
+
+    def test_ensure_push_retargets_root_cmake(self):
+        fingerprint = self.cmake_fingerprint("new-root")
+        self.evidence["fingerprint"] = fingerprint
+        remote = copy.deepcopy(self.manifest)
+        remote["fingerprint"] = self.cmake_fingerprint("old-root")
+        updated = copy.deepcopy(remote)
+        updated["fingerprint"] = fingerprint
+        key = sync.evidence_key({"fingerprint": fingerprint, "contract": self.evidence["contract"]})
+        with patch.object(sync, "remote_commit", return_value=SHA), patch.object(sync, "remote_manifest", side_effect=[remote, updated]), patch.object(sync, "publish_fingerprint", return_value=(OTHER_SHA, updated, key)) as publish:
+            self.assertEqual((key, OTHER_SHA), sync.ensure_push(self.root))
+            publish.assert_called_once_with(self.root, fingerprint)
+
     def test_non_release_configures_isolated_source_build(self):
         (self.build / "CMakeCache.txt").write_text("CMAKE_BUILD_TYPE:STRING=Debug\n")
         with patch.object(sync, "run") as run:
@@ -202,6 +274,43 @@ class PpcSyncGitTests(unittest.TestCase):
         refs = self.git("--git-dir", str(self.remote), "for-each-ref", "--format=%(refname)")
         self.assertEqual("refs/heads/main", refs)
         self.assertEqual([], list((self.root / "out/ppc-sync").glob("upload-*")))
+
+    def test_publish_fingerprint_rewrites_manifest_only(self):
+        self.prepare()
+        fingerprint = {
+            "inputs": {"source": "abc"},
+            "outputs": {"lib": "def"},
+            "headers": {"mmio": "ghi"},
+            "cmake": {
+                "CMakeLists.txt": "new-root",
+                "LostOdysseyRecompLib/CMakeLists.txt": "lib-cmake",
+            },
+        }
+        self.manifest["fingerprint"] = {
+            "inputs": {"source": "abc"},
+            "outputs": {"lib": "def"},
+            "headers": {"mmio": "ghi"},
+            "cmake": {
+                "CMakeLists.txt": "old-root",
+                "LostOdysseyRecompLib/CMakeLists.txt": "lib-cmake",
+            },
+        }
+        (self.seed / "ppc/manifest.json").write_text(json.dumps(self.manifest, indent=2) + "\n")
+        (self.seed / "ppc/ppc-0000.bin").write_bytes(b"0123456789")
+        self.git("add", ".", cwd=self.seed)
+        self.git("commit", "-m", "seed bundle", cwd=self.seed)
+        self.git("push", "origin", "main", cwd=self.seed)
+        seeded = self.git("rev-parse", "HEAD", cwd=self.seed)
+        original_bin = self.git("--git-dir", str(self.remote), "rev-parse", f"{seeded}:ppc/ppc-0000.bin")
+        commit, manifest, key = sync.publish_fingerprint(self.root, fingerprint)
+        self.assertEqual(commit, sync.remote_commit())
+        self.assertEqual(fingerprint, manifest["fingerprint"])
+        self.assertEqual(original_bin, self.git("--git-dir", str(self.remote), "rev-parse", f"{commit}:ppc/ppc-0000.bin"))
+        self.assertEqual(self.git("--git-dir", str(self.remote), "rev-parse", f"{commit}:default.xex"),
+                         self.git("rev-parse", f"{self.original}:default.xex", cwd=self.seed))
+        self.writer.assert_not_called()
+        self.export.assert_not_called()
+        self.assertEqual(key, sync.evidence_key({"fingerprint": fingerprint, "contract": self.manifest["contract"]}))
 
     def test_publish_preserves_other_files_and_creates_only_main(self):
         self.prepare()
