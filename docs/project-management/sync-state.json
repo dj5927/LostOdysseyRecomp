@@ -2512,11 +2512,11 @@
         "Status": "In Progress",
         "Delivery": "Implemented",
         "Start date": "2026-09-14",
-        "Evidence": "Published on main through a116d1c; secret configured and BOM handling corrected. API /models returned HTTP 200; chat-completions returned 16 total tokens (11 input, 5 output). Eleven mock tests and one encoding regression passed. Hosted run 34886197607 succeeded; workflow 358120201 is active. Its Issue #27 dry-run artifact was reviewed and did not POST. Real new-Issue automatic public reply, triage quality, repair, validation, acceptance and release remain pending.",
+        "Evidence": "Published on main through 600b08e: Issue-opened triage, @codex comment handling and read-only tracked first-party retrieval are deployed. Secret configured and BOM handling corrected. Nineteen triage/mention plus seven retrieval tests passed; local synthetic mention and real #27/source/API Chinese dry run succeeded without POST. Hosted workflow-dispatch run 34887742345 succeeded but used the ordinary path with no comment_id. A real issue_comment public reply, triage quality, repair, validation, acceptance and release remain pending.",
         "Source key": "openai-compatible-issue-triage-automation"
       },
       "title": "Automate new GitHub Issue analysis and replies",
-      "body_sha256": "43b8016419071c82b75e9cfbf25ca810d64ec59cbb9c924197b288c20264769b"
+      "body_sha256": "70f33d305366ad5f876fbffbad67071dc61e70011c64f57c7d5f2c56bf788dbd"
     }
   }
 }
