@@ -54,9 +54,11 @@ def request_json(url, token, method='GET', payload=None):
                           f'{type(reason).__name__} (errno={getattr(reason, "errno", None)})') from None
     except (TimeoutError, OSError) as exc:
         raise TriageError(f'Network request failed: {type(exc).__name__}') from None
-    except ValueError:
+    except json.JSONDecodeError:
         raise TriageError(f'Invalid JSON from {urllib.parse.urlsplit(url).hostname} '
                           f'(type={content_type}, bytes={len(raw)})') from None
+    except (UnicodeError, ValueError):
+        raise TriageError('Invalid request encoding or response data') from None
 
 
 def existing_comment(issue_url, token):
