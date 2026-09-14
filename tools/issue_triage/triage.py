@@ -41,6 +41,7 @@ def request_json(url, token, method='GET', payload=None):
     })
     try:
         with urllib.request.build_opener(NoRedirect).open(req, timeout=60) as response:
+            content_type = response.headers.get_content_type()
             raw = response.read(MAX_RESPONSE + 1)
         if len(raw) > MAX_RESPONSE:
             raise TriageError('Response exceeds size limit')
@@ -54,7 +55,8 @@ def request_json(url, token, method='GET', payload=None):
     except (TimeoutError, OSError) as exc:
         raise TriageError(f'Network request failed: {type(exc).__name__}') from None
     except ValueError:
-        raise TriageError(f'Invalid JSON from {urllib.parse.urlsplit(url).hostname}') from None
+        raise TriageError(f'Invalid JSON from {urllib.parse.urlsplit(url).hostname} '
+                          f'(type={content_type}, bytes={len(raw)})') from None
 
 
 def existing_comment(issue_url, token):
@@ -113,6 +115,7 @@ def run(env, root):
         'messages': [{'role': 'system', 'content': SYSTEM},
                      {'role': 'user', 'content': json.dumps(data, ensure_ascii=False)}],
         'max_completion_tokens': 1200,
+        'stream': False,
     })
     try:
         if result['choices'][0]['finish_reason'] != 'stop':
