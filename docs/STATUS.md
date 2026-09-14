@@ -1,6 +1,6 @@
 # Project status
 
-## v0.5.13 preparation — Alt+Enter window/fullscreen toggle — 2026-09-14
+## Published v0.5.13 — Alt+Enter window/fullscreen toggle — 2026-09-14
 
 The source change adds an **Alt+Enter** presentation toggle between **Windowed** and **Borderless**. It does not select DXGI exclusive fullscreen, and `DXGI_MWA_NO_ALT_ENTER` remains set. The chord accepts SYSKEY scancode-only `RETURN`, `windowID=0`, left Alt, right Alt and AltGr (`KMOD_RALT|KMOD_CTRL` or `KMOD_MODE`). On Win32, `GetAsyncKeyState(VK_MENU)` is combined with left/right Alt handling because both Alt keys report key code 18 and right Alt may arrive as Ctrl without `KMOD_ALT`. `FitBorderless` is best-effort and cannot roll a successful toggle back to Windowed; Shift/GUI rejection, placement and debounce remain unchanged.
 
@@ -8,7 +8,11 @@ The implementation is in `LostOdysseyRecomp/gpu/window_mode.h` and `LostOdysseyR
 
 Live local acceptance on 2026-09-14 confirmed left Alt+Enter and right Alt+Enter in the actual game window. The accepted run used a local RelWithDebInfo build of the same chord code, Vulkan on an RTX 5080, `window_mode=0` Windowed, a 3840×2160-class display, and `LO_NO_UPDATE=1 --game disc1`. This is local shortcut acceptance, not acceptance of the published package.
 
-Source/release version 0.5.13 is being prepared; v0.5.13 has not been committed, pushed, tagged or published. No package hash, CI run, release URL or download verification is claimed here. Whole-game, DXGI exclusive-fullscreen, mixed-DPI, mouse and packaged-release validation remain unverified.
+Published at [GitHub Release v0.5.13](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.13) on 2026-09-14T23:36:59Z. Release CI [34908617463](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34908617463) succeeded after the synchronized PPC identity was retargeted; source/tag commit `545af9be26ebafed364f68c1b2725c10b5b03206` and annotated tag `v0.5.13` are published. CI used the prebuilt PPC artifact from `LostOdysseyRecomp-build-inputs`, not `rebuild_ppc`; cache key `bdf6dce2af1112a1dd0e1ed161bd66a2d7959ed1f174ad049a684b74a4367fc7` came from private commit `d4feb17917189a5b9f051b48b783f5fc62081658`. Only the root `CMakeLists.txt` hash changed versus v0.5.12; the PPC contract and library chunks were unchanged.
+
+The Windows ZIP `LostOdysseyRecomp-windows-x64-v0.5.13.zip` is 44,304,038 bytes with SHA-256 `a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd`; the inner runtime is 83,536,896 bytes with SHA-256 `d144762040db8918e34282f429044833266fdd3f5b9c48bf221c27752fbc6e58`; the inner updater is 846,336 bytes with SHA-256 `5e5c7957947969431ae499a3acc18536dc5940aaef0598fd7ba2faa2f6c76b96`. The ZIP hash matches its sidecar, and both public ZIP and `.sha256` downloads returned HTTP 302 to GitHub release assets; followed downloads returned HTTP 200 and matched the recorded hash and size.
+
+The published package was not launched for gameplay validation. Whole-game, DXGI exclusive-fullscreen, mixed-DPI and mouse validation remain unverified; publication checks do not claim 50-file manifest re-verification or packaged gameplay acceptance.
 
 ## Published v0.5.12 — 2026-09-14
 

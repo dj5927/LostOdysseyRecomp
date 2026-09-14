@@ -14,17 +14,21 @@ One record of completed changes, with unpublished work separated from verified r
 
 - 已在 `600b08e` 部署 GitHub Issue triage workflow 更新，支持授权协作者的 `@codex` 评论请求、按评论去重、最近人类讨论和有界的 first-party 代码检索。19 项 triage/mention 检查及 7 项 retrieval 检查已通过；首次公开 `@codex` 回复仍待观察。
 
-## v0.5.13 — 2026-09-14
+## v0.5.13 — 2026-09-14 / Published / 已发布
 
 ### English
 
 - Add an accepted **Alt+Enter** shortcut that toggles **Windowed** and **Borderless** presentation modes without selecting DXGI exclusive fullscreen. The chord accepts left Alt, right Alt and AltGr while retaining Shift/GUI rejection, placement handling and debounce; `DXGI_MWA_NO_ALT_ENTER` remains set.
-- The focused `LoGameWindowPixelsTest --rendering-fixes-only` fixture passed after the SYSKEY, `windowID=0`, right-Alt and AltGr/`VK_MENU=18` updates. Live local acceptance confirmed both left-Alt+Enter and right-Alt+Enter in the actual game window on 2026-09-14. Whole-game, exclusive-fullscreen, mixed-DPI, mouse and packaged-release validation remain unverified; the v0.5.13 Windows package is being prepared and is not yet published.
+- The focused `LoGameWindowPixelsTest --rendering-fixes-only` fixture passed after the SYSKEY, `windowID=0`, right-Alt and AltGr/`VK_MENU=18` updates. Live local acceptance confirmed both left-Alt+Enter and right-Alt+Enter in the actual game window on 2026-09-14. Whole-game, exclusive-fullscreen, mixed-DPI and mouse validation remain unverified; the published package was not launched for gameplay validation.
 
 ### 简体中文
 
 - 增加已验收的 **Alt+Enter** 快捷键，在 **Windowed** 与 **Borderless** 显示模式之间切换，不选择 DXGI exclusive fullscreen。快捷键支持左 Alt、右 Alt 和 AltGr，同时保留 Shift／GUI 拒绝、窗口位置处理和去抖；`DXGI_MWA_NO_ALT_ENTER` 仍保持设置。
-- 更新 SYSKEY、`windowID=0`、右 Alt 和 AltGr／`VK_MENU=18` 覆盖后的定向 `LoGameWindowPixelsTest --rendering-fixes-only` 夹具已通过。2026-09-14 在实际游戏窗口中现场验收了左 Alt+Enter 和右 Alt+Enter。全游戏、exclusive fullscreen、混合 DPI、鼠标和发布包验证仍未核验；v0.5.13 Windows 包正在准备，尚未发布。
+- 更新 SYSKEY、`windowID=0`、右 Alt 和 AltGr／`VK_MENU=18` 覆盖后的定向 `LoGameWindowPixelsTest --rendering-fixes-only` 夹具已通过。2026-09-14 在实际游戏窗口中现场验收了左 Alt+Enter 和右 Alt+Enter。全游戏、exclusive fullscreen、混合 DPI 和鼠标验证仍未核验；未启动发布包进行游戏实测验证。
+
+Published at [GitHub Release v0.5.13](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.13) on 2026-09-14T23:36:59Z. Release CI [34908617463](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34908617463) succeeded after the synchronized PPC identity was retargeted; source/tag commit `545af9be26ebafed364f68c1b2725c10b5b03206` and annotated tag `v0.5.13` are published. CI used the prebuilt PPC artifact from `LostOdysseyRecomp-build-inputs`, not `rebuild_ppc`; cache key `bdf6dce2af1112a1dd0e1ed161bd66a2d7959ed1f174ad049a684b74a4367fc7` came from private commit `d4feb17917189a5b9f051b48b783f5fc62081658`. Only the root `CMakeLists.txt` hash changed versus v0.5.12; the PPC contract and library chunks were unchanged. The Windows ZIP is 44,304,038 bytes with SHA-256 `a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd`; the runtime is 83,536,896 bytes with SHA-256 `d144762040db8918e34282f429044833266fdd3f5b9c48bf221c27752fbc6e58`; the updater is 846,336 bytes with SHA-256 `5e5c7957947969431ae499a3acc18536dc5940aaef0598fd7ba2faa2f6c76b96`. The ZIP hash matches its sidecar, and both public ZIP and `.sha256` downloads returned HTTP 302 to GitHub release assets; followed downloads returned HTTP 200 and matched the recorded hash and size. Publication checks do not claim 50-file manifest re-verification or gameplay validation of the published package.
+
+已于 2026-09-14T23:36:59Z 发布 [GitHub Release v0.5.13](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.13)。Release CI [34908617463](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34908617463) 在同步 PPC identity 重新指向后成功；源码／标签提交为 `545af9be26ebafed364f68c1b2725c10b5b03206`，annotated tag 为 `v0.5.13`。CI 使用 `LostOdysseyRecomp-build-inputs` 中的预编译 PPC artifact，而非 `rebuild_ppc`；缓存 key 为 `bdf6dce2af1112a1dd0e1ed161bd66a2d7959ed1f174ad049a684b74a4367fc7`，来自私有提交 `d4feb17917189a5b9f051b48b783f5fc62081658`。相较 v0.5.12 仅根目录 `CMakeLists.txt` hash 改变，PPC contract 和 library chunks 未改变。Windows ZIP 大小为 44,304,038 字节，SHA-256 为 `a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd`；runtime 为 83,536,896 字节，SHA-256 为 `d144762040db8918e34282f429044833266fdd3f5b9c48bf221c27752fbc6e58`；updater 为 846,336 字节，SHA-256 为 `5e5c7957947969431ae499a3acc18536dc5940aaef0598fd7ba2faa2f6c76b96`。ZIP hash 与 sidecar 一致，公开 ZIP 和 `.sha256` 下载均返回 HTTP 302 到 GitHub release-assets；跟随下载返回 HTTP 200，且 hash 与大小一致。发布检查不宣称重新核对 50 文件 manifest，也不宣称发布包游戏实测验证。
 
 ## v0.5.12 — 2026-09-14 / Published / 已发布
 

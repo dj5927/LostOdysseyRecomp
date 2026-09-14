@@ -21,9 +21,9 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 
 ## v0.5.13 新增
 
-Windows x64 包正在准备中，计划作为 v0.5.13 发布；目前尚未发布。
+已发布 Windows x64 包：[v0.5.13](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.13)。ZIP SHA-256 为 `a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd`。
 
-- **Alt+Enter** 可在 Windowed 与 Borderless 显示模式之间切换，不选择 DXGI exclusive fullscreen。支持左 Alt、右 Alt 和 AltGr；实际游戏窗口中两种 Alt 组合均已现场验收。全游戏、exclusive fullscreen、混合 DPI、鼠标和发布包验证仍未核验。
+- **Alt+Enter** 可在 Windowed 与 Borderless 显示模式之间切换，不选择 DXGI exclusive fullscreen。支持左 Alt、右 Alt 和 AltGr；实际游戏窗口中两种 Alt 组合均已现场验收。全游戏、exclusive fullscreen、混合 DPI 和鼠标验证仍未核验；未启动发布包进行游戏实测验证。
 
 ## v0.5.12 新增
 

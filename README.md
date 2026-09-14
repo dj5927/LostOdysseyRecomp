@@ -21,9 +21,9 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 
 ## New in v0.5.13
 
-The Windows x64 package is being prepared and will be published as v0.5.13; it is not published yet.
+Published Windows x64 package: [v0.5.13](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.13). The ZIP SHA-256 is `a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd`.
 
-- **Alt+Enter** toggles between Windowed and Borderless presentation modes without selecting DXGI exclusive fullscreen. Left Alt, Right Alt and AltGr are supported. Live local acceptance confirmed both Alt variants in the actual game window; whole-game, exclusive-fullscreen, mixed-DPI, mouse and packaged-release validation remain unverified.
+- **Alt+Enter** toggles between Windowed and Borderless presentation modes without selecting DXGI exclusive fullscreen. Left Alt, Right Alt and AltGr are supported. Live local acceptance confirmed both Alt variants in the actual game window; whole-game, exclusive-fullscreen, mixed-DPI and mouse validation remain unverified. The published package was not launched for gameplay validation.
 
 ## New in v0.5.12
 
