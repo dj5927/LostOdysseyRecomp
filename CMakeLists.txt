@@ -34,7 +34,7 @@ endif()
 
 if(LO_BUILD_RUNTIME)
     if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        message(FATAL_ERROR "The runtime requires clang-cl")
+        message(FATAL_ERROR "The runtime requires Clang")
     endif()
     # XenonRecomp's tree provides XenonUtils (XEX loading), fmt, xxHash and simde.
     if(NOT LO_BUILD_TOOLS)
