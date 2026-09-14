@@ -44,7 +44,7 @@ Descriptor / upload / arena splits were **all 0** on 1836 city batch lines. D3D1
 
 City-frame component means from the same `render timing` lines: `vertex_ms` 0.331, `bind_ms` 0.677, `record_ms` 1.210, `rt_acquire_ms` 0.071, `taa_ms` 0.080, `shader_lookup_ms` 0.046, `pipeline_lookup_ms` 0.029, `scene_copy_ms` 0.025. Descriptor cache hits / misses means: 297 / 128.
 
-`LO_VERTEX_TIMING` was **not** set on this run, so Card B stage histograms are still missing.
+`LO_VERTEX_TIMING` was **not** set on this run. A later same-package city run with `LO_VERTEX_TIMING=1` is recorded in [Card B city measurement](cpu-card-b-city-2026-09-14.md).
 
 ## Verdict
 
@@ -57,6 +57,6 @@ On this published-v0.5.11 city protocol:
 - Descriptor, upload and arena limits are not exhausted.
 - GPU queue is not the 1280×720 city bottleneck.
 
-Guide §9 step 2 applies: mark add-slot / raise-limit as **low priority**. Do not add GPU slots, do not raise 1800/2048, do not add rings from this measurement. Turn to Card B's current profile (non-64B `memcmp` histogram, hash lookup only if still hot after avalanche, `poll_wait` only with new spin evidence). Cards C/D stay gated until that profile exists.
+Guide §9 step 2 applies: mark add-slot / raise-limit as **low priority**. Do not add GPU slots, do not raise 1800/2048, do not add rings from this measurement. Card B's current profile is now recorded separately; Cards C/D stay gated on their own data-contract measurement.
 
 This is one Hidden 1280×720 D3D12 city window. It is not 4K, Vulkan, 3C6T-restricted, whole-game, or player acceptance evidence.

@@ -2,12 +2,13 @@
 
 日期：2026-09-14  
 分支：`cpu-perf` / 实验分支 `cpu-perf-exp`  
-状态：**指南，未实施运行时。** Card A 已用 published v0.5.11 城市包测过（耗尽资源类 = null）。不授权改运行时、不改源版本、不宣称验收或发布。  
+状态：**指南，未实施运行时。** Card A / Card B 已用 published v0.5.11 城市包测过（耗尽资源类 = null；B1/B2/B3 均不实施）。不授权改运行时、不改源版本、不宣称验收或发布。
 正文：简体中文；符号、路径、函数名保持英文。
 
 配套记录：
 
 - [Card A city measurement（2026-09-14；published v0.5.11，无耗尽资源）](cpu-card-a-city-2026-09-14.md)
+- [Card B city measurement（2026-09-14；published v0.5.11，B1/B2/B3 不实施）](cpu-card-b-city-2026-09-14.md)
 - [CPU 重编译深度诊断（2026-09-13；历史诊断）](cpu-recomp-deep-2026-09-13.md)
 - [性能分析完整报告（2026-09-11；v0.5.4 诊断）](perf-complete-analysis.md)
 - [GPU 环缓冲实测对比（2026-09-11；诊断，非验收）](perf-gpu-ring-compare.md)
@@ -291,8 +292,10 @@ source-0.5.8：`memcmp` 占 Render **self samples** 的 7.0612%，不是整帧 7
 **回退**  
 保留 `memcmp` 路径为 fallback；寄存器 SIMD 的否决仍然有效。
 
+**当前测量（事实，2026-09-14）**：同一 published v0.5.11 城市包加 `LO_VERTEX_TIMING=1`，1846 city frames。`match_ms` 均值 0.1535（阶段和 0.3616 的 42%）。`LO_VERTEX_TIMING` 是 vertex-cache 墙钟，**不是** `memcmp` 长度直方图。直方图仍缺。详见 [Card B city measurement](cpu-card-b-city-2026-09-14.md)。
+
 **未决条件**  
-当前包的长度直方图与调用点占比。没有直方图不得扩 SIMD。
+当前包的长度直方图与调用点占比。没有直方图不得扩 SIMD。本轮 **不实施**。
 
 ---
 
@@ -319,8 +322,10 @@ Key 相等语义不变；并发查找若存在，必须仍是现有锁/无锁约
 **回退**  
 保持现有 avalanche。
 
+**当前测量（事实，2026-09-14）**：城市 `shader_lookup_ms` 均值 0.051、`pipeline_lookup_ms` 0.03；vertex cache `rehashes` 合计 0（131072 buckets）。evictions 是 vertex-cache 容量周转，不是 texture hash chain。没有 texture 链长快照。lookup 在 avalanche 后不热。详见 [Card B city measurement](cpu-card-b-city-2026-09-14.md)。
+
 **未决条件**  
-v0.5.9+ 的 cache 快照。
+v0.5.9+ 的 texture cache 链长快照。没有快照且 lookup 不热则 **不实施**、不要再写一种 mix。
 
 ---
 
@@ -347,8 +352,10 @@ guest 可见的 query/shared value 语义不变；yield 不得变成「结果尚
 **回退**  
 保持 32 / 50 µs。
 
+**当前测量（事实，2026-09-14）**：本次城市跑未设 `LO_QUERY_TRACE`，也没有新的 guest spin 证据。保持 32 / 50 µs。详见 [Card B city measurement](cpu-card-b-city-2026-09-14.md)。
+
 **未决条件**  
-新的 guest spin 调用点证据。没有就不做。
+新的 guest spin 调用点证据。没有就不做。本轮 **不实施**。
 
 ---
 
@@ -380,7 +387,7 @@ Game + Render + GPU worker + 音频已经占满或接近 3C6T。新 worker 默�
 编译期或运行时开关回到串行 prepare；默认关。
 
 **未决条件**  
-独立任务尺寸、输入稳定性、与已有异步工作的叠加。全是 gate。
+独立任务尺寸、输入稳定性、与已有异步工作的叠加。全是 gate。Card B 当前 profile 已存在，不解除本卡片。
 
 ---
 
@@ -410,7 +417,7 @@ Game + Render + GPU worker + 音频已经占满或接近 3C6T。新 worker 默�
 默认关；开关关即恢复 OS 调度。
 
 **未决条件**  
-用户确认 3C6T 作用于整个进程（本文已采用该暂定解释）；测试机拓扑可读。
+用户确认 3C6T 作用于整个进程（本文已采用该暂定解释）；测试机拓扑可读。Card B 当前 profile 已存在，不解除本卡片；affinity 默认关。
 
 ---
 
@@ -476,7 +483,7 @@ Agent 运行时测试须后台、默认静音、不抢前台。需要前台交�
 ## 9. 给下一位实施者的起步清单
 
 1. **先做卡片 A 的测量**，不要加线程。用当前要优化的二进制（写明是 `cpu-perf` 本地构建还是已发布 v0.5.11 包）在固定城市场景打开 `LO_RENDER_TIMING` / `LO_GPU_STATS`，记录每帧 `Flush` 次数、`fence_wait`、`descriptor_splits`、GPU queue。2026-09-14 已对 **published v0.5.11** 城市包完成一次测量，见 [Card A city measurement](cpu-card-a-city-2026-09-14.md)。
-2. 若 `fence_wait` 已接近诊断对照里的低个位数毫秒且 `descriptor_splits = 0`：把「再加 slot / 再抬 limit」标为低优先级，转卡片 B 的当前 profile。本次测量满足该条件（`fence_wait` 均值 0.0007 ms，splits 全 0）。
+2. 若 `fence_wait` 已接近诊断对照里的低个位数毫秒且 `descriptor_splits = 0`：把「再加 slot / 再抬 limit」标为低优先级，转卡片 B 的当前 profile。Card A 测量满足该条件（`fence_wait` 均值 0.0007 ms，splits 全 0）。Card B 当前 profile 已记录：B1 仍缺长度直方图故不扩 SIMD；B2 lookup 不热且无 texture 链长快照；B3 无新 guest spin。见 [Card B city measurement](cpu-card-b-city-2026-09-14.md)。
 3. 若仍有中途 `Flush`：指出耗尽的是 descriptor、upload 还是 arena，再单独提案。禁止笼统「多缓冲」。
 4. 任何并行准备：先写数据契约（快照、所有权、join、取消），再写代码。默认关。3C6T 下最多再占 1 条硬件线程。
 5. Affinity 保持实验、默认关。修 stub 返回值若是正确性问题，单独提交，不和性能混。
