@@ -325,10 +325,14 @@ void PointerClick(float x, float y, bool reverse)
 
 // Resolve the explicit host choice instead of the retail language allowlist's
 // default alias. Resource suffixes come from the original executable's table.
+// IDs 1-9 map to INT/JPN/DEU/FRA/SPA/ITA/KOR/CHI/SCH. The original function
+// aliases languages missing from the runtime allowlist to the ID-0 record, so
+// Europe text languages and Simplified Chinese must return the table pointer.
 PPC_FUNC(sub_82481BE8)
 {
     const uint32_t language = settings::GameLanguage();
-    if (language == 9 && ctx.r3.u32 == 0x8336A5F0 && (ctx.r4.u32 == 0 || ctx.r4.u32 == language))
+    if (language >= 1 && language <= 9 && ctx.r3.u32 == 0x8336A5F0 &&
+        (ctx.r4.u32 == 0 || ctx.r4.u32 == language))
     {
         ctx.r3.u64 = PPC_LOAD_U32(0x832455F0 + language * 4);
         static const bool logged = [] {

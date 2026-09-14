@@ -14,7 +14,7 @@ enum class WindowMode : uint32_t
 using GraphicsBackend = gpu::backend::Backend;
 // Stable persisted IDs: retain the original EN/TW UI values.
 inline constexpr const wchar_t *UiLanguageNames[] = {L"English", L"繁體中文", L"日本語", L"한국어", L"简体中文"};
-// Guest table at 832455F0 maps these IDs to INT/JPN/KOR/CHI/SCH.
+// Guest table at 832455F0 maps IDs 1-9 to INT/JPN/DEU/FRA/SPA/ITA/KOR/CHI/SCH.
 inline constexpr uint32_t AsiaLanguageIds[] = {1, 2, 7, 8, 9};
 inline constexpr const wchar_t *AsiaLanguageNames[] = {L"English", L"日本語", L"한국어", L"繁體中文", L"简体中文"};
 inline constexpr uint32_t EuropeLanguageIds[] = {1, 2, 3, 4, 5, 6};
