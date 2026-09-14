@@ -14,10 +14,19 @@ enum class Fault { None, Reserve, Split, Backing, Map, Protect };
 Fault fault = Fault::Backing;
 int faultIndex = 0;
 bool failPreferred = false;
+bool failMemoryQuery = false;
 uint32_t failureCode = ERROR_COMMITMENT_LIMIT;
 int reserveCalls = 0, splitCalls = 0, mapCalls = 0, freeCalls = 0, unmapCalls = 0, closeCalls = 0;
+int memoryQueryCalls = 0;
 int checks = 0;
 constexpr uintptr_t baseAddress = 0x100000000ull;
+constexpr uint64_t failureTimestamp = 0x01DD248FABCDEF01ull;
+constexpr uint64_t failureUptime = 42424200;
+constexpr uint64_t availablePhysicalAtFailure = 0x312345678ull;
+constexpr uint64_t availableCommitAtFailure = 0x623456789ull;
+uint64_t currentTimestamp = failureTimestamp;
+uint64_t currentAvailablePhysical = availablePhysicalAtFailure;
+uint64_t currentAvailableCommit = availableCommitAtFailure;
 void Check(bool condition, const char* message)
 {
     ++checks;
@@ -28,9 +37,45 @@ void Reset(Fault selected, int index = 0, bool preferred = true)
     fault = selected;
     faultIndex = index;
     failPreferred = preferred;
+    failMemoryQuery = false;
     failureCode = 0xD001u + uint32_t(selected) * 16 + uint32_t(index);
     reserveCalls = splitCalls = mapCalls = freeCalls = unmapCalls = closeCalls = 0;
+    memoryQueryCalls = 0;
+    currentTimestamp = failureTimestamp;
+    currentAvailablePhysical = availablePhysicalAtFailure;
+    currentAvailableCommit = availableCommitAtFailure;
     SetLastError(ERROR_SUCCESS);
+}
+void CleanupChangesFailureScene()
+{
+    currentTimestamp += 10000;
+    currentAvailablePhysical += 4096;
+    currentAvailableCommit += 4096;
+    SetLastError(ERROR_INVALID_HANDLE);
+}
+void TestGetSystemTimeAsFileTime(FILETIME* timestamp)
+{
+    timestamp->dwLowDateTime = DWORD(currentTimestamp);
+    timestamp->dwHighDateTime = DWORD(currentTimestamp >> 32);
+    SetLastError(ERROR_INVALID_DATA);
+}
+ULONGLONG TestGetTickCount64() { SetLastError(ERROR_INVALID_DATA); return failureUptime; }
+DWORD TestGetCurrentThreadId() { SetLastError(ERROR_INVALID_DATA); return 1234; }
+BOOL TestGlobalMemoryStatusEx(MEMORYSTATUSEX* memory)
+{
+    ++memoryQueryCalls;
+    Check(memory->dwLength == sizeof(*memory), "memory query size missing");
+    memory->dwMemoryLoad = 42;
+    memory->ullTotalPhys = 0x800000000ull;
+    memory->ullAvailPhys = currentAvailablePhysical;
+    memory->ullTotalPageFile = 0xC00000000ull;
+    memory->ullAvailPageFile = currentAvailableCommit;
+    memory->ullTotalVirtual = 0x800000000000ull;
+    memory->ullAvailVirtual = 0x700000000000ull;
+    // Poison last-error on success too: diagnostics must not replace the
+    // allocation error, and partially written failed queries must be discarded.
+    SetLastError(ERROR_BAD_LENGTH);
+    return failMemoryQuery ? FALSE : TRUE;
 }
 void* FailPointer() { SetLastError(failureCode); return nullptr; }
 BOOL FailBool() { SetLastError(failureCode); return FALSE; }
@@ -58,7 +103,7 @@ BOOL TestVirtualFree(void*, SIZE_T size, DWORD flags)
     }
     Check(flags == MEM_RELEASE && size == 0, "placeholder cleanup contract changed");
     ++freeCalls;
-    SetLastError(ERROR_INVALID_HANDLE);
+    CleanupChangesFailureScene();
     return TRUE;
 }
 HANDLE TestCreateFileMappingW(HANDLE file, SECURITY_ATTRIBUTES*, DWORD protection, DWORD high, DWORD low, LPCWSTR)
@@ -80,8 +125,8 @@ void* TestMapViewOfFile3(HANDLE, HANDLE, void* address, ULONG64 offset, SIZE_T s
     if (fault == Fault::Map && faultIndex == index) return FailPointer();
     return address;
 }
-BOOL TestCloseHandle(HANDLE) { ++closeCalls; SetLastError(ERROR_INVALID_HANDLE); return TRUE; }
-BOOL TestUnmapViewOfFile(const void*) { ++unmapCalls; SetLastError(ERROR_INVALID_HANDLE); return TRUE; }
+BOOL TestCloseHandle(HANDLE) { ++closeCalls; CleanupChangesFailureScene(); return TRUE; }
+BOOL TestUnmapViewOfFile(const void*) { ++unmapCalls; CleanupChangesFailureScene(); return TRUE; }
 BOOL TestVirtualProtect(void* address, SIZE_T size, DWORD protection, DWORD*)
 {
     Check(reinterpret_cast<uintptr_t>(address) == baseAddress && size == 4096 && protection == PAGE_NOACCESS,
@@ -97,6 +142,10 @@ BOOL TestVirtualProtect(void* address, SIZE_T size, DWORD protection, DWORD*)
 #define CloseHandle TestCloseHandle
 #define UnmapViewOfFile TestUnmapViewOfFile
 #define VirtualProtect TestVirtualProtect
+#define GetSystemTimeAsFileTime TestGetSystemTimeAsFileTime
+#define GetTickCount64 TestGetTickCount64
+#define GetCurrentThreadId TestGetCurrentThreadId
+#define GlobalMemoryStatusEx TestGlobalMemoryStatusEx
 #include <kernel/guest_address_space.cpp>
 #undef VirtualAlloc2
 #undef VirtualFree
@@ -105,6 +154,10 @@ BOOL TestVirtualProtect(void* address, SIZE_T size, DWORD protection, DWORD*)
 #undef CloseHandle
 #undef UnmapViewOfFile
 #undef VirtualProtect
+#undef GetSystemTimeAsFileTime
+#undef GetTickCount64
+#undef GetCurrentThreadId
+#undef GlobalMemoryStatusEx
 
 static_assert(std::is_trivial_v<GuestAddressSpace::FailureInfo>);
 // Reproduce failure before main/logging exists, as with the real static Memory.
@@ -115,6 +168,9 @@ int main()
     using namespace GuestAddressSpace;
     Check(!startupAllocation && GetFailureInfo().error == ERROR_COMMITMENT_LIMIT &&
           GetFailureInfo().operation == FailureOperation::CreateBacking, "static startup failure was lost");
+    Check(GetFailureInfo().utcFileTime == failureTimestamp && GetFailureInfo().memory.valid == 1 &&
+          GetFailureInfo().memory.availablePhysical == availablePhysicalAtFailure,
+          "static startup failure scene was lost");
     Check(GetLastError() == ERROR_INVALID_HANDLE, "cleanup did not overwrite OS error as negative control");
     for (Fault selected : {Fault::Reserve, Fault::Split, Fault::Backing, Fault::Map, Fault::Protect})
     {
@@ -139,6 +195,29 @@ int main()
             Check(info.size == expectedSize, "requested size missing");
             Check(info.address == ((selected == Fault::Reserve || selected == Fault::Backing) ? 0 : baseAddress + start), "target address missing");
             Check(info.offset == (selected == Fault::Map && index ? index == 3 ? 0xA0001000ull : 0xA0000000ull : 0), "backing offset missing");
+            // Closing the section precedes VirtualProtect; all other failure
+            // snapshots must precede every cleanup call.
+            const uint64_t cleanupBeforeFailure = selected == Fault::Protect ? 1 : 0;
+            Check(info.utcFileTime == failureTimestamp + cleanupBeforeFailure * 10000 &&
+                  info.uptimeMilliseconds == failureUptime && info.threadId == 1234,
+                  "failure timestamp/thread missing or recorded after cleanup");
+            Check(memoryQueryCalls == 1 && info.memory.valid == 1 && info.memory.error == 0 &&
+                  info.memory.loadPercent == 42 && info.memory.totalPhysical == 0x800000000ull &&
+                  info.memory.availablePhysical == availablePhysicalAtFailure + cleanupBeforeFailure * 4096 &&
+                  info.memory.totalCommit == 0xC00000000ull &&
+                  info.memory.availableCommit == availableCommitAtFailure + cleanupBeforeFailure * 4096 &&
+                  info.memory.totalVirtual == 0x800000000000ull &&
+                  info.memory.availableVirtual == 0x700000000000ull,
+                  "memory snapshot missing or recorded after cleanup");
+            const uint32_t expectedFlags = selected == Fault::Reserve ? MEM_RESERVE | MEM_RESERVE_PLACEHOLDER :
+                                           selected == Fault::Split ? MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER :
+                                           selected == Fault::Map ? MEM_REPLACE_PLACEHOLDER : 0;
+            const uint32_t expectedProtection = selected == Fault::Split ? 0 :
+                (selected == Fault::Reserve || selected == Fault::Protect) ? PAGE_NOACCESS : PAGE_READWRITE;
+            Check(info.flags == expectedFlags && info.protection == expectedProtection && info.processHandle == 0,
+                  "failed native API flags/protection/process handle missing");
+            Check(info.backingHandle == (selected == Fault::Backing ? uintptr_t(-1) : selected == Fault::Map ? 1 : 0),
+                  "failed native API backing handle missing");
             if (selected == Fault::Split) Check(freeCalls == index + 1 && closeCalls == 0, "split failure cleanup incomplete");
             if (selected == Fault::Backing) Check(freeCalls == 4 && closeCalls == 0, "backing failure cleanup incomplete");
             if (selected == Fault::Map) Check(freeCalls == 4 - index && unmapCalls == index && closeCalls == 1, "partial-map cleanup incomplete");
@@ -146,16 +225,33 @@ int main()
             if (selected != Fault::Reserve) Check(GetLastError() == ERROR_INVALID_HANDLE, "cleanup negative control absent");
         }
     }
+    for (Fault selected : {Fault::Reserve, Fault::Map})
+    {
+        Reset(selected);
+        failMemoryQuery = true;
+        Check(!Allocate(), "failure with unavailable memory snapshot must still fail allocation");
+        const auto info = GetFailureInfo();
+        Check(info.error == failureCode && info.preferredReservationError == ERROR_INVALID_ADDRESS,
+              "failed memory query overwrote original allocation errors");
+        Check(info.memory.valid == 0 && info.memory.error == ERROR_BAD_LENGTH &&
+              info.memory.totalPhysical == 0 && info.memory.availablePhysical == 0 &&
+              info.memory.availableCommit == 0,
+              "failed memory query has no distinct error or retained partial data");
+        Check(info.utcFileTime == failureTimestamp && info.threadId == 1234,
+              "failed memory query lost independent failure context");
+    }
     Reset(Fault::None);
     auto* base = Allocate();
     Check(base && reserveCalls == 2, "preferred-reservation failure must still fall back");
     Check(GetFailureInfo().operation == FailureOperation::None && GetFailureInfo().error == 0,
           "successful fallback left stale failure info");
+    Check(GetFailureInfo().utcFileTime == 0 && GetFailureInfo().memory.valid == 0 && memoryQueryCalls == 0,
+          "successful allocation left a stale failure scene or queried memory");
     Release(base);
     Check(unmapCalls == 4, "successful release must unmap all alias views");
     Reset(Fault::None, 0, false);
     base = Allocate();
     Check(base && reserveCalls == 1, "preferred reservation success changed");
     Release(base);
-    std::printf("PASS: %d checks; static startup capture, 10 failure branches, cleanup error preservation, preferred fallback, unchanged mapping contracts.\n", checks);
+    std::printf("PASS: %d checks; static startup scene, 10 failure branches, diagnostic-query/cleanup error preservation, unavailable memory snapshot, preferred fallback, unchanged mapping contracts.\n", checks);
 }

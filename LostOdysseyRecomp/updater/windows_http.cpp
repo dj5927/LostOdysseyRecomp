@@ -28,30 +28,52 @@ struct InternetHandle
     ~InternetHandle() { if (value) WinHttpCloseHandle(value); }
 };
 
-std::wstring Utf16(std::string_view value)
+bool WindowsApiFailure(const char* operation, DWORD code, std::string& error)
+{
+    // GetLastError is passed by value at the failed call site, before string
+    // allocation, error formatting, or InternetHandle cleanup can replace it.
+    error = std::string(operation) + " failed with Win32 error " + std::to_string(code);
+    return false;
+}
+
+std::wstring Utf16(std::string_view value, std::string& error)
 {
     if (value.empty()) return {};
     const auto count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.data(), int(value.size()), nullptr, 0);
-    if (!count) return {};
+    if (!count)
+    {
+        WindowsApiFailure("MultiByteToWideChar(update URL)", GetLastError(), error);
+        return {};
+    }
     std::wstring result(size_t(count), L'\0');
-    if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.data(), int(value.size()), result.data(), count)) return {};
+    if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.data(), int(value.size()), result.data(), count))
+    {
+        WindowsApiFailure("MultiByteToWideChar(update URL)", GetLastError(), error);
+        return {};
+    }
     return result;
 }
 
 bool OpenRequest(std::string_view url, InternetHandle &session, InternetHandle &connection,
                  InternetHandle &request, std::string &error)
 {
-    const auto wide = Utf16(url);
-    if (wide.empty()) { error = "update URL is not valid UTF-8"; return false; }
+    error.clear();
+    const auto wide = Utf16(url, error);
+    if (wide.empty())
+    {
+        if (error.empty()) error = "update URL is empty";
+        return false;
+    }
     URL_COMPONENTSW components{};
     components.dwStructSize = sizeof(components);
     components.dwHostNameLength = DWORD(-1);
     components.dwUrlPathLength = DWORD(-1);
     components.dwExtraInfoLength = DWORD(-1);
-    if (!WinHttpCrackUrl(wide.c_str(), DWORD(wide.size()), 0, &components) ||
-        (components.nScheme != INTERNET_SCHEME_HTTPS && components.nScheme != INTERNET_SCHEME_HTTP))
+    if (!WinHttpCrackUrl(wide.c_str(), DWORD(wide.size()), 0, &components))
+        return WindowsApiFailure("WinHttpCrackUrl", GetLastError(), error);
+    if (components.nScheme != INTERNET_SCHEME_HTTPS && components.nScheme != INTERNET_SCHEME_HTTP)
     {
-        error = "update URL is invalid";
+        error = "update URL uses an unsupported scheme";
         return false;
     }
     std::wstring host(components.lpszHostName, components.dwHostNameLength);
@@ -59,26 +81,26 @@ bool OpenRequest(std::string_view url, InternetHandle &session, InternetHandle &
     if (components.dwExtraInfoLength) path.append(components.lpszExtraInfo, components.dwExtraInfoLength);
     session.value = WinHttpOpen(L"LostOdysseyRecomp-Updater/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                                 WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-    if (!session.value) { error = "WinHTTP session could not be created"; return false; }
+    if (!session.value) return WindowsApiFailure("WinHttpOpen", GetLastError(), error);
     WinHttpSetTimeouts(session.value, 1500, 1500, 3000, 5000);
     connection.value = WinHttpConnect(session.value, host.c_str(), components.nPort, 0);
-    if (!connection.value) { error = "WinHTTP connection could not be created"; return false; }
+    if (!connection.value) return WindowsApiFailure("WinHttpConnect", GetLastError(), error);
     const DWORD flags = components.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0;
     request.value = WinHttpOpenRequest(connection.value, L"GET", path.c_str(), nullptr, WINHTTP_NO_REFERER,
                                        WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
-    if (!request.value) { error = "WinHTTP request could not be created"; return false; }
+    if (!request.value) return WindowsApiFailure("WinHttpOpenRequest", GetLastError(), error);
     DWORD redirectLimit = 3;
     WinHttpSetOption(request.value, WINHTTP_OPTION_MAX_HTTP_AUTOMATIC_REDIRECTS, &redirectLimit, sizeof(redirectLimit));
     const wchar_t headers[] = L"Accept: application/vnd.github+json\r\nX-GitHub-Api-Version: 2022-11-28\r\n";
-    if (!WinHttpSendRequest(request.value, headers, DWORD(-1), WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
-        !WinHttpReceiveResponse(request.value, nullptr))
-    {
-        error = "update request failed with Win32 error " + std::to_string(GetLastError());
-        return false;
-    }
+    if (!WinHttpSendRequest(request.value, headers, DWORD(-1), WINHTTP_NO_REQUEST_DATA, 0, 0, 0))
+        return WindowsApiFailure("WinHttpSendRequest", GetLastError(), error);
+    if (!WinHttpReceiveResponse(request.value, nullptr))
+        return WindowsApiFailure("WinHttpReceiveResponse", GetLastError(), error);
     DWORD status = 0, statusSize = sizeof(status);
     if (!WinHttpQueryHeaders(request.value, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                             WINHTTP_HEADER_NAME_BY_INDEX, &status, &statusSize, WINHTTP_NO_HEADER_INDEX) || status != 200)
+                             WINHTTP_HEADER_NAME_BY_INDEX, &status, &statusSize, WINHTTP_NO_HEADER_INDEX))
+        return WindowsApiFailure("WinHttpQueryHeaders(STATUS_CODE)", GetLastError(), error);
+    if (status != 200)
     {
         error = "update server returned HTTP " + std::to_string(status);
         return false;
@@ -101,10 +123,7 @@ bool ReadResponse(std::string_view url, size_t limit, std::string &body, std::st
         }
         DWORD read = 0;
         if (!WinHttpReadData(request.value, buffer.data(), DWORD(buffer.size()), &read))
-        {
-            error = "could not read update response";
-            return false;
-        }
+            return WindowsApiFailure("WinHttpReadData(update metadata)", GetLastError(), error);
         if (!read) break;
         if (body.size() + read > limit) { error = "update response exceeded its size limit"; return false; }
         body.append(buffer.data(), read);
@@ -131,10 +150,7 @@ bool Download(std::string_view url, const std::filesystem::path &destination, ui
         if (progress.Cancelled()) { cancelled = true; error = "update cancelled by user"; return false; }
         DWORD read = 0;
         if (!WinHttpReadData(request.value, buffer.data(), DWORD(buffer.size()), &read))
-        {
-            error = "could not read update download";
-            return false;
-        }
+            return WindowsApiFailure("WinHttpReadData(update download)", GetLastError(), error);
         if (!read) break;
         if (total > expectedSize || read > expectedSize - total)
         {

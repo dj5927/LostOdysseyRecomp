@@ -38,12 +38,84 @@ const char* FailureOperationName(FailureOperation operation)
     return "unknown";
 }
 
+const char* FailureApiName(FailureOperation operation)
+{
+    switch (operation)
+    {
+    case FailureOperation::None: return "none";
+#ifdef _WIN32
+    case FailureOperation::ReservePreferred:
+    case FailureOperation::ReserveAny: return "VirtualAlloc2";
+    case FailureOperation::SplitReservation: return "VirtualFree";
+    case FailureOperation::CreateBacking: return "CreateFileMappingW";
+    case FailureOperation::MapView: return "MapViewOfFile3";
+    case FailureOperation::ProtectNull: return "VirtualProtect";
+#else
+    case FailureOperation::ReservePreferred:
+    case FailureOperation::ReserveAny:
+    case FailureOperation::MapView: return "mmap";
+    case FailureOperation::CreateBacking: return "memfd_create";
+    case FailureOperation::ResizeBacking: return "ftruncate";
+    case FailureOperation::ProtectNull: return "mprotect";
+#endif
+    default: return "unknown";
+    }
+}
+
 static void RecordFailure(FailureOperation operation, uint32_t error, int32_t viewIndex,
                           const void* address, size_t size, size_t offset = 0,
-                          uint32_t preferredReservationError = 0)
+                          uint32_t preferredReservationError = 0, uintptr_t backingHandle = 0)
 {
     failure = {operation, error, preferredReservationError, viewIndex,
                reinterpret_cast<uintptr_t>(address), size, offset};
+#ifdef _WIN32
+    // This path also runs during global Memory construction. Keep it allocation
+    // free, and retain the caller's original error before any diagnostic API.
+    FILETIME timestamp{};
+    GetSystemTimeAsFileTime(&timestamp);
+    failure.utcFileTime = (uint64_t(timestamp.dwHighDateTime) << 32) | timestamp.dwLowDateTime;
+    failure.uptimeMilliseconds = GetTickCount64();
+    failure.threadId = GetCurrentThreadId();
+    failure.backingHandle = backingHandle;
+    switch (operation)
+    {
+    case FailureOperation::ReservePreferred:
+    case FailureOperation::ReserveAny:
+        failure.flags = MEM_RESERVE | MEM_RESERVE_PLACEHOLDER;
+        failure.protection = PAGE_NOACCESS;
+        break;
+    case FailureOperation::SplitReservation:
+        failure.flags = MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER;
+        break;
+    case FailureOperation::CreateBacking:
+        failure.protection = PAGE_READWRITE;
+        failure.backingHandle = reinterpret_cast<uintptr_t>(INVALID_HANDLE_VALUE);
+        break;
+    case FailureOperation::MapView:
+        failure.flags = MEM_REPLACE_PLACEHOLDER;
+        failure.protection = PAGE_READWRITE;
+        break;
+    case FailureOperation::ProtectNull:
+        failure.protection = PAGE_NOACCESS;
+        break;
+    default: break;
+    }
+    // VirtualAlloc2 and MapViewOfFile3 both receive a null process handle,
+    // which explicitly selects the calling process.
+    MEMORYSTATUSEX memory{};
+    memory.dwLength = sizeof(memory);
+    if (GlobalMemoryStatusEx(&memory))
+    {
+        failure.memory = {1, 0, memory.dwMemoryLoad,
+            memory.ullTotalPhys, memory.ullAvailPhys,
+            memory.ullTotalPageFile, memory.ullAvailPageFile,
+            memory.ullTotalVirtual, memory.ullAvailVirtual};
+    }
+    else
+    {
+        failure.memory.error = GetLastError();
+    }
+#endif
 }
 
 uint8_t* Allocate()
@@ -96,7 +168,8 @@ uint8_t* Allocate()
                 PAGE_READWRITE, nullptr, 0))
             {
                 RecordFailure(FailureOperation::MapView, GetLastError(), int32_t(mapped),
-                              base + kStarts[mapped], kSizes[mapped], kOffsets[mapped], preferredError);
+                              base + kStarts[mapped], kSizes[mapped], kOffsets[mapped], preferredError,
+                              reinterpret_cast<uintptr_t>(section));
                 break;
             }
         }

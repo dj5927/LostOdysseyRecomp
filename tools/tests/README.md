@@ -423,6 +423,8 @@ The development targets below are excluded from default builds and are not suite
 | `LoRenderResolutionTest` | CPU Auto/manual internal-size selection, 4K cap, aspect fit, scaled dimensions, target limits and logical texel-coordinate rules. No GPU or game assets; does not establish physical scene rendering. |
 | `LoRenderResolutionShaderTest` | Windows production translator/DXC checks for VS/PS normalized and denormalized fetches, signed texel offsets, texture weights and implicit LOD. Requires DXC DLLs discoverable by the built executable; no GPU or game assets. Shader compilation does not establish sampled pixels. |
 | `LoRenderResolutionGpuTest` | D3D12 numerical sampling with helpers extracted from production translation: 1×/1.5×/3× physical textures, guest dimensions versus ordinary uploaded textures, normalized/denormalized coordinates, signed offsets, weights and implicit/level-zero samples. Also checks invalid-width allocation rejection followed by a valid allocation, without OOM pressure. Requires GPU/Plume/DXC; uses a synthetic gradient, not a game scene. |
+| `LoPlumeLogTest` | Header-only Plume routing fixture for D3D12/Vulkan raw-code preservation, one-line bounded context, repeated-failure rate limiting, callback exception/re-entry guards and stderr fallback. No GPU, game assets or runtime PCH. |
+| `LoUpdaterHttpFailureTest` | Deterministic WinHTTP fault injection for terminal URL/session/request/send/receive/header/read failures, preserving each API name and raw Win32 error while retaining the existing non-fatal timeout/option policy. No network, game assets or GPU. |
 | `LoFramePacerTest` | Pure host deadline calculations, FPS changes, long-stall recovery and scoped guest interval/flag mapping, including the experimental 120 gate. No GPU, guest generation or runtime PCH required; this does not test gameplay speed. |
 | `LoTemporalMathTest` | CPU camera-reference math with independent analytic point, translation/yaw, viewport/Y-sign/half-pixel and invalid-input checks. No GPU, guest generation or runtime PCH required. Static round trips and these fixtures do not establish runtime frame association, motion vectors or TAA. |
 | `LoTemporalSceneTest` | CPU scene-observation ordering, frame reset, depth-allocation identity, full extents and ambiguity rejection. No GPU, guest generation or runtime PCH required. It does not validate the renderer's actual scene/UI selection. |
@@ -471,6 +473,21 @@ cmake --build out/build/release --target LoMenuRenderTest
 cmake --build out/build/release --target LoRenderResolutionGpuTest
 .\out\build\release\LostOdysseyRecomp\LoRenderResolutionGpuTest.exe
 ```
+
+```powershell
+# Focused startup and lower-layer failure diagnostics; no game launch
+cmake --build out/build/release --target LoPlumeLogTest LoMemoryFailureTest LoUpdaterHttpFailureTest
+.\out\build\release\LostOdysseyRecomp\LoPlumeLogTest.exe
+.\out\build\release\LostOdysseyRecomp\LoMemoryFailureTest.exe
+.\out\build\release\LostOdysseyRecomp\LoUpdaterHttpFailureTest.exe
+
+# Reuse the invalid-width D3D12 case and write the production-style diagnostic log
+cmake --build out/build/release --target LoRenderResolutionGpuTest
+New-Item -ItemType Directory -Force out/tests/render-resolution-gpu | Out-Null
+.\out\build\release\LostOdysseyRecomp\LoRenderResolutionGpuTest.exe --diagnostic-log out/tests/render-resolution-gpu/diagnostic-01.log
+```
+
+The four focused runs are independent of gameplay. `LoPlumeLogTest` checks raw D3D12/Vulkan code routing and callback safety; the extended existing `LoMemoryFailureTest` checks the retained allocation-failure POD captured before logger initialization; `LoUpdaterHttpFailureTest` injects deterministic WinHTTP failures without network access. In `--diagnostic-log` mode, the GPU target creates only the test device/resource path, does not compile shaders, draw, open a window or run the game, and records startup OS/architecture/PE metadata plus the invalid-width failure. The output path must not already exist and its parent directory must be created first; use a new filename for each repeat. The current source passed 23, 259 and 94 checks for the three CPU fixtures; the GPU diagnostic run also passed. Evidence is retained under `out/diagnostic-logging-20260914/`. This does not imply root-cause or reporter acceptance.
 
 ```powershell
 # Host pacing and guest interval mapping
@@ -598,7 +615,7 @@ These targets are also excluded from default builds and are invoked directly, no
 | Target | Scope and prerequisites |
 |---|---|
 | `LoGuestDispatchTest` | Calls the actual generated `0x82AFA388` and `0x82AFD150` entries through the runtime dispatch table with synthetic guest state; checks command branches, preserved flags and script progression. Requires regenerated guest sources and the runtime dependencies/PCH. It does not launch the game or reproduce the reported battle/save. |
-| `LoMemoryFailureTest` | Windows fault injection through the production allocator: static-startup capture, ten failure branches, original OS errors surviving cleanup, view/address/size/offset context and preferred-address fallback. Includes the allocator implementation itself; do not compile it a second time into this target. No game assets or GPU. |
+| `LoMemoryFailureTest` | Windows fault injection through the production allocator: static-startup capture, ten failure branches, original OS errors surviving diagnostic queries and cleanup, operation/API/argument/time/thread/handle context, failure-time memory status and its query failure, and preferred-address fallback. Checks the retained POD, not the later main-thread log report. Includes the allocator implementation itself; do not compile it a second time into this target. No game assets or GPU. |
 | `LoMemoryAliasTest` | Real OS guest-memory allocation/release and A/C/E alias behavior. No game assets or GPU; success on the local machine does not explain or resolve another machine's allocation failure. |
 
 ```powershell

@@ -42,6 +42,7 @@
 #include "render_arena_policy.h"
 #include "resolve_copy_policy.h"
 #include <os/log_file.h>
+#include <os/startup_diagnostics.h>
 #include <os/capture_archive.h>
 #include <version.h>
 
@@ -959,6 +960,21 @@ namespace gpu::renderer
             // ---- lifecycle -----------------------------------------------------
             xenos::cache::Identity cacheIdentity;
             bool initializationModuleFailure = false;
+            bool InitFailure(const char* stage, uint64_t bytes = 0, int slot = -1) noexcept
+            {
+                try {
+                    LOG_ERROR("renderer init failed: backend={} stage={} bytes={} slot={}",
+                        vulkan ? "Vulkan" : "D3D12", stage, bytes, slot);
+                    os::diagnostics::LogHostMemory("renderer initialization failure");
+                } catch (...) {
+                    char line[384];
+                    const int size = std::snprintf(line, sizeof(line),
+                        "[error] renderer init failed: backend=%s stage=%s bytes=%llu slot=%d\n",
+                        vulkan ? "Vulkan" : "D3D12", stage, static_cast<unsigned long long>(bytes), slot);
+                    if (size > 0) os::logger::EmergencyWrite(line, size_t(size) < sizeof(line) ? size_t(size) : sizeof(line) - 1);
+                }
+                return false;
+            }
             bool Init()
             {
                 device = video::GetDevice();
@@ -971,7 +987,7 @@ namespace gpu::renderer
                 binaryFormat = vulkan ? xenos::ShaderBinaryFormat::Spirv : xenos::ShaderBinaryFormat::Dxil;
                 renderFormat = vulkan ? RenderShaderFormat::SPIRV : RenderShaderFormat::DXIL;
                 if (!device || !queue)
-                    return false;
+                    return InitFailure("device_or_queue");
                 cacheIdentity = xenos::cache::MakeIdentity(vulkan ? backend::Backend::Vulkan : backend::Backend::D3D12, xenos::DxcIdentity());
 
                 // Optional collection resources are prepared before the game loop.
@@ -1005,18 +1021,21 @@ namespace gpu::renderer
                 for (uint32_t i = 0; i < kGpuSlots; ++i) {
                     auto& g = gpuSlots[i];
                     g.list = queue->createCommandList();
+                    if (!g.list) return InitFailure("command_list.create", 0, i);
                     g.fence = device->createCommandFence();
+                    if (!g.fence) return InitFailure("command_fence.create", 0, i);
                     g.uploadRing = device->createBuffer(RenderBufferDesc::UploadBuffer(kUploadRingSize, vulkan ? RenderBufferFlag::DEVICE_ADDRESSABLE | RenderBufferFlag::INDEX | RenderBufferFlag::STORAGE : RenderBufferFlag::NONE));
-                    if (!g.list || !g.fence || !g.uploadRing) return false;
+                    if (!g.uploadRing) return InitFailure("upload_ring.create", kUploadRingSize, i);
                     g.uploadMapped = static_cast<uint8_t*>(g.uploadRing->map());
-                    if (!g.uploadMapped) return false;
+                    if (!g.uploadMapped) return InitFailure("upload_ring.map", kUploadRingSize, i);
                 }
                 BindGpuSlot();
                 vertexArena = device->createBuffer(RenderBufferDesc::UploadBuffer(gpu::render_arena::kVertexArenaSize, RenderBufferFlag::STORAGE));
-                if (!vertexArena) return false;
+                if (!vertexArena) return InitFailure("vertex_arena.create", gpu::render_arena::kVertexArenaSize);
                 arenaMapped = static_cast<uint8_t*>(vertexArena->map());
+                if (!arenaMapped) return InitFailure("vertex_arena.map", gpu::render_arena::kVertexArenaSize);
                 readback = device->createBuffer(RenderBufferDesc::ReadbackBuffer(kReadbackSize));
-                if (!readback || !arenaMapped) return false;
+                if (!readback) return InitFailure("readback.create", kReadbackSize);
                 resolveReadback = getenv("LO_RESOLVE_READBACK") != nullptr;
                 textureRevalidate = getenv("LO_TEXTURE_STATIC") == nullptr;
                 auto enabled=[](const char* key){const char* value=getenv(key);return value&&strcmp(value,"1")==0;};
@@ -1033,14 +1052,15 @@ namespace gpu::renderer
                 sceneAAEnabled = (!sceneOverride||strcmp(sceneOverride,"0")!=0)&&!resolveReadback;
                 if(sceneAAEnabled) {
                     sceneProcessor=std::make_unique<gpu::Presentation>();
-                    if(!sceneProcessor->Init(device)) return false;
+                    if(!sceneProcessor->Init(device)) return InitFailure("scene_presentation.init");
                 }
                 if(temporalExperiment) {
                     temporalHistory=std::make_unique<temporal::HistoryOwner>();
-                    if(!temporalHistory->Init(device,sparseCollector)) {temporalHistory.reset();temporalExperiment=false;LOG_ERROR("renderer: temporal experiment pipeline initialization failed");return false;}
+                    if(!temporalHistory->Init(device,sparseCollector)) {temporalHistory.reset();temporalExperiment=false;return InitFailure("temporal_history.init");}
                     else LOG_INFO("renderer: temporal pre-UI experiment enabled, camera_history={} jitter={} stable_grid={} (known scene VS only; no object motion vectors)",temporalAllowHistory,temporalJitter,temporalStableGrid);
                 }
                 dummyBuffer = device->createBuffer(RenderBufferDesc::DefaultBuffer(256));
+                if (!dummyBuffer) return InitFailure("dummy_buffer.create", 256);
 
                 // Layout: root CBVs b0 (VS constants) b1 (shared) b2 (PS constants) in space0;
                 // set0 = vertex fetch buffers t0-95 + samplers s0-31 (space0),
@@ -1067,18 +1087,20 @@ namespace gpu::renderer
                 if(vulkan) {
                     setBuilders[4].begin();samplerDescriptorBase=setBuilders[4].addSampler(0,kSamplerPalette);setBuilders[4].end();
                     staticSamplerSet=setBuilders[4].create(device);
+                    if (!staticSamplerSet) return InitFailure("static_sampler_set.create");
                 }
                 for (int i = 0; i < (vulkan?5:4); i++)
                     layout.addDescriptorSet(setBuilders[i]);
                 layout.end();
                 pipelineLayout = layout.create(device);
+                if (!pipelineLayout) return InitFailure("pipeline_layout.create");
 
                 staticSet0 = setBuilders[0].create(device);
-                if (!dummyBuffer || !pipelineLayout || !staticSet0 || (vulkan && !staticSamplerSet)) return false;
+                if (!staticSet0) return InitFailure("vertex_fetch_set.create");
                 for (uint32_t i = 0; i < (vulkan?1:kVertexFetchSlots); i++)
                     staticSet0->setBuffer(vfetchDescriptorBase + i, vertexArena.get(), gpu::render_arena::kVertexArenaSize);
                 RenderSampler* defaultSampler = GetSampler(0x2 | (0x2 << 2) | (0x1 << 4)); // linear, wrap
-                if (!defaultSampler) return false;
+                if (!defaultSampler) return InitFailure("default_sampler.create");
                 for (uint32_t i = 0; i < kSamplerPalette; i++)
                     (vulkan?staticSamplerSet.get():staticSet0.get())->setSampler(samplerDescriptorBase + i, defaultSampler);
 
@@ -1089,7 +1111,8 @@ namespace gpu::renderer
                 for (int bank = 0; bank < 3; ++bank)
                 {
                     staticDummySets[bank] = setBuilders[bank + 1].create(device);
-                    if (!staticDummySets[bank] || !dummyBanks[bank]->texture) return false;
+                    if (!staticDummySets[bank]) return InitFailure("dummy_texture_set.create", 0, bank);
+                    if (!dummyBanks[bank]->texture) return InitFailure("dummy_texture.create", 0, bank);
                     for (uint32_t slot = 0; slot < kTextureSlots; ++slot)
                         staticDummySets[bank]->setTexture(slot, dummyBanks[bank]->texture.get(), RenderTextureLayout::SHADER_READ);
                 }
@@ -1110,10 +1133,11 @@ namespace gpu::renderer
                 CompileRectListGs();
                 CompileBlitShaders();
                 CompileTransferShader();
-                if (!dummyTexture2D.texture || !dummyTexture3D.texture || !dummyTextureCube.texture ||
-                    !rectListGs || !blitVs || !blitPs || !transferPs) return false;
+                if (!rectListGs) return InitFailure("rect_list_shader.create");
+                if (!blitVs || !blitPs) return InitFailure("blit_shader.create");
+                if (!transferPs) return InitFailure("transfer_shader.create");
                 PrepareKnownShaders();
-                if (initializationModuleFailure) return false;
+                if (initializationModuleFailure) return InitFailure("known_shaders.prepare");
                 PrepareKnownPipelines();
                 taa_collection::SetDevice(vulkan, device->getDescription().name, device->getDescription().driverVersion);
                 const auto dxcStats = xenos::GetDxcStatistics();

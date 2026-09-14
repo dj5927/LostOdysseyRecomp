@@ -1985,10 +1985,10 @@
         "Kind": "Bug",
         "Area": "Runtime",
         "Status": "In Progress",
-        "Delivery": "In progress",
-        "Release": "v0.5.6",
+        "Delivery": "Validated",
+        "Release": "v0.5.11",
         "Start date": "2026-09-07",
-        "Evidence": "Issue #6 is OPEN. Three v0.5.4 logs on 2026-09-11 each record reserve any address with Win32/preferred error 6; on 2026-09-12 the reporter stated that the same failure persists after a clean extraction. The historic v0.4.0 diagnostic enhancement is implemented, but no repair, root cause or reporter recovery is established. Requested environment details (Windows build, architecture, compatibility layer, RAM/pagefile, ZIP version and older-build result) and the latest complete clean-extraction log are pending. https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559",
+        "Evidence": "v0.5.11 release preparation is in progress; commit/CI/publication are not complete. Retained fixtures passed: Plume 23, memory 259, updater HTTP 94 and D3D12 diagnostic log. Same EXE local log check recorded new startup fields for D3D12/Vulkan; D3D12 reached guest swap #181, while Vulkan stopped after log confirmation. No game acceptance. #6 OPEN/root cause unknown. The prior v0.5.6 association remains historical only. Evidence: out/diagnostic-logging-20260914/local-log-check.json",
         "Source key": "issue-6-report"
       }
     },
@@ -2490,6 +2490,18 @@
       },
       "title": "Investigate Kanto armored-soldier lighting flicker",
       "body_sha256": "79f16c11432b7f27566873c1a66d1a394a4b54cb9cb5b577283fd55a522444c0"
+    },
+    "issue-22-renderer-init-report": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg6xoME",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Runtime logging",
+        "Status": "In Progress",
+        "Delivery": "Validated",
+        "Start date": "2026-09-13",
+        "Evidence": "v0.5.11 release preparation is in progress; commit/CI/publication are not complete. Retained fixtures passed: Plume 23, memory 259, updater HTTP 94 and D3D12 diagnostic log. Same EXE local log check recorded new startup fields for D3D12/Vulkan; D3D12 reached guest swap #181, while Vulkan stopped after log confirmation. No game acceptance. #22 OPEN/root cause unknown. Evidence: out/diagnostic-logging-20260914/local-log-check.json",
+        "Source key": "issue-22-renderer-init-report"
+      }
     }
   }
 }

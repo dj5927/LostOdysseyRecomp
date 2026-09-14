@@ -4,6 +4,19 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
+## v0.5.11 — 2026-09-14 UTC / Release candidate / 发布候选
+
+### English
+
+- Add startup and lower-layer failure diagnostics. D3D12/Vulkan GPU failures record the API, raw code and resource context; early allocation failures retain their original error and memory/context snapshot; startup records environment and build identity; WinHTTP terminal failures retain raw errors. Repeated failures are rate-limited, and GPU adapter/renderer formatting has an emergency fallback. Issues [#6](https://github.com/freefrank/LostOdysseyRecomp/issues/6) and [#22](https://github.com/freefrank/LostOdysseyRecomp/issues/22) remain open; this instrumentation does not claim either report is fixed.
+- Focused Plume, allocation, updater-HTTP and native-GPU diagnostic checks passed. Independent D3D12 and Vulkan runs also confirmed the new startup fields are written to runtime logs; these are bounded logging checks, not complete game/backend acceptance.
+
+### 简体中文
+
+- 增加启动和底层失败诊断。D3D12/Vulkan GPU 失败记录 API、原始 code 和资源上下文；早期客体地址空间分配失败保留原始错误及内存／现场快照；启动记录环境与构建身份；WinHTTP 终止失败保留原始错误。重复失败会限频，GPU adapter/renderer 格式化失败有应急兜底。[#6](https://github.com/freefrank/LostOdysseyRecomp/issues/6) 与 [#22](https://github.com/freefrank/LostOdysseyRecomp/issues/22) 仍开放；此诊断增强不宣称修复任一报告。
+
+- Plume、分配、updater HTTP 和 native GPU diagnostic 定向检查均已通过。独立 D3D12 与 Vulkan 进程也确认新增启动字段写入 runtime log；这些是有界日志检查，不是完整游戏／后端验收。
+
 ## v0.5.10 — 2026-09-13 / Published / 已发布
 
 ### English

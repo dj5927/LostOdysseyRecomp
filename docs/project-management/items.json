@@ -4317,7 +4317,7 @@
     {
       "key": "issue-6-report",
       "title": "[Bug]  failed to reserve the 4 GiB guest address space",
-      "body": "<!-- lo-project:issue-6-report -->\n\nIssue #6 is OPEN. The reporter supplied three v0.5.4 logs on 2026-09-11, each recording `reserve any address` with Win32/preferred error 6, then reported the same failure after a clean extraction on 2026-09-12. The historic v0.4.0 allocation-diagnostics enhancement remains separate from a repair or reporter acceptance.\n\nTracker state: OPEN. Dates represent report creation and the latest recurrence checkpoint, not implementation or acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343\n",
+      "body": "<!-- lo-project:issue-6-report -->\n\nIssue #6 is OPEN. Three reporter v0.5.4 logs record `reserve any address` with Win32/preferred error 6, and the failure persisted after a clean extraction.\n\nThe shared startup-log implementation is complete in dirty source 0.5.10 / `d8cdf39ca637-dirty`. It retains the main-thread guest-address allocation failure context before loss (original error plus memory snapshot); records OS/build/architecture/build identity/GPU driver data; routes Plume D3D12/Vulkan lower-layer failures through runtime logs with HRESULT, VkResult and Win32 error information plus GPU-resource failure stages; records independent updater WinHTTP failures; and retains existing log snapshots, retention and EmergencyWrite. Memory and renderer policy are unchanged.\n\nA Release build and four selected diagnostic validations passed: LoPlumeLogTest (23 checks), LoMemoryFailureTest (259), LoUpdaterHttpFailureTest (94), and LoRenderResolutionGpuTest `--diagnostic-log`. The last artificially uses an illegal 16385-wide D3D12 texture to produce `0x80070057`; the production adapter writes exactly one failure record in the runtime snapshot, then a legal 1x1 resource is created successfully. It is diagnostic coverage, not an Issue #22 reproduction. Vulkan coverage only compiled the logging path and ran the public callback test; no real Vulkan failure was run. There is no game/scene or reporter acceptance.\n\nThe Project Release v0.5.6 field is historical Issue association only. This post-v0.5.10 diagnostic work is unreleased: no commit, push, tag or Release exists. Tracker state remains OPEN; this does not establish a root cause or recovery on the reporter machine.\n\n## Sources\n\n- out/diagnostic-logging-20260914/REPORT.md\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559\n",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/6",
       "record_type": "issue",
       "source_refs": [
@@ -4331,11 +4331,11 @@
         "Kind": "Bug",
         "Area": "Runtime",
         "Status": "In Progress",
-        "Delivery": "In progress",
+        "Delivery": "Validated",
         "Release": "v0.5.6",
         "Start date": "2026-09-07",
         "Target date": null,
-        "Evidence": "Issue #6 is OPEN. Three v0.5.4 logs on 2026-09-11 each record reserve any address with Win32/preferred error 6; on 2026-09-12 the reporter stated that the same failure persists after a clean extraction. The historic v0.4.0 diagnostic enhancement is implemented, but no repair, root cause or reporter recovery is established. Requested environment details (Windows build, architecture, compatibility layer, RAM/pagefile, ZIP version and older-build result) and the latest complete clean-extraction log are pending. https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343 https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559"
+        "Evidence": "v0.5.11 release preparation is in progress; commit/CI/publication are not complete. Retained fixtures passed: Plume 23, memory 259, updater HTTP 94 and D3D12 diagnostic log. Same EXE local log check recorded new startup fields for D3D12/Vulkan; D3D12 reached guest swap #181, while Vulkan stopped after log confirmation. No game acceptance. #6 OPEN/root cause unknown. The prior v0.5.6 association remains historical only. Evidence: out/diagnostic-logging-20260914/local-log-check.json"
       }
     },
     {
@@ -5191,6 +5191,26 @@
       ],
       "source_lines": [],
       "record_type": "backlog"
+    },
+    {
+      "key": "issue-22-renderer-init-report",
+      "title": "[Bug] D3D12/Vulkan renderer initialization failed",
+      "body": "<!-- lo-project:issue-22-renderer-init-report -->\n\nIssue #22 is OPEN and reports D3D12/Vulkan renderer initialization failure on a Windows 10 ROG Ally.\n\nThe shared startup-log implementation is complete in dirty source 0.5.10 / `d8cdf39ca637-dirty`. It routes Plume D3D12/Vulkan lower-layer failures through runtime logs with HRESULT, VkResult and Win32 error information plus GPU-resource failure stages; records independent updater WinHTTP failures; and records OS/build/architecture/build identity/GPU driver data. Existing log snapshots, retention and EmergencyWrite remain intact; renderer strategy and memory policy are unchanged.\n\nA Release build and selected diagnostics passed: LoPlumeLogTest (23 checks), LoMemoryFailureTest (259), LoUpdaterHttpFailureTest (94), and LoRenderResolutionGpuTest `--diagnostic-log`. An artificial illegal 16385-wide D3D12 texture produces `0x80070057` through the production adapter, writes exactly one failure record in the runtime snapshot, then allows legal 1x1 resource creation. This is diagnostic coverage, not an Issue #22 reproduction. Vulkan logging only compiled and its public callback test passed; no real Vulkan failure was run. No game/scene or reporter acceptance occurred.\n\nThis post-v0.5.10 change is unreleased and has no assigned next-release target: no commit, push, tag or Release exists. Tracker state remains OPEN; instrumentation is not a renderer-init root-cause finding.\n\n## Sources\n\n- out/diagnostic-logging-20260914/REPORT.md\n- https://github.com/freefrank/LostOdysseyRecomp/issues/22\n",
+      "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/22",
+      "record_type": "issue",
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/22"
+      ],
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Runtime logging",
+        "Status": "In Progress",
+        "Delivery": "Validated",
+        "Release": "v0.5.11",
+        "Start date": "2026-09-13",
+        "Target date": null,
+        "Evidence": "v0.5.11 release preparation is in progress; commit/CI/publication are not complete. Retained fixtures passed: Plume 23, memory 259, updater HTTP 94 and D3D12 diagnostic log. Same EXE local log check recorded new startup fields for D3D12/Vulkan; D3D12 reached guest swap #181, while Vulkan stopped after log confirmation. No game acceptance. #22 OPEN/root cause unknown. Evidence: out/diagnostic-logging-20260914/local-log-check.json"
+      }
     }
   ]
 }

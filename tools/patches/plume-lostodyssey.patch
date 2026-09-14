@@ -1,8 +1,59 @@
 diff --git a/plume_d3d12.cpp b/plume_d3d12.cpp
-index 2cdcf18..ca67db3 100644
+index 2cdcf18..39a4f6e 100644
 --- a/plume_d3d12.cpp
 +++ b/plume_d3d12.cpp
-@@ -1406,21 +1406,27 @@ namespace plume {
+@@ -6,6 +6,7 @@
+ //
+ 
+ #include "plume_d3d12.h"
++#include "plume_log.h"
+ 
+ #include <unordered_set>
+ 
+@@ -795,7 +796,7 @@ namespace plume {
+ 
+         HRESULT res = device->d3d->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&heap));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateDescriptorHeap failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateDescriptorHeap", LogErrorDomain::HResult, res, "");
+             return;
+         }
+         
+@@ -937,7 +938,7 @@ namespace plume {
+         if (viewDescriptorCount > 0) {
+             viewAllocation.offset = device->viewHeapAllocator->allocate(viewDescriptorCount);
+             if (viewAllocation.offset == D3D12DescriptorHeapAllocator::INVALID_OFFSET) {
+-                fprintf(stderr, "Allocator was unable to find free space for the set.");
++                PLUME_LOG_ERROR("D3D12", __func__, LogErrorDomain::None, 0, "Allocator was unable to find free space for the set.");
+                 return;
+             }
+ 
+@@ -947,7 +948,7 @@ namespace plume {
+         if (samplerDescriptorCount > 0) {
+             samplerAllocation.offset = device->samplerHeapAllocator->allocate(samplerDescriptorCount);
+             if (samplerAllocation.offset == D3D12DescriptorHeapAllocator::INVALID_OFFSET) {
+-                fprintf(stderr, "Allocator was unable to find free space for the set.");
++                PLUME_LOG_ERROR("D3D12", __func__, LogErrorDomain::None, 0, "Allocator was unable to find free space for the set.");
+                 return;
+             }
+ 
+@@ -1346,13 +1347,13 @@ namespace plume {
+         IDXGIFactory4 *dxgiFactory = commandQueue->device->renderInterface->dxgiFactory;
+         HRESULT res = dxgiFactory->CreateSwapChainForHwnd(commandQueue->d3d, desc.renderWindow, &swapChainDesc, nullptr, nullptr, &swapChain1);
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateSwapChainForHwnd failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateSwapChainForHwnd", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
+         res = dxgiFactory->MakeWindowAssociation(desc.renderWindow, DXGI_MWA_NO_ALT_ENTER);
+         if (FAILED(res)) {
+-            fprintf(stderr, "MakeWindowAssociation failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "MakeWindowAssociation", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
+@@ -1406,21 +1407,27 @@ namespace plume {
      }
  
      bool D3D12SwapChain::resize() {
@@ -27,14 +78,15 @@ index 2cdcf18..ca67db3 100644
 +        // from a command thread with a different DPI context.
 +        HRESULT res = d3d->ResizeBuffers(0, requestedWidth, requestedHeight, DXGI_FORMAT_UNKNOWN, swapChainFlags);
          if (FAILED(res)) {
-             fprintf(stderr, "ResizeBuffers failed with error code 0x%lX.\n", res);
+-            fprintf(stderr, "ResizeBuffers failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "ResizeBuffers", LogErrorDomain::HResult, res, "");
 +            // The old swap chain remains valid after a failed resize. Retain
 +            // its allocation size so a later frame can retry the new size.
 +            setTextures();
              return false;
          }
  
-@@ -1451,10 +1457,7 @@ namespace plume {
+@@ -1451,10 +1458,7 @@ namespace plume {
      }
  
      void D3D12SwapChain::getWindowSize(uint32_t &dstWidth, uint32_t &dstHeight) const {
@@ -46,7 +98,7 @@ index 2cdcf18..ca67db3 100644
      }
  
      void D3D12SwapChain::setTextures() {
-@@ -1463,6 +1466,13 @@ namespace plume {
+@@ -1463,6 +1467,13 @@ namespace plume {
          for (uint32_t i = 0; i < desc.textureCount; i++) {
              d3d->GetBuffer(i, IID_PPV_ARGS(&textures[i].d3d));
  
@@ -60,7 +112,50 @@ index 2cdcf18..ca67db3 100644
              textures[i].desc.width = width;
              textures[i].desc.height = height;
              textures[i].resourceStates = D3D12_RESOURCE_STATE_PRESENT;
-@@ -2287,7 +2297,19 @@ namespace plume {
+@@ -1545,7 +1556,7 @@ namespace plume {
+     void D3D12Framebuffer::createRenderTargetHeap(const D3D12Texture* texture, const D3D12TextureView* textureView) {
+         const uint32_t targetAllocatorOffset = device->colorTargetHeapAllocator->allocate(1);
+         if (targetAllocatorOffset == D3D12DescriptorHeapAllocator::INVALID_OFFSET) {
+-            fprintf(stderr, "Allocator was unable to find free space for the set.");
++            PLUME_LOG_ERROR("D3D12", __func__, LogErrorDomain::None, 0, "Allocator was unable to find free space for the set.");
+             return;
+         }
+ 
+@@ -1660,7 +1671,7 @@ namespace plume {
+     void D3D12Framebuffer::createDepthStencilHeap(const D3D12Texture* texture, const D3D12TextureView* textureView, const bool readOnly) {
+         const uint32_t targetAllocatorOffset = device->depthTargetHeapAllocator->allocate(1);
+         if (targetAllocatorOffset == D3D12DescriptorHeapAllocator::INVALID_OFFSET) {
+-            fprintf(stderr, "Allocator was unable to find free space for the set.");
++            PLUME_LOG_ERROR("D3D12", __func__, LogErrorDomain::None, 0, "Allocator was unable to find free space for the set.");
+             return;
+         }
+ 
+@@ -1787,7 +1798,7 @@ namespace plume {
+ 
+         HRESULT res = device->d3d->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&d3d));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateQueryHeap failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateQueryHeap", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
+@@ -1844,13 +1855,13 @@ namespace plume {
+ 
+         HRESULT res = queue->device->d3d->CreateCommandAllocator(commandListType, IID_PPV_ARGS(&commandAllocator));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateCommandAllocator failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateCommandAllocator", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
+         res = queue->device->d3d->CreateCommandList(0, commandListType, commandAllocator, nullptr, IID_PPV_ARGS(&d3d));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateCommandList failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateCommandList", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
+@@ -2287,7 +2298,19 @@ namespace plume {
          if (clearStencil) {
              clearFlags |= D3D12_CLEAR_FLAG_STENCIL;
          }
@@ -81,7 +176,7 @@ index 2cdcf18..ca67db3 100644
      }
  
      void D3D12CommandList::copyBufferRegion(RenderBufferReference dstBuffer, RenderBufferReference srcBuffer, uint64_t size) {
-@@ -2312,9 +2334,14 @@ namespace plume {
+@@ -2312,9 +2335,14 @@ namespace plume {
  
          const D3D12_TEXTURE_COPY_LOCATION copyDstLocation = toD3D12(dstLocation);
          const D3D12_TEXTURE_COPY_LOCATION copySrcLocation = toD3D12(srcLocation);
@@ -98,7 +193,42 @@ index 2cdcf18..ca67db3 100644
      }
  
      void D3D12CommandList::copyBuffer(const RenderBuffer *dstBuffer, const RenderBuffer *srcBuffer) {
-@@ -2669,11 +2696,15 @@ namespace plume {
+@@ -2587,11 +2615,15 @@ namespace plume {
+ 
+         HRESULT res = device->d3d->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateFence failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateFence", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
+         fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
++        if (!fenceEvent) {
++            const DWORD error = GetLastError();
++            PLUME_LOG_ERROR("D3D12", "CreateEvent", LogErrorDomain::Win32, error, "kind=command_fence");
++        }
+         fenceValue = 1;
+     }
+ 
+@@ -2614,7 +2646,7 @@ namespace plume {
+ 
+         HRESULT res = device->d3d->CreateFence(1, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateFence failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateFence", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
+@@ -2657,7 +2689,7 @@ namespace plume {
+ 
+         HRESULT res = device->d3d->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&d3d));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateCommandQueue failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateCommandQueue", LogErrorDomain::HResult, res, "");
+             return;
+         }
+     }
+@@ -2669,11 +2701,15 @@ namespace plume {
      }
  
      std::unique_ptr<RenderCommandList> D3D12CommandQueue::createCommandList() {
@@ -116,7 +246,58 @@ index 2cdcf18..ca67db3 100644
      }
  
      void D3D12CommandQueue::executeCommandLists(const RenderCommandList **commandLists, uint32_t commandListCount, RenderCommandSemaphore **waitSemaphores, uint32_t waitSemaphoreCount, RenderCommandSemaphore **signalSemaphores, uint32_t signalSemaphoreCount, RenderCommandFence *signalFence) {
-@@ -2957,7 +2988,9 @@ namespace plume {
+@@ -2762,7 +2798,10 @@ namespace plume {
+ 
+         HRESULT res = device->allocator->CreateResource(&allocationDesc, &resourceDesc, resourceStates, nullptr, &allocation, IID_PPV_ARGS(&d3d));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateResource failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "D3D12MA::CreateResource", LogErrorDomain::HResult, res,
++                "kind=buffer size=%llu heap=%u flags=0x%X committed=%u resource_flags=0x%X states=0x%X",
++                static_cast<unsigned long long>(desc.size), static_cast<unsigned>(desc.heapType),
++                static_cast<unsigned>(desc.flags), unsigned(desc.committed), unsigned(resourceDesc.Flags), unsigned(resourceStates));
+             return;
+         }
+     }
+@@ -2782,7 +2821,15 @@ namespace plume {
+         }
+ 
+         void *outputData = nullptr;
+-        d3d->Map(subresource, (readRange != nullptr) ? &range : nullptr, &outputData);
++        const HRESULT res = d3d->Map(subresource, (readRange != nullptr) ? &range : nullptr, &outputData);
++        if (FAILED(res) || outputData == nullptr) {
++            PLUME_LOG_ERROR("D3D12", "ID3D12Resource::Map", LogErrorDomain::HResult, res,
++                "size=%llu heap=%u flags=0x%X subresource=%u read_begin=%llu read_end=%llu pointer=%p",
++                static_cast<unsigned long long>(desc.size), unsigned(desc.heapType), unsigned(desc.flags),
++                unsigned(subresource), static_cast<unsigned long long>(readRange ? readRange->begin : 0),
++                static_cast<unsigned long long>(readRange ? readRange->end : 0), outputData);
++            return nullptr;
++        }
+         return outputData;
+     }
+ 
+@@ -2878,7 +2925,11 @@ namespace plume {
+ 
+         HRESULT res = device->allocator->CreateResource(&allocationDesc, &resourceDesc, resourceStates, (desc.optimizedClearValue != nullptr) ? &optimizedClearValue : nullptr, &allocation, IID_PPV_ARGS(&d3d));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateResource failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "D3D12MA::CreateResource", LogErrorDomain::HResult, res,
++                "kind=texture width=%llu height=%u depth_or_array=%u format=%u heap=%u flags=0x%X",
++                static_cast<unsigned long long>(resourceDesc.Width), unsigned(resourceDesc.Height),
++                unsigned(resourceDesc.DepthOrArraySize), unsigned(resourceDesc.Format),
++                unsigned(allocationDesc.HeapType), unsigned(resourceDesc.Flags));
+             return;
+         }
+     }
+@@ -2941,7 +2992,7 @@ namespace plume {
+ 
+         HRESULT res = device->allocator->CreatePool(&poolDesc, &d3d);
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreatePool failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreatePool", LogErrorDomain::HResult, res, "");
+             return;
+         }
+     }
+@@ -2957,7 +3008,9 @@ namespace plume {
      }
  
      std::unique_ptr<RenderTexture> D3D12Pool::createTexture(const RenderTextureDesc &desc) {
@@ -127,7 +308,20 @@ index 2cdcf18..ca67db3 100644
      }
  
      // D3D12Shader
-@@ -3075,6 +3108,7 @@ namespace plume {
+@@ -3054,7 +3107,11 @@ namespace plume {
+         psoDesc.pRootSignature = rootSignature->rootSignature;
+         psoDesc.CS.pShaderBytecode = computeShader->d3d.data();
+         psoDesc.CS.BytecodeLength = computeShader->d3d.size();
+-        device->d3d->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3d));
++        const HRESULT res = device->d3d->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&d3d));
++        if (FAILED(res)) {
++            PLUME_LOG_ERROR("D3D12", "CreateComputePipelineState", LogErrorDomain::HResult, res,
++                "shader_bytes=%llu flags=0x%X", static_cast<unsigned long long>(psoDesc.CS.BytecodeLength), unsigned(psoDesc.Flags));
++        }
+     }
+ 
+     D3D12ComputePipeline::~D3D12ComputePipeline() {
+@@ -3075,6 +3132,7 @@ namespace plume {
      // D3D12GraphicsPipeline
  
      D3D12GraphicsPipeline::D3D12GraphicsPipeline(D3D12Device *device, const RenderGraphicsPipelineDesc &desc) : D3D12Pipeline(device, Type::Graphics) {
@@ -135,7 +329,65 @@ index 2cdcf18..ca67db3 100644
          assert(desc.pipelineLayout != nullptr);
  
          topology = toD3D12(desc.primitiveTopology);
-@@ -3673,18 +3707,16 @@ namespace plume {
+@@ -3199,7 +3257,14 @@ namespace plume {
+ 
+         psoDesc.InputLayout = { inputElements.data(), UINT(inputElements.size()) };
+ 
+-        device->d3d->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3d));
++        const HRESULT res = device->d3d->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&d3d));
++        if (FAILED(res)) {
++            PLUME_LOG_ERROR("D3D12", "CreateGraphicsPipelineState", LogErrorDomain::HResult, res,
++                "vs_bytes=%llu ps_bytes=%llu gs_bytes=%llu render_targets=%u samples=%u flags=0x%X",
++                static_cast<unsigned long long>(psoDesc.VS.BytecodeLength), static_cast<unsigned long long>(psoDesc.PS.BytecodeLength),
++                static_cast<unsigned long long>(psoDesc.GS.BytecodeLength), unsigned(psoDesc.NumRenderTargets),
++                unsigned(psoDesc.SampleDesc.Count), unsigned(psoDesc.Flags));
++        }
+     }
+ 
+     D3D12GraphicsPipeline::~D3D12GraphicsPipeline() {
+@@ -3393,21 +3458,21 @@ namespace plume {
+             const D3D12RaytracingPipeline *previousRaytracingPipeline = static_cast<const D3D12RaytracingPipeline *>(previousPipeline);
+             HRESULT res = device->d3d->AddToStateObject(&pipelineDesc, previousRaytracingPipeline->stateObject, IID_PPV_ARGS(&stateObject));
+             if (FAILED(res)) {
+-                fprintf(stderr, "AddToStateObject failed with error code 0x%lX.\n", res);
++                PLUME_LOG_ERROR("D3D12", "AddToStateObject", LogErrorDomain::HResult, res, "");
+                 return;
+             }
+         }
+         else {
+             HRESULT res = device->d3d->CreateStateObject(&pipelineDesc, IID_PPV_ARGS(&stateObject));
+             if (FAILED(res)) {
+-                fprintf(stderr, "CreateStateObject failed with error code 0x%lX.\n", res);
++                PLUME_LOG_ERROR("D3D12", "CreateStateObject", LogErrorDomain::HResult, res, "");
+                 return;
+             }
+         }
+ 
+         HRESULT res = stateObject->QueryInterface(IID_PPV_ARGS(&stateObjectProperties));
+         if (FAILED(res)) {
+-            fprintf(stderr, "QueryInterface failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "QueryInterface", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
+@@ -3621,13 +3686,14 @@ namespace plume {
+         ID3DBlob *errorBlob;
+         HRESULT res = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &signatureBlob, &errorBlob);
+         if (FAILED(res)) {
+-            fprintf(stderr, "%s\n", (char *)(errorBlob->GetBufferPointer()));
++            PLUME_LOG_ERROR("D3D12", "D3D12SerializeRootSignature", LogErrorDomain::HResult, res, "%s",
++                errorBlob ? static_cast<const char *>(errorBlob->GetBufferPointer()) : "no compiler diagnostic");
+             return;
+         }
+ 
+         res = device->d3d->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateRootSignature failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateRootSignature", LogErrorDomain::HResult, res, "");
+             return;
+         }
+     }
+@@ -3673,18 +3739,16 @@ namespace plume {
              const D3D_SHADER_MODEL supportedShaderModels[] = { D3D_SHADER_MODEL_6_0 };
  #       endif
              D3D12_FEATURE_DATA_SHADER_MODEL dataShaderModel = {};
@@ -161,7 +413,7 @@ index 2cdcf18..ca67db3 100644
              }
  
              // Determine if the device supports sample locations.
-@@ -3754,6 +3786,7 @@ namespace plume {
+@@ -3754,6 +3818,7 @@ namespace plume {
                  adapter = adapterOption;
                  d3d = deviceOption;
                  shaderModel = dataShaderModel.HighestShaderModel;
@@ -169,7 +421,34 @@ index 2cdcf18..ca67db3 100644
                  capabilities.geometryShader = true;
                  capabilities.raytracing = rtSupportOption;
                  capabilities.raytracingStateUpdate = rtStateUpdateSupportOption;
-@@ -3894,7 +3927,10 @@ namespace plume {
+@@ -3790,7 +3855,7 @@ namespace plume {
+         }
+ 
+         if (d3d == nullptr) {
+-            fprintf(stderr, "Unable to create a D3D12 device with the required features.\n");
++            PLUME_LOG_ERROR("D3D12", __func__, LogErrorDomain::None, 0, "Unable to create a D3D12 device with the required features.");
+             return;
+         }
+ 
+@@ -3806,7 +3871,7 @@ namespace plume {
+ 
+         res = D3D12MA::CreateAllocator(&allocatorDesc, &allocator);
+         if (FAILED(res)) {
+-            fprintf(stderr, "D3D12MA::CreateAllocator failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "D3D12MA::CreateAllocator", LogErrorDomain::HResult, res, "");
+             release();
+             return;
+         }
+@@ -3881,7 +3946,7 @@ namespace plume {
+         std::unique_ptr<D3D12CommandQueue> timestampCommandQueue = std::make_unique<D3D12CommandQueue>(this, RenderCommandListType::DIRECT);
+         res = timestampCommandQueue->d3d->GetTimestampFrequency(&timestampFrequency);
+         if (FAILED(res)) {
+-            fprintf(stderr, "GetTimestampFrequency failed with error code 0x%lX. Timestamps will be inaccurate.\n", res);
++            PLUME_LOG_WARNING("D3D12", "GetTimestampFrequency", LogErrorDomain::HResult, res, "Timestamps will be inaccurate.");
+         }
+     }
+ 
+@@ -3894,7 +3959,10 @@ namespace plume {
      }
  
      std::unique_ptr<RenderDescriptorSet> D3D12Device::createDescriptorSet(const RenderDescriptorSetDesc &desc) {
@@ -181,7 +460,7 @@ index 2cdcf18..ca67db3 100644
      }
  
      std::unique_ptr<RenderShader> D3D12Device::createShader(const void *data, uint64_t size, const char *entryPointName, RenderShaderFormat format) {
-@@ -3906,11 +3942,15 @@ namespace plume {
+@@ -3906,11 +3974,15 @@ namespace plume {
      }
  
      std::unique_ptr<RenderPipeline> D3D12Device::createComputePipeline(const RenderComputePipelineDesc &desc) {
@@ -199,7 +478,7 @@ index 2cdcf18..ca67db3 100644
      }
  
      std::unique_ptr<RenderPipeline> D3D12Device::createRaytracingPipeline(const RenderRaytracingPipelineDesc &desc, const RenderPipeline *previousPipeline) {
-@@ -3918,20 +3958,28 @@ namespace plume {
+@@ -3918,20 +3990,28 @@ namespace plume {
      }
  
      std::unique_ptr<RenderCommandQueue> D3D12Device::createCommandQueue(RenderCommandListType type) {
@@ -232,7 +511,7 @@ index 2cdcf18..ca67db3 100644
      }
  
      std::unique_ptr<RenderAccelerationStructure> D3D12Device::createAccelerationStructure(const RenderAccelerationStructureDesc &desc) {
-@@ -3943,15 +3991,21 @@ namespace plume {
+@@ -3943,15 +4023,21 @@ namespace plume {
      }
  
      std::unique_ptr<RenderPipelineLayout> D3D12Device::createPipelineLayout(const RenderPipelineLayoutDesc &desc) {
@@ -257,7 +536,7 @@ index 2cdcf18..ca67db3 100644
      }
  
      std::unique_ptr<RenderFramebuffer> D3D12Device::createFramebuffer(const RenderFramebufferDesc &desc) {
-@@ -4161,7 +4215,9 @@ namespace plume {
+@@ -4161,7 +4247,9 @@ namespace plume {
      }
  
      bool D3D12Device::isValid() const {
@@ -268,6 +547,15 @@ index 2cdcf18..ca67db3 100644
      }
  
      bool D3D12Device::beginCapture() {
+@@ -4195,7 +4283,7 @@ namespace plume {
+ 
+         HRESULT res = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&dxgiFactory));
+         if (FAILED(res)) {
+-            fprintf(stderr, "CreateDXGIFactory2 failed with error code 0x%lX.\n", res);
++            PLUME_LOG_ERROR("D3D12", "CreateDXGIFactory2", LogErrorDomain::HResult, res, "");
+             return;
+         }
+ 
 diff --git a/plume_render_interface_types.h b/plume_render_interface_types.h
 index 9dcfedf..e35a468 100644
 --- a/plume_render_interface_types.h
@@ -311,10 +599,27 @@ index 9dcfedf..e35a468 100644
          bool geometryShader = false;
  
 diff --git a/plume_vulkan.cpp b/plume_vulkan.cpp
-index f1dd503..a481f6d 100644
+index f1dd503..8eb358d 100644
 --- a/plume_vulkan.cpp
 +++ b/plume_vulkan.cpp
-@@ -835,7 +835,7 @@ namespace plume {
+@@ -9,6 +9,7 @@
+ #define VOLK_IMPLEMENTATION 
+ 
+ #include "plume_vulkan.h"
++#include "plume_log.h"
+ 
+ #include <algorithm>
+ #include <cmath>
+@@ -779,7 +780,7 @@ namespace plume {
+         nameInfo.pObjectName = name.c_str();
+         VkResult res = vkSetDebugUtilsObjectNameEXT(device, &nameInfo);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkSetDebugUtilsObjectNameEXT failed with error code 0x%X.\n", res);
++            PLUME_LOG_WARNING("Vulkan", "vkSetDebugUtilsObjectNameEXT", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ #   endif
+@@ -835,7 +836,7 @@ namespace plume {
          bufferInfo.usage |= (desc.flags & RenderBufferFlag::ACCELERATION_STRUCTURE_INPUT) ? VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR : 0;
          bufferInfo.usage |= (desc.flags & RenderBufferFlag::SHADER_BINDING_TABLE) ? VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR : 0;
          
@@ -323,7 +628,7 @@ index f1dd503..a481f6d 100644
          const bool useDeviceAddress = device->capabilities.bufferDeviceAddress && (desc.flags & deviceAddressMask);
          bufferInfo.usage |= useDeviceAddress ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0;
          
-@@ -854,6 +854,8 @@ namespace plume {
+@@ -854,6 +855,8 @@ namespace plume {
          case RenderHeapType::UPLOAD:
              bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
              createInfo.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -332,7 +637,28 @@ index f1dd503..a481f6d 100644
              break;
          case RenderHeapType::READBACK:
              bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-@@ -909,6 +911,8 @@ namespace plume {
+@@ -890,7 +893,11 @@ namespace plume {
+         }
+ 
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vmaCreateBuffer failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", minAlignment > 0 ? "vmaCreateBufferWithAlignment" : "vmaCreateBuffer", LogErrorDomain::VkResult, res,
++                "size=%llu heap=%u flags=0x%X usage=0x%X required_memory=0x%X committed=%u alignment=%llu",
++                static_cast<unsigned long long>(desc.size), unsigned(desc.heapType), unsigned(desc.flags),
++                unsigned(bufferInfo.usage), unsigned(createInfo.requiredFlags), unsigned(desc.committed),
++                static_cast<unsigned long long>(minAlignment));
+             return;
+         }
+     }
+@@ -905,10 +912,15 @@ namespace plume {
+         void *data = nullptr;
+         VkResult res = vmaMapMemory(device->allocator, allocation, &data);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vmaMapMemory failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vmaMapMemory", LogErrorDomain::VkResult, res,
++                "size=%llu heap=%u flags=0x%X memory_type=%u allocation_size=%llu",
++                static_cast<unsigned long long>(desc.size), unsigned(desc.heapType), unsigned(desc.flags),
++                unsigned(allocationInfo.memoryType), static_cast<unsigned long long>(allocationInfo.size));
              return nullptr;
          }
  
@@ -341,7 +667,28 @@ index f1dd503..a481f6d 100644
          return data;
      }
  
-@@ -1040,7 +1044,9 @@ namespace plume {
+@@ -950,7 +962,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateBufferView(buffer->device->vk, &createInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateBufferView failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateBufferView", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -1010,7 +1022,10 @@ namespace plume {
+ 
+         VkResult res = vmaCreateImage(device->allocator, &imageInfo, &createInfo, &vk, &allocation, &allocationInfo);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vmaCreateImage failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vmaCreateImage", LogErrorDomain::VkResult, res,
++                "width=%u height=%u depth=%u layers=%u format=%u usage=0x%X flags=0x%X",
++                unsigned(imageInfo.extent.width), unsigned(imageInfo.extent.height), unsigned(imageInfo.extent.depth),
++                unsigned(imageInfo.arrayLayers), unsigned(imageInfo.format), unsigned(imageInfo.usage), unsigned(imageInfo.flags));
+             return;
+         }
+ 
+@@ -1040,7 +1055,9 @@ namespace plume {
          VkImageViewCreateInfo viewInfo = {};
          viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
          viewInfo.image = vk;
@@ -352,7 +699,43 @@ index f1dd503..a481f6d 100644
          viewInfo.format = format;
          viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
          viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-@@ -1257,6 +1263,7 @@ namespace plume {
+@@ -1050,7 +1067,7 @@ namespace plume {
+         
+         VkResult res = vkCreateImageView(device->vk, &viewInfo, nullptr, &imageView);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateImageView failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateImageView", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -1101,7 +1118,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateImageView(texture->device->vk, &viewInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateImageView failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateImageView", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -1131,7 +1148,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateAccelerationStructureKHR(device->vk, &createInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateAccelerationStructureKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateAccelerationStructureKHR", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -1210,7 +1227,7 @@ namespace plume {
+         
+         VkResult res = vkCreateDescriptorSetLayout(device->vk, &setLayoutInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateDescriptorSetLayout failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateDescriptorSetLayout", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -1257,6 +1274,7 @@ namespace plume {
          for (uint32_t i = 0; i < desc.descriptorSetDescsCount; i++) {
              VulkanDescriptorSetLayout *setLayout = new VulkanDescriptorSetLayout(device, desc.descriptorSetDescs[i]);
              descriptorSetLayouts.emplace_back(setLayout);
@@ -360,7 +743,45 @@ index f1dd503..a481f6d 100644
              setLayoutHandles.emplace_back(setLayout->vk);
          }
  
-@@ -1504,8 +1511,9 @@ namespace plume {
+@@ -1265,7 +1283,7 @@ namespace plume {
+ 
+         VkResult res = vkCreatePipelineLayout(device->vk, &layoutInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreatePipelineLayout failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreatePipelineLayout", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -1299,7 +1317,7 @@ namespace plume {
+         shaderInfo.codeSize = size;
+         VkResult res = vkCreateShaderModule(device->vk, &shaderInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateShaderModule failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateShaderModule", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -1341,7 +1359,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateSampler(device->vk, &samplerInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateSampler failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateSampler", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -1392,7 +1410,9 @@ namespace plume {
+ 
+         VkResult res = vkCreateComputePipelines(device->vk, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateComputePipelines failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateComputePipelines", LogErrorDomain::VkResult, res,
++                "entry=%s groups=%u,%u,%u flags=0x%X", stageInfo.pName, unsigned(desc.threadGroupSizeX),
++                unsigned(desc.threadGroupSizeY), unsigned(desc.threadGroupSizeZ), unsigned(pipelineInfo.flags));
+             return;
+         }
+     }
+@@ -1504,8 +1524,9 @@ namespace plume {
  
          VkPipelineViewportStateCreateInfo viewportState = {};
          viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -372,7 +793,36 @@ index f1dd503..a481f6d 100644
  
          VkPipelineRasterizationStateCreateInfo rasterization = {};
          rasterization.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-@@ -1909,6 +1917,7 @@ namespace plume {
+@@ -1651,7 +1672,9 @@ namespace plume {
+ 
+         VkResult res = vkCreateGraphicsPipelines(device->vk, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateGraphicsPipelines failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateGraphicsPipelines", LogErrorDomain::VkResult, res,
++                "stages=%u render_targets=%u samples=%u flags=0x%X", unsigned(pipelineInfo.stageCount),
++                unsigned(desc.renderTargetCount), unsigned(desc.multisampling.sampleCount), unsigned(pipelineInfo.flags));
+             return;
+         }
+     }
+@@ -1735,7 +1758,7 @@ namespace plume {
+             return renderPass;
+         }
+         else {
+-            fprintf(stderr, "vkCreateRenderPass failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateRenderPass", LogErrorDomain::VkResult, res, "");
+             return VK_NULL_HANDLE;
+         }
+     }
+@@ -1857,7 +1880,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateRayTracingPipelinesKHR(device->vk, nullptr, nullptr, 1, &pipelineInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateRayTracingPipelinesKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateRayTracingPipelinesKHR", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+@@ -1909,6 +1932,7 @@ namespace plume {
          }
  
          setLayout = new VulkanDescriptorSetLayout(device, desc);
@@ -380,7 +830,25 @@ index f1dd503..a481f6d 100644
  
          descriptorPool = createDescriptorPool(device, typeCounts, desc.lastRangeIsBoundless);
          if (descriptorPool == VK_NULL_HANDLE) {
-@@ -2083,6 +2092,8 @@ namespace plume {
+@@ -1931,7 +1955,7 @@ namespace plume {
+ 
+         VkResult res = vkAllocateDescriptorSets(device->vk, &allocateInfo, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkAllocateDescriptorSets failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkAllocateDescriptorSets", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -2066,7 +2090,7 @@ namespace plume {
+             return descriptorPool;
+         }
+         else {
+-            fprintf(stderr, "vkCreateDescriptorPool failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateDescriptorPool", LogErrorDomain::VkResult, res, "");
+             return VK_NULL_HANDLE;
+         }
+     }
+@@ -2083,6 +2107,8 @@ namespace plume {
          VkResult res;
  
  #   ifdef _WIN64
@@ -389,7 +857,63 @@ index f1dd503..a481f6d 100644
          assert(desc.renderWindow != 0);
          VkWin32SurfaceCreateInfoKHR surfaceCreateInfo = {};
          surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-@@ -2160,7 +2171,8 @@ namespace plume {
+@@ -2092,14 +2118,14 @@ namespace plume {
+         VulkanInterface *renderInterface = commandQueue->device->renderInterface;
+         res = vkCreateWin32SurfaceKHR(renderInterface->instance, &surfaceCreateInfo, nullptr, &surface);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateWin32SurfaceKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateWin32SurfaceKHR", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ #   elif defined(PLUME_SDL_VULKAN_ENABLED)
+         VulkanInterface *renderInterface = commandQueue->device->renderInterface;
+         SDL_bool sdlRes = SDL_Vulkan_CreateSurface(desc.renderWindow, renderInterface->instance, &surface);
+         if (sdlRes == SDL_FALSE) {
+-            fprintf(stderr, "SDL_Vulkan_CreateSurface failed with error %s.\n", SDL_GetError());
++            PLUME_LOG_ERROR("Vulkan", "SDL_Vulkan_CreateSurface", LogErrorDomain::SDL, 0, "%s", SDL_GetError());
+             return;
+         }
+ #   elif defined(__ANDROID__)
+@@ -2111,7 +2137,7 @@ namespace plume {
+         VulkanInterface *renderInterface = commandQueue->device->renderInterface;
+         res = vkCreateAndroidSurfaceKHR(renderInterface->instance, &surfaceCreateInfo, nullptr, &surface);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateAndroidSurfaceKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateAndroidSurfaceKHR", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ #   elif defined(__linux__)
+@@ -2125,7 +2151,7 @@ namespace plume {
+         VulkanInterface *renderInterface = commandQueue->device->renderInterface;
+         res = vkCreateXlibSurfaceKHR(renderInterface->instance, &surfaceCreateInfo, nullptr, &surface);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateXlibSurfaceKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateXlibSurfaceKHR", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ #   elif defined(__APPLE__)
+@@ -2141,7 +2167,7 @@ namespace plume {
+         VulkanInterface *renderInterface = commandQueue->device->renderInterface;
+         res = vkCreateMetalSurfaceEXT(renderInterface->instance, &surfaceCreateInfo, nullptr, &surface);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateMetalSurfaceEXT failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateMetalSurfaceEXT", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ #   endif
+@@ -2150,17 +2176,18 @@ namespace plume {
+         VkPhysicalDevice physicalDevice = commandQueue->device->physicalDevice;
+         res = vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, commandQueue->familyIndex, surface, &presentSupported);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkGetPhysicalDeviceSurfaceSupportKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkGetPhysicalDeviceSurfaceSupportKHR", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+         if (!presentSupported) {
+-            fprintf(stderr, "Command queue does not support present.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Command queue does not support present.");
+             return;
          }
  
          VkSurfaceCapabilitiesKHR surfaceCapabilities = {};
@@ -399,7 +923,13 @@ index f1dd503..a481f6d 100644
  
          // Pick an alpha compositing mode
          if (surfaceCapabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
-@@ -2175,7 +2187,7 @@ namespace plume {
+@@ -2170,12 +2197,12 @@ namespace plume {
+             pickedAlphaFlag = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+         }
+         else {
+-            fprintf(stderr, "No known supported alpha compositing mode\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "No known supported alpha compositing mode");
+             return;
          }
  
          // Make sure maxImageCount is never below minImageCount, as it's allowed to be zero.
@@ -408,7 +938,25 @@ index f1dd503..a481f6d 100644
  
          // Clamp the requested buffer count between the bounds of the surface capabilities.
          this->desc.textureCount = std::clamp(desc.textureCount, surfaceCapabilities.minImageCount, surfaceCapabilities.maxImageCount);
-@@ -2254,6 +2266,9 @@ namespace plume {
+@@ -2205,7 +2232,7 @@ namespace plume {
+         }
+ 
+         if (compatibleSurfaceFormats.empty()) {
+-            fprintf(stderr, "No compatible surface formats were found.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "No compatible surface formats were found.");
+             return;
+         }
+ 
+@@ -2232,7 +2259,7 @@ namespace plume {
+             pickedAlphaFlag = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+         }
+         else {
+-            fprintf(stderr, "No supported alpha compositing mode was found.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "No supported alpha compositing mode was found.");
+             return;
+         }
+ 
+@@ -2254,6 +2281,9 @@ namespace plume {
      }
  
      bool VulkanSwapChain::present(uint32_t textureIndex, RenderCommandSemaphore **waitSemaphores, uint32_t waitSemaphoreCount) {
@@ -418,7 +966,7 @@ index f1dd503..a481f6d 100644
          thread_local std::vector<VkSemaphore> waitSemaphoresVector;
          waitSemaphoresVector.clear();
          for (uint32_t i = 0; i < waitSemaphoreCount; i++) {
-@@ -2286,6 +2301,7 @@ namespace plume {
+@@ -2286,6 +2316,7 @@ namespace plume {
              res = vkQueuePresentKHR(commandQueue->queue->vk, &presentInfo);
          }
  
@@ -426,7 +974,7 @@ index f1dd503..a481f6d 100644
  #if defined(__APPLE__)
          // Under MoltenVK, VK_SUBOPTIMAL_KHR does not result in a valid state for rendering. We intentionally
          // only check for this error during present to avoid having to synchronize manually against the semaphore
-@@ -2310,25 +2326,44 @@ namespace plume {
+@@ -2310,25 +2341,44 @@ namespace plume {
      }
  
      bool VulkanSwapChain::resize() {
@@ -479,7 +1027,7 @@ index f1dd503..a481f6d 100644
  
          createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
          createInfo.surface = surface;
-@@ -2338,7 +2373,8 @@ namespace plume {
+@@ -2338,7 +2388,8 @@ namespace plume {
          createInfo.imageExtent.width = width;
          createInfo.imageExtent.height = height;
          createInfo.imageArrayLayers = 1;
@@ -489,7 +1037,14 @@ index f1dd503..a481f6d 100644
          createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
          createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
          createInfo.compositeAlpha = pickedAlphaFlag;
-@@ -2354,6 +2390,7 @@ namespace plume {
+@@ -2348,12 +2399,13 @@ namespace plume {
+ 
+         VkResult res = vkCreateSwapchainKHR(commandQueue->device->vk, &createInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateSwapchainKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateSwapchainKHR", LogErrorDomain::VkResult, res, "");
+             return false;
+         }
  
          // Store the chosen present mode to identify later whether the swapchain needs to be recreated.
          createdPresentMode = requiredPresentMode;
@@ -497,7 +1052,25 @@ index f1dd503..a481f6d 100644
  
          // Reset present counter.
          presentCount = 1;
-@@ -2403,7 +2440,7 @@ namespace plume {
+@@ -2366,7 +2418,7 @@ namespace plume {
+         vkGetSwapchainImagesKHR(commandQueue->device->vk, vk, &retrievedImageCount, nullptr);
+         if (retrievedImageCount < desc.textureCount) {
+             releaseSwapChain();
+-            fprintf(stderr, "Image count differs from the texture count.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Image count differs from the texture count.");
+             return false;
+         }
+ 
+@@ -2376,7 +2428,7 @@ namespace plume {
+         res = vkGetSwapchainImagesKHR(commandQueue->device->vk, vk, &desc.textureCount, images.data());
+         if (res != VK_SUCCESS) {
+             releaseSwapChain();
+-            fprintf(stderr, "vkGetSwapchainImagesKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkGetSwapchainImagesKHR", LogErrorDomain::VkResult, res, "");
+             return false;
+         }
+ 
+@@ -2403,7 +2455,7 @@ namespace plume {
      bool VulkanSwapChain::needsResize() const {
          uint32_t windowWidth, windowHeight;
          getWindowSize(windowWidth, windowHeight);
@@ -506,7 +1079,16 @@ index f1dd503..a481f6d 100644
      }
  
      void VulkanSwapChain::setVsyncEnabled(bool vsyncEnabled) {
-@@ -2459,10 +2496,7 @@ namespace plume {
+@@ -2450,7 +2502,7 @@ namespace plume {
+         VkRefreshCycleDurationGOOGLE refreshCycle = {};
+         VkResult res = vkGetRefreshCycleDurationGOOGLE(commandQueue->device->vk, vk, &refreshCycle);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkGetRefreshCycleDurationGOOGLE failed with error code 0x%X.\n", res);
++            PLUME_LOG_WARNING("Vulkan", "vkGetRefreshCycleDurationGOOGLE", LogErrorDomain::VkResult, res, "");
+             return 0;
+         }
+ 
+@@ -2459,10 +2511,7 @@ namespace plume {
  
      void VulkanSwapChain::getWindowSize(uint32_t &dstWidth, uint32_t &dstHeight) const {
  #   if defined(_WIN64)
@@ -518,7 +1100,7 @@ index f1dd503..a481f6d 100644
  #   elif defined(PLUME_SDL_VULKAN_ENABLED)
          SDL_GetWindowSizeInPixels(desc.renderWindow, (int *)(&dstWidth), (int *)(&dstHeight));
  #   elif defined(__ANDROID__)
-@@ -2483,10 +2517,15 @@ namespace plume {
+@@ -2483,10 +2532,15 @@ namespace plume {
      }
  
      bool VulkanSwapChain::acquireTexture(RenderCommandSemaphore *signalSemaphore, uint32_t *textureIndex) {
@@ -534,7 +1116,7 @@ index f1dd503..a481f6d 100644
          if ((res != VK_SUCCESS) && (res != VK_SUBOPTIMAL_KHR)) {
              return false;
          }
-@@ -2496,6 +2535,7 @@ namespace plume {
+@@ -2496,6 +2550,7 @@ namespace plume {
  
      void VulkanSwapChain::releaseSwapChain() {
          if (vk != VK_NULL_HANDLE) {
@@ -542,7 +1124,61 @@ index f1dd503..a481f6d 100644
              vkDestroySwapchainKHR(commandQueue->device->vk, vk, nullptr);
              vk = VK_NULL_HANDLE;
          }
-@@ -2794,6 +2834,7 @@ namespace plume {
+@@ -2627,7 +2682,7 @@ namespace plume {
+ 
+         res = vkCreateRenderPass(device->vk, &passInfo, nullptr, &renderPass);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateRenderPass failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateRenderPass", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+         
+@@ -2642,7 +2697,7 @@ namespace plume {
+ 
+         res = vkCreateFramebuffer(device->vk, &fbInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateFramebuffer failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateFramebuffer", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -2692,7 +2747,7 @@ namespace plume {
+         
+         VkResult res = vkCreateQueryPool(device->vk, &createInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateQueryPool failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateQueryPool", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+         
+@@ -2706,7 +2761,7 @@ namespace plume {
+     void VulkanQueryPool::queryResults() {
+ 	    VkResult res = vkGetQueryPoolResults(device->vk, vk, 0, uint32_t(results.size()), sizeof(uint64_t) * results.size(), results.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkGetQueryPoolResults failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkGetQueryPoolResults", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+@@ -2765,7 +2820,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateCommandPool(queue->device->vk, &poolInfo, nullptr, &commandPool);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateCommandPool failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateCommandPool", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+@@ -2777,7 +2832,7 @@ namespace plume {
+ 
+         res = vkAllocateCommandBuffers(queue->device->vk, &allocateInfo, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkAllocateCommandBuffers failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkAllocateCommandBuffers", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -2794,6 +2849,7 @@ namespace plume {
  
      void VulkanCommandList::begin() {
          vkResetCommandBuffer(vk, 0);
@@ -550,7 +1186,25 @@ index f1dd503..a481f6d 100644
  
          VkCommandBufferBeginInfo beginInfo = {};
          beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-@@ -2986,6 +3027,11 @@ namespace plume {
+@@ -2801,7 +2857,7 @@ namespace plume {
+ 
+         VkResult res = vkBeginCommandBuffer(vk, &beginInfo);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkBeginCommandBuffer failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkBeginCommandBuffer", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -2811,7 +2867,7 @@ namespace plume {
+ 
+         VkResult res = vkEndCommandBuffer(vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkEndCommandBuffer failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkEndCommandBuffer", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+@@ -2986,6 +3042,11 @@ namespace plume {
      void VulkanCommandList::setGraphicsPipelineLayout(const RenderPipelineLayout *pipelineLayout) {
          assert(pipelineLayout != nullptr);
  
@@ -562,7 +1216,7 @@ index f1dd503..a481f6d 100644
          activeGraphicsPipelineLayout = static_cast<const VulkanPipelineLayout *>(pipelineLayout);
      }
  
-@@ -3097,6 +3143,12 @@ namespace plume {
+@@ -3097,6 +3158,12 @@ namespace plume {
      }
  
      void VulkanCommandList::setFramebuffer(const RenderFramebuffer *framebuffer) {
@@ -575,7 +1229,7 @@ index f1dd503..a481f6d 100644
          endActiveRenderPass();
  
          if (framebuffer != nullptr) {
-@@ -3229,7 +3281,29 @@ namespace plume {
+@@ -3229,7 +3296,29 @@ namespace plume {
              imageCopy.imageExtent.depth = srcLocation.placedFootprint.depth;
              vkCmdCopyBufferToImage(vk, srcBuffer->vk, dstTexture->vk, toImageLayout(dstTexture->textureLayout), 1, &imageCopy);
          }
@@ -605,7 +1259,7 @@ index f1dd503..a481f6d 100644
              VkImageCopy imageCopy = {};
              imageCopy.srcSubresource.aspectMask = toAspectFlags(srcTexture->desc.format, srcTexture->desc.flags);
              imageCopy.srcSubresource.baseArrayLayer = srcLocation.subresource.arrayIndex;
-@@ -3494,6 +3568,22 @@ namespace plume {
+@@ -3494,6 +3583,22 @@ namespace plume {
          assert(setIndex < pipelineLayout->descriptorSetLayouts.size());
  
          const VulkanDescriptorSet *interfaceSet = static_cast<const VulkanDescriptorSet *>(descriptorSet);
@@ -628,7 +1282,25 @@ index f1dd503..a481f6d 100644
          vkCmdBindDescriptorSets(vk, bindPoint, pipelineLayout->vk, setIndex, 1, &interfaceSet->vk, 0, nullptr);
      }
  
-@@ -3561,11 +3651,17 @@ namespace plume {
+@@ -3509,7 +3614,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateFence(device->vk, &fenceInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateFence failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateFence", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -3532,7 +3637,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateSemaphore(device->vk, &semaphoreInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateSemaphore failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateSemaphore", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -3561,11 +3666,17 @@ namespace plume {
      }
  
      std::unique_ptr<RenderCommandList> VulkanCommandQueue::createCommandList() {
@@ -648,7 +1320,74 @@ index f1dd503..a481f6d 100644
      }
  
      void VulkanCommandQueue::executeCommandLists(const RenderCommandList **commandLists, uint32_t commandListCount, RenderCommandSemaphore **waitSemaphores, uint32_t waitSemaphoreCount, RenderCommandSemaphore **signalSemaphores, uint32_t signalSemaphoreCount, RenderCommandFence *signalFence) {
-@@ -3839,7 +3935,7 @@ namespace plume {
+@@ -3626,7 +3737,7 @@ namespace plume {
+         }
+ 
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkQueueSubmit failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkQueueSubmit", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -3637,7 +3748,7 @@ namespace plume {
+         VulkanCommandFence *interfaceFence = static_cast<VulkanCommandFence *>(fence);
+         VkResult res = vkWaitForFences(device->vk, 1, &interfaceFence->vk, VK_TRUE, UINT64_MAX);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkWaitForFences failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkWaitForFences", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+@@ -3670,7 +3781,7 @@ namespace plume {
+         uint32_t memoryTypeIndex = 0;
+         VkResult res = vmaFindMemoryTypeIndex(device->allocator, UINT32_MAX, &memoryInfo, &memoryTypeIndex);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vmaFindMemoryTypeIndex failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vmaFindMemoryTypeIndex", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+@@ -3682,7 +3793,7 @@ namespace plume {
+ 
+         res = vmaCreatePool(device->allocator, &createInfo, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vmaCreatePool failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vmaCreatePool", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+     }
+@@ -3742,7 +3853,7 @@ namespace plume {
+         uint32_t deviceCount = 0;
+         vkEnumeratePhysicalDevices(renderInterface->instance, &deviceCount, nullptr);
+         if (deviceCount == 0) {
+-            fprintf(stderr, "Unable to find devices that support Vulkan.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Unable to find devices that support Vulkan.");
+             return;
+         }
+         
+@@ -3787,7 +3898,7 @@ namespace plume {
+         }
+ 
+         if (physicalDevice == VK_NULL_HANDLE) {
+-            fprintf(stderr, "Unable to find a device with the required features.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Unable to find a device with the required features.");
+             return;
+         }
+ 
+@@ -3819,10 +3930,10 @@ namespace plume {
+         
+         if (!missingRequiredExtensions.empty()) {
+             for (const std::string &extension : missingRequiredExtensions) {
+-                fprintf(stderr, "Missing required extension: %s.\n", extension.c_str());
++                PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Missing required extension: %s.", extension.c_str());
+             }
+ 
+-            fprintf(stderr, "Unable to create device. Required extensions are missing.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Unable to create device. Required extensions are missing.");
+             return;
+         }
+ 
+@@ -3839,7 +3950,7 @@ namespace plume {
          }
  
          VkPhysicalDeviceScalarBlockLayoutFeatures layoutFeatures = {};
@@ -657,7 +1396,7 @@ index f1dd503..a481f6d 100644
          if (scalarBlockLayoutFound) {
              layoutFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES;
              layoutFeatures.pNext = featuresChain;
-@@ -3868,7 +3964,7 @@ namespace plume {
+@@ -3868,7 +3979,7 @@ namespace plume {
          }
  
          VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = {};
@@ -666,7 +1405,7 @@ index f1dd503..a481f6d 100644
          if (bufferDeviceAddressFound) {
              bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
              bufferDeviceAddressFeatures.pNext = featuresChain;
-@@ -3979,7 +4075,7 @@ namespace plume {
+@@ -3979,7 +4090,7 @@ namespace plume {
          vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilyProperties.data());
  
          auto pickFamilyQueue = [&](RenderCommandListType type, VkQueueFlags flags) {
@@ -675,7 +1414,7 @@ index f1dd503..a481f6d 100644
              uint32_t familySetBits = sizeof(uint32_t) * 8;
              uint32_t familyQueueCount = 0;
              bool familyUsed = false;
-@@ -3987,7 +4083,7 @@ namespace plume {
+@@ -3987,7 +4098,7 @@ namespace plume {
                  const VkQueueFamilyProperties &props = queueFamilyProperties[i];
  
                  // The family queue flags must contain all the flags required by the command list type.
@@ -684,7 +1423,7 @@ index f1dd503..a481f6d 100644
                      continue;
                  }
  
-@@ -4003,14 +4099,19 @@ namespace plume {
+@@ -4003,14 +4114,19 @@ namespace plume {
                  }
              }
  
@@ -701,13 +1440,31 @@ index f1dd503..a481f6d 100644
 +        if (!pickFamilyQueue(RenderCommandListType::DIRECT, VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT) ||
 +            !pickFamilyQueue(RenderCommandListType::COMPUTE, VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT) ||
 +            !pickFamilyQueue(RenderCommandListType::COPY, VK_QUEUE_TRANSFER_BIT)) {
-+            fprintf(stderr, "Required Vulkan queue family unavailable.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Required Vulkan queue family unavailable.");
 +            return;
 +        }
  
          // Create the struct to store the virtual queues.
          queueFamilies.resize(queueFamilyCount);
-@@ -4120,6 +4221,7 @@ namespace plume {
+@@ -4051,7 +4167,7 @@ namespace plume {
+ 
+         VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateDevice failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateDevice", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+@@ -4092,7 +4208,7 @@ namespace plume {
+ 
+         res = vmaCreateAllocator(&allocatorInfo, &allocator);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vmaCreateAllocator failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vmaCreateAllocator", LogErrorDomain::VkResult, res, "");
+             release();
+             return;
+         }
+@@ -4120,6 +4236,7 @@ namespace plume {
          description.dedicatedVideoMemory = memoryHeapSize;
  
          // Fill capabilities.
@@ -715,7 +1472,7 @@ index f1dd503..a481f6d 100644
          capabilities.geometryShader = deviceFeatures.features.geometryShader;
          capabilities.raytracing = rayTracingSupported;
          capabilities.raytracingStateUpdate = false;
-@@ -4161,23 +4263,33 @@ namespace plume {
+@@ -4161,23 +4278,33 @@ namespace plume {
      }
  
      std::unique_ptr<RenderDescriptorSet> VulkanDevice::createDescriptorSet(const RenderDescriptorSetDesc &desc) {
@@ -754,7 +1511,7 @@ index f1dd503..a481f6d 100644
      }
  
      std::unique_ptr<RenderPipeline> VulkanDevice::createRaytracingPipeline(const RenderRaytracingPipelineDesc &desc, const RenderPipeline *previousPipeline) {
-@@ -4189,11 +4301,15 @@ namespace plume {
+@@ -4189,11 +4316,15 @@ namespace plume {
      }
  
      std::unique_ptr<RenderBuffer> VulkanDevice::createBuffer(const RenderBufferDesc &desc) {
@@ -772,7 +1529,7 @@ index f1dd503..a481f6d 100644
      }
  
      std::unique_ptr<RenderAccelerationStructure> VulkanDevice::createAccelerationStructure(const RenderAccelerationStructureDesc &desc) {
-@@ -4205,15 +4321,21 @@ namespace plume {
+@@ -4205,15 +4336,21 @@ namespace plume {
      }
  
      std::unique_ptr<RenderPipelineLayout> VulkanDevice::createPipelineLayout(const RenderPipelineLayoutDesc &desc) {
@@ -797,7 +1554,16 @@ index f1dd503..a481f6d 100644
      }
  
      std::unique_ptr<RenderFramebuffer> VulkanDevice::createFramebuffer(const RenderFramebufferDesc &desc) {
-@@ -4444,7 +4566,7 @@ namespace plume {
+@@ -4365,7 +4502,7 @@ namespace plume {
+         groupHandles.resize(raytracingPipeline->groupCount * handleSize, 0);
+         VkResult res = vkGetRayTracingShaderGroupHandlesKHR(vk, raytracingPipeline->vk, 0, raytracingPipeline->groupCount, groupHandles.size(), groupHandles.data());
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkGetRayTracingShaderGroupHandlesKHR failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkGetRayTracingShaderGroupHandlesKHR", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+         
+@@ -4444,7 +4581,7 @@ namespace plume {
      }
  
      bool VulkanDevice::isValid() const {
@@ -806,6 +1572,37 @@ index f1dd503..a481f6d 100644
      }
  
      bool VulkanDevice::beginCapture() {
+@@ -4466,7 +4603,7 @@ namespace plume {
+ #endif
+         VkResult res = volkInitialize();
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "volkInitialize failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "volkInitialize", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
+@@ -4535,10 +4672,10 @@ namespace plume {
+ 
+         if (!missingRequiredExtensions.empty()) {
+             for (const std::string &extension : missingRequiredExtensions) {
+-                fprintf(stderr, "Missing required extension: %s.\n", extension.c_str());
++                PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Missing required extension: %s.", extension.c_str());
+             }
+ 
+-            fprintf(stderr, "Unable to create instance. Required extensions are missing.\n");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "Unable to create instance. Required extensions are missing.");
+             return;
+         }
+ 
+@@ -4575,7 +4712,7 @@ namespace plume {
+         
+         res = vkCreateInstance(&createInfo, nullptr, &instance);
+         if (res != VK_SUCCESS) {
+-            fprintf(stderr, "vkCreateInstance failed with error code 0x%X.\n", res);
++            PLUME_LOG_ERROR("Vulkan", "vkCreateInstance", LogErrorDomain::VkResult, res, "");
+             return;
+         }
+ 
 diff --git a/plume_vulkan.h b/plume_vulkan.h
 index 0a1edbe..03d11a6 100644
 --- a/plume_vulkan.h
@@ -826,3 +1623,128 @@ index 0a1edbe..03d11a6 100644
          const VulkanPipelineLayout *activeRaytracingPipelineLayout = nullptr;
          VkRenderPass activeRenderPass = VK_NULL_HANDLE;
  
+diff --git a/plume_log.h b/plume_log.h
+new file mode 100644
+index 0000000..1c63eb1
+--- /dev/null
++++ b/plume_log.h
+@@ -0,0 +1,119 @@
++// Lightweight backend error reporting; independent of the host application's logger.
++#pragma once
++
++#include <atomic>
++#include <cstdarg>
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <limits>
++
++namespace plume {
++    enum class LogSeverity { Error, Warning };
++    enum class LogErrorDomain { None, HResult, VkResult, Win32, SDL };
++
++    struct LogRecord {
++        LogSeverity severity;
++        const char *backend;
++        const char *api;
++        LogErrorDomain domain;
++        uint32_t rawCode; // Original 32 bits, including negative HRESULT/VkResult values.
++        const char *detail;
++        uint32_t occurrence; // Per failure call site; gaps indicate suppressed repeats.
++    };
++
++    // Delivery is synchronous. Record strings are borrowed for this call only.
++    // Register before backend creation; callback code must outlive backend threads.
++    // A callback owns delivery completely, including its own last-resort sink.
++    using LogCallback = void (*)(const LogRecord &);
++
++    namespace log_detail {
++        inline std::atomic<LogCallback> callback{nullptr};
++        inline thread_local bool delivering = false;
++    }
++
++    inline void SetLogCallback(LogCallback callback) noexcept {
++        log_detail::callback.store(callback, std::memory_order_release);
++    }
++
++    inline const char *LogErrorDomainName(LogErrorDomain domain) noexcept {
++        switch (domain) {
++        case LogErrorDomain::HResult: return "HRESULT";
++        case LogErrorDomain::VkResult: return "VkResult";
++        case LogErrorDomain::Win32: return "Win32";
++        case LogErrorDomain::SDL: return "SDL";
++        default: return "none";
++        }
++    }
++
++    // The first eight failures and subsequent powers of two retain evidence while
++    // bounding repeated per-frame failures to logarithmic output. Only failures
++    // touch this counter; successful graphics operations do no logging work.
++    struct LogSite {
++        std::atomic<uint32_t> count{0};
++
++        uint32_t Next() noexcept {
++            uint32_t current = count.load(std::memory_order_relaxed);
++            while (current != (std::numeric_limits<uint32_t>::max)()) {
++                if (count.compare_exchange_weak(current, current + 1, std::memory_order_relaxed)) {
++                    const uint32_t next = current + 1;
++                    return (next <= 8 || (next & (next - 1)) == 0) ? next : 0;
++                }
++            }
++            return 0;
++        }
++    };
++
++    inline void LogMessage(LogSite &site, LogSeverity severity, const char *backend,
++        const char *api, LogErrorDomain domain, uint32_t rawCode, const char *format, ...) noexcept {
++        // Do not recursively invoke either the host logger or stderr, including
++        // when a callback changes the registration before reporting another error.
++        if (log_detail::delivering) return;
++        const uint32_t occurrence = site.Next();
++        if (occurrence == 0) return;
++
++        char detail[1024] = {};
++        va_list args;
++        va_start(args, format);
++        const int length = std::vsnprintf(detail, sizeof(detail), format ? format : "", args);
++        va_end(args);
++        if (length < 0) {
++            std::snprintf(detail, sizeof(detail), "%s", "diagnostic formatting failed");
++        }
++        else if (static_cast<size_t>(length) >= sizeof(detail)) {
++            constexpr char suffix[] = " [truncated]";
++            std::memcpy(detail + sizeof(detail) - sizeof(suffix), suffix, sizeof(suffix));
++        }
++        // Keep each event a single record even when a driver provides newlines.
++        for (char *c = detail; *c; ++c) {
++            if (*c == '\r' || *c == '\n') *c = ' ';
++        }
++
++        const LogRecord record{severity, backend ? backend : "unknown", api ? api : "unknown",
++            domain, rawCode, detail, occurrence};
++        const LogCallback callback = log_detail::callback.load(std::memory_order_acquire);
++        log_detail::delivering = true;
++        if (callback) {
++            try { callback(record); }
++            catch (...) { /* A diagnostic callback must not change API failure behavior. */ }
++        }
++        else {
++            std::fprintf(stderr, "plume: severity=%s backend=%s api=%s domain=%s code=0x%08X occurrence=%u %s\n",
++                severity == LogSeverity::Error ? "error" : "warning", record.backend, record.api,
++                LogErrorDomainName(domain), static_cast<unsigned>(rawCode), static_cast<unsigned>(occurrence), detail);
++        }
++        log_detail::delivering = false;
++    }
++}
++
++#define PLUME_LOG_ERROR(backend, api, domain, code, ...) do { \
++    static ::plume::LogSite plumeErrorSite; \
++    ::plume::LogMessage(plumeErrorSite, ::plume::LogSeverity::Error, backend, api, domain, \
++        static_cast<uint32_t>(code), __VA_ARGS__); \
++} while (0)
++
++#define PLUME_LOG_WARNING(backend, api, domain, code, ...) do { \
++    static ::plume::LogSite plumeWarningSite; \
++    ::plume::LogMessage(plumeWarningSite, ::plume::LogSeverity::Warning, backend, api, domain, \
++        static_cast<uint32_t>(code), __VA_ARGS__); \
++} while (0)

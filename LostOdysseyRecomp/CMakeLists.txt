@@ -16,6 +16,8 @@ function(lo_add_header_test name source)
     endif()
 endfunction()
 lo_add_header_test(LoPollWaitTest ${CMAKE_SOURCE_DIR}/tools/tests/poll_wait_test.cpp)
+lo_add_header_test(LoPlumeLogTest ${CMAKE_SOURCE_DIR}/tools/tests/plume_log_test.cpp)
+target_include_directories(LoPlumeLogTest PRIVATE ${CMAKE_SOURCE_DIR}/thirdparty/plume)
 lo_add_header_test(LoParticleMaterialCompatTest ${CMAKE_SOURCE_DIR}/tools/tests/particle_material_compat_test.cpp)
 lo_add_header_test(LoRenderBatchPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/render_batch_policy_test.cpp)
 lo_add_header_test(LoTextureDescriptorCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_descriptor_cache_test.cpp)
@@ -45,6 +47,13 @@ add_custom_command(
     VERBATIM)
 
 add_executable(LostOdysseyRecomp ${LO_RUNTIME_SOURCES} ${LO_IMPORT_STUBS})
+set(LO_BUILD_REVISION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/lo_build_revision.h")
+add_custom_target(LoBuildRevision
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE_ROOT=${CMAKE_SOURCE_DIR}" "-DOUTPUT=${LO_BUILD_REVISION_HEADER}"
+        -P "${CMAKE_SOURCE_DIR}/tools/write_build_revision.cmake"
+    BYPRODUCTS "${LO_BUILD_REVISION_HEADER}" VERBATIM)
+add_dependencies(LostOdysseyRecomp LoBuildRevision)
+target_include_directories(LostOdysseyRecomp PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 # Publish source identity only after the corresponding runtime links successfully.
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/source-version.build.txt" CONTENT "${LO_SOURCE_VERSION}\n")
 add_custom_command(TARGET LostOdysseyRecomp POST_BUILD
@@ -102,6 +111,12 @@ if(WIN32)
         ${LO_RUNTIME_ROOT}/updater/sha256.cpp
         ${LO_RUNTIME_ROOT}/updater/stage.cpp
         ${LO_RUNTIME_ROOT}/updater/apply.cpp)
+    add_executable(LoUpdaterHttpFailureTest EXCLUDE_FROM_ALL
+        ${CMAKE_SOURCE_DIR}/tools/tests/updater_http_failure_test.cpp ${LO_UPDATER_TRANSACTION_SOURCES})
+    target_include_directories(LoUpdaterHttpFailureTest PRIVATE ${LO_RUNTIME_ROOT})
+    target_compile_features(LoUpdaterHttpFailureTest PRIVATE cxx_std_20)
+    target_compile_definitions(LoUpdaterHttpFailureTest PRIVATE NOMINMAX)
+    target_link_libraries(LoUpdaterHttpFailureTest PRIVATE bcrypt shell32)
     add_executable(LostOdysseyUpdater WIN32
         ${CMAKE_SOURCE_DIR}/tools/updater/helper_main.cpp
         ${LO_RUNTIME_ROOT}/updater/standalone.cpp
@@ -390,6 +405,7 @@ if(WIN32)
     if(LO_BUILD_GPU)
         add_executable(LoRenderResolutionGpuTest EXCLUDE_FROM_ALL
             ${CMAKE_SOURCE_DIR}/tools/tests/render_resolution_gpu_test.cpp
+            ${LO_RUNTIME_ROOT}/os/log_file.cpp
             ${LO_RUNTIME_ROOT}/gpu/shader/xenos_translator.cpp
             ${LO_RUNTIME_ROOT}/gpu/shader/dxc_compiler.cpp)
         target_include_directories(LoRenderResolutionGpuTest PRIVATE ${LO_RUNTIME_ROOT} ${CMAKE_SOURCE_DIR}/thirdparty/plume)
@@ -509,6 +525,7 @@ if(WIN32 AND LO_BUILD_GPU)
     target_link_libraries(LoBackendCacheTest PRIVATE fmt::fmt)
     add_executable(LoBackendLifecycleTest EXCLUDE_FROM_ALL
         ${CMAKE_SOURCE_DIR}/tools/tests/backend_lifecycle_test.cpp
+        ${LO_RUNTIME_ROOT}/os/log_file.cpp
         ${LO_RUNTIME_ROOT}/gpu/presentation.cpp ${LO_RUNTIME_ROOT}/gpu/shader/dxc_compiler.cpp)
     target_compile_definitions(LoBackendLifecycleTest PRIVATE LO_GPU_PLUME SDL_MAIN_HANDLED)
     target_link_options(LoBackendLifecycleTest PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)

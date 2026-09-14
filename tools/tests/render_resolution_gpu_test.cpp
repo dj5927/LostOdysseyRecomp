@@ -2,6 +2,8 @@
 #include <gpu/shader/xenos_translator.h>
 #include <gpu/shader/xenos_shader_code.h>
 #include <gpu/shader/dxc_compiler.h>
+#include <gpu/diagnostic_log.h>
+#include <os/startup_diagnostics.h>
 #include <plume_render_interface.h>
 #include <plume_render_interface_builders.h>
 #include <array>
@@ -11,9 +13,47 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <fstream>
+#include <iterator>
 namespace plume { std::unique_ptr<RenderInterface> CreateD3D12Interface(); }
 namespace {
 void Require(bool ok, const char* message) { if (!ok) throw std::runtime_error(message); }
+void CheckRejectedAllocation(plume::RenderDevice* device) {
+    using namespace plume;
+    // Reuse the existing bounded native negative case, without memory pressure.
+    auto rejected = device->createTexture(RenderTextureDesc::Texture2D(16385, 1, 1, RenderFormat::R8G8B8A8_UNORM));
+    Require(!rejected, "failed D3D12 texture allocation returned a non-null wrapper");
+    auto recovery = device->createTexture(RenderTextureDesc::Texture2D(1, 1, 1, RenderFormat::R8G8B8A8_UNORM));
+    Require(bool(recovery), "normal texture allocation failed after rejected dimensions");
+}
+int CheckDiagnostics(const char* logPath) {
+    const auto path = std::filesystem::u8path(logPath);
+    Require(!std::filesystem::exists(path), "diagnostic fixture requires a fresh output path");
+    Require(os::logger::OpenFile(path), "diagnostic runtime log could not be opened");
+    os::diagnostics::LogStartupEnvironment();
+    gpu::diagnostics::InstallPlumeLog();
+    auto api = plume::CreateD3D12Interface();
+    Require(bool(api), "D3D12 interface unavailable");
+    auto device = api->createDevice();
+    Require(bool(device), "D3D12 device unavailable");
+    CheckRejectedAllocation(device.get());
+    const auto snapshot = path.parent_path() / "gpu-runtime-snapshot.log";
+    Require(!os::logger::SnapshotFile(snapshot), "GPU diagnostic snapshot failed");
+    std::ifstream input(snapshot, std::ios::binary);
+    const std::string log((std::istreambuf_iterator<char>(input)), {});
+    const std::string marker = "gpu API: backend=D3D12 api=D3D12MA::CreateResource domain=HRESULT code=";
+    const auto first = log.find(marker);
+    Require(first != std::string::npos, "native resource error is missing from runtime snapshot");
+    Require(log.find(marker, first + marker.size()) == std::string::npos, "native resource error duplicated in runtime log");
+    Require(log.find("code=0x00000000", first) == std::string::npos, "native failure lost its raw HRESULT");
+    Require(log.find("16385", first) != std::string::npos, "native allocation context is missing");
+    Require(log.find("host OS: api=RtlGetVersion version=") != std::string::npos, "actual OS build missing from startup log");
+    Require(log.find("host architecture:") != std::string::npos && log.find("build image: pe_timestamp=") != std::string::npos,
+        "architecture or loaded image identity missing");
+    Require(log.find("host memory: stage=startup") != std::string::npos, "startup memory baseline missing");
+    std::puts("PASS: native D3D12 error reaches runtime log once with HRESULT/resource context; recovery, startup environment and snapshot preserved. No shaders, draws, window or game.");
+    return 0;
+}
 std::string ExtractFunction(const std::string& source, const char* signature) {
     const auto start = source.find(signature);
     Require(start != std::string::npos, "production helper missing");
@@ -61,8 +101,9 @@ float4 pixel(float4 position : SV_Position) : SV_Target {
     return source;
 }
 }
-int main() {
+int main(int argc, char** argv) {
     try {
+        if (argc == 3 && std::string_view(argv[1]) == "--diagnostic-log") return CheckDiagnostics(argv[2]);
         using namespace plume;
         const auto source = Source();
         const auto vertex = xenos::CompileHlsl(source, "vertex", "vs_6_0");
@@ -72,11 +113,7 @@ int main() {
         Require(bool(device), "D3D12 device unavailable");
         // Invalid dimensions are rejected before a large allocation is attempted.
         // This exercises the native factory failure contract without OOM stress.
-        auto rejected = device->createTexture(RenderTextureDesc::Texture2D(16385, 1, 1, RenderFormat::R8G8B8A8_UNORM));
-        Require(!rejected, "failed D3D12 texture allocation returned a non-null wrapper");
-        auto recovery = device->createTexture(RenderTextureDesc::Texture2D(1, 1, 1, RenderFormat::R8G8B8A8_UNORM));
-        Require(bool(recovery), "normal texture allocation failed after rejected dimensions");
-        recovery.reset();
+        CheckRejectedAllocation(device.get());
         std::puts("PASS: invalid-width allocation returns null; normal allocation still succeeds (expected CreateResource error above)");
         auto queue = device->createCommandQueue(RenderCommandListType::DIRECT);
         auto commands = queue->createCommandList(); auto fence = device->createCommandFence();

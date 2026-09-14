@@ -18,6 +18,7 @@
 #include <os/shader_log.h>
 #include <os/log_file.h>
 #include <os/crash_handler.h>
+#include <os/startup_diagnostics.h>
 #include <cstring>
 #include <ctime>
 #include <chrono>
@@ -155,6 +156,7 @@ int main(int argc, char* argv[])
                 switches += fmt::format(" {}", *e);
         LOG_INFO("LO_* switches:{}", switches.empty() ? " (none)" : switches.c_str());
     }
+    os::diagnostics::LogStartupEnvironment();
 
     const auto gameResolution = FindGameRoot(executableDirectory, explicitGamePath);
     auto gameRoot = gameResolution.root;
@@ -224,6 +226,15 @@ int main(int argc, char* argv[])
         if (failure.preferredReservationError)
             LOG_ERROR("guest address space: preferred-address reservation also failed with Win32 error={} ({:#x})",
                       failure.preferredReservationError, failure.preferredReservationError);
+        LOG_ERROR("guest allocation failure site: api={} utc_filetime_100ns={} uptime_ms={} thread={} process_handle={:#x} (0=current_process) backing_handle={:#x} flags={:#x} protection={:#x}",
+            GuestAddressSpace::FailureApiName(failure.operation), failure.utcFileTime, failure.uptimeMilliseconds,
+            failure.threadId, failure.processHandle, failure.backingHandle, failure.flags, failure.protection);
+        const auto& memory = failure.memory;
+        if (memory.valid)
+            LOG_ERROR("host memory at allocation failure (bytes): available_commit={} total_commit={} available_physical={} total_physical={} available_virtual={} total_virtual={} load_percent={}",
+                memory.availableCommit, memory.totalCommit, memory.availablePhysical, memory.totalPhysical,
+                memory.availableVirtual, memory.totalVirtual, memory.loadPercent);
+        else LOG_ERROR("host memory at allocation failure: unavailable api=GlobalMemoryStatusEx Win32={:#010x}", memory.error);
         MEMORYSTATUSEX memoryStatus{sizeof(memoryStatus)};
         if (GlobalMemoryStatusEx(&memoryStatus))
             LOG_ERROR("host memory at error report (bytes): available_commit={} total_commit={} available_physical={} total_physical={} available_virtual={}",

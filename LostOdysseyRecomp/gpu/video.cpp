@@ -23,6 +23,7 @@
 
 #ifdef LO_GPU_PLUME
 #include <plume_render_interface.h>
+#include "diagnostic_log.h"
 #ifdef _WIN32
 #include <plume_d3d12.h>
 #endif
@@ -447,6 +448,7 @@ namespace gpu::video
 #endif
 
 #if defined(LO_GPU_PLUME) && defined(_WIN32)
+        diagnostics::InstallPlumeLog();
         const auto selection = backend::Select(*requested, [](backend::Backend candidate) -> std::string {
             g_vulkan = candidate == backend::Backend::Vulkan;
             g_initializing = true;
@@ -454,6 +456,12 @@ namespace gpu::video
             g_interface = g_vulkan ? plume::CreateVulkanInterface() : plume::CreateD3D12Interface();
             if (!g_interface) return "API/loader initialization failed";
             g_device = g_interface->createDevice();
+            if (g_device) {
+                const auto& description = g_device->getDescription();
+                LOG_INFO("video device: backend={} name={} driver_raw={} vendor_enum={} type_enum={} reported_device_memory_bytes={}",
+                    backend::Name(candidate), description.name, description.driverVersion,
+                    uint32_t(description.vendor), uint32_t(description.type), description.dedicatedVideoMemory);
+            }
             if (const auto missing = backend::Missing(candidate, backend::Inspect(candidate, g_device.get())); !missing.empty()) return missing;
             g_queue = g_device->createCommandQueue(plume::RenderCommandListType::DIRECT);
             if (!g_queue) return "graphics queue creation failed";
