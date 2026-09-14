@@ -12,6 +12,7 @@
 | [Issue #7：议会崩溃、原生保存／读档与日志诊断](issue7-cutscene-crash.md) |
 | [PowerPC 位宽／控制流审查与九类语义修复](recompiler-width-audit.md) |
 | [Switch 评估与 v0.5.0 PC Vulkan／DX11 交接（2026-09-07；后端规划待实施、待验收，PC Vulkan 后再对齐 Switch）](switch-vulkan-handoff.md) |
+| [Linux／Steam Deck 首可玩评估与移植规划（2026-09-13；仅规划，未实施，不代表可用支持）](linux-port-evaluation-2026-09-13.md) |
 | [v0.5.0 QOL 需求与未来验收标准（仅规划，12 项待完成／待验证）](v0.5.0-qol-requirements.md) |
 | [v0.4.0 开发历史与验证边界](v0.4.0-development.md) |
 | [v0.4.0 后续实现、正式包与验收范围](handoff-v0.4.0-followup.md) |

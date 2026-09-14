@@ -94,6 +94,10 @@ The independent Release build linked `LostOdysseyRecomp.exe` and the four target
 
 Published at [GitHub Release v0.5.11](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11) on 2026-09-14T02:09:50Z. Release CI [34797755460](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34797755460) succeeded for source/tag commit `624729cdb1263b96061b1fa14d4d1c5ba0b50239`; package, updater, payload/CRC, public-download and PPC provenance verification passed. The v0.5.11 package includes this diagnostic instrumentation. No additional gameplay or reporter acceptance is claimed.
 
+### Linux first-playable evaluation — planning only — 2026-09-13
+
+The [Linux port evaluation](notes/linux-port-evaluation-2026-09-13.md) records a first-playable direction for a Vulkan-only, unbundled ELF using host Mesa, SDL2 and X11/XWayland. This is planning and a technical verdict only: Linux was not configured, compiled or run, no Linux binary exists, and the evaluation does not authorize implementation. Linux and Steam Deck remain independent future platform work; packaging is outside the first-playable scope. The published v0.5.10 Windows x64 release and its publication facts are unchanged.
+
 ### Current-scene TAA jitter coverage — local candidate — 2026-09-13
 
 The local candidate extends the current-scene TAA jitter repair by seven vertex-shader paths: `8d3c80b318235b22` to c4, and `3eb16ad927f44289`, `83b23507725f85bf`, `6742ec1abe49589e`, `0f2b89c7eb1c409e`, `fecf2f9d9bef2702` and `2a7867b5eed37f8a` to c7. These paths were selected from the latest three-frame capture (frames 13429–13431): 39 draws per frame, 117 draws total. The strict audit matched two paths; the position fetch 95 versus auxiliary fetch 94 distinction recovered the other five. All seven original vertex-shader microcode hashes match the historical `f24842` family. The current PS `67b10` was not present in these frames and was not moved into the compensation policy. The capture recorded 2,229 submitted draws per frame with no reported drops; actual CPU-uploaded VS/PS constant banks and per-draw enabled/applied records were not instrumented.

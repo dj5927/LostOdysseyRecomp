@@ -17,7 +17,7 @@
 <a id="下一主版本v050--pc-vulkan-与-direct3d-11"></a>
 ## PC 图形方向
 
-D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定验证，与更广 GPU 和全游戏覆盖分开。Direct3D 11、Linux/Steam Deck 和 Switch 是彼此独立的未来平台工作，未声明完成或发布日期。
+D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定验证，与更广 GPU 和全游戏覆盖分开。Direct3D 11、Linux/Steam Deck 和 Switch 是彼此独立的未来平台工作，未声明完成或发布日期。2026-09-13 的评估记录了首可玩范围：在宿主 Mesa + SDL2 + X11/XWayland 上，以 `./LostOdysseyRecomp --game <disc>` 启动 Vulkan-only 未打包 ELF。AppImage 和 Steam Deck 打包留到之后；installer、F1 debug menu 和 updater 不属于本分支范围。见 [Linux 移植评估](notes/linux-port-evaluation-2026-09-13.md)。
 
 <a id="近期优先事项"></a>
 ## 当前事项与验收边界

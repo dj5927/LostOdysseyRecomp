@@ -17,7 +17,7 @@
 <a id="next-major-milestone-v050--pc-vulkan-and-direct3d-11"></a>
 ## PC graphics direction
 
-D3D12 remains the working baseline. Windows Vulkan has bounded RTX 5080 scene validation and remains separate from wider GPU and full-game coverage. Direct3D 11, Linux/Steam Deck and Switch are independent future platform work; no completion or release date is implied.
+D3D12 remains the working baseline. Windows Vulkan has bounded RTX 5080 scene validation and remains separate from wider GPU and full-game coverage. Direct3D 11, Linux/Steam Deck and Switch are independent future platform work; no completion or release date is implied. The 2026-09-13 evaluation records a first-playable scope of a Vulkan-only unbundled ELF launched with `./LostOdysseyRecomp --game <disc>` on host Mesa + SDL2 + X11/XWayland. AppImage and Steam Deck packaging come later; installer, F1 debug menu and updater are outside this branch's scope. See the [Linux port evaluation](notes/linux-port-evaluation-2026-09-13.md).
 
 <a id="near-term-priorities"></a>
 ## Active work and acceptance boundaries
