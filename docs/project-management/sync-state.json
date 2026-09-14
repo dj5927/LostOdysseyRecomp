@@ -2517,6 +2517,19 @@
       },
       "title": "Automate new GitHub Issue analysis and replies",
       "body_sha256": "70f33d305366ad5f876fbffbad67071dc61e70011c64f57c7d5f2c56bf788dbd"
+    },
+    "issue-27-spanish-fmv-subtitles": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg67xS8",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Localization and cutscenes",
+        "Status": "Awaiting validation",
+        "Delivery": "Implemented",
+        "Release": "v0.5.12",
+        "Start date": "2026-09-14",
+        "Evidence": "Local source 0.5.12 implementation; user accepted Spanish (GameLanguage ID 5) opening-FMV/cutscene subtitles on USA/Europe Disc 1 with Vulkan 3840x2160 on 2026-09-14. Scope is opening scene only; DE/FR/IT FMVs were not visually rechecked. Uncommitted/unpublished: no v0.5.12 package. Issue #27 remains OPEN pending reporter confirmation of the published package. https://github.com/freefrank/LostOdysseyRecomp/issues/27",
+        "Source key": "issue-27-spanish-fmv-subtitles"
+      }
     }
   }
 }

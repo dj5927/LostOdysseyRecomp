@@ -5240,6 +5240,28 @@
       ],
       "source_lines": [],
       "record_type": "backlog"
+    },
+    {
+      "key": "issue-27-spanish-fmv-subtitles",
+      "title": "[Bug] Missing subtitles during FMVs/cutscenes in PAL Spanish version",
+      "body": "<!-- lo-project:issue-27-spanish-fmv-subtitles -->\n\nIssue #27 is OPEN. USA/Europe Spanish (GameLanguage ID 5) displayed menus and in-game dialogue but omitted FMV/cutscene subtitles.\n\n## Implementation and local acceptance\n\nThe local source-0.5.12 repair makes host hook `sub_82481BE8` return original table `0x832455F0` suffixes for GameLanguage IDs 1–9 when the cutscene registry `0x8336A5F0` is queried with `r4 == 0` or the active language. The former bypass applied only to Simplified Chinese (ID 9).\n\nOn 2026-09-14, the user accepted opening-FMV/cutscene Spanish subtitles on `LostOdysseyRecomp-issue27.exe` using USA/Europe Disc 1, `game_language=5`, Vulkan and 3840x2160.\n\n## Limits and publication\n\nThis is local opening-scene acceptance only. German, French and Italian FMVs were not visually rechecked. The source change is uncommitted and not on `main` or a tag; no v0.5.12 package is published. Keep Issue #27 OPEN pending reporter confirmation of the published package.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/27\n- Local user acceptance, 2026-09-14 (opening FMV/cutscene only)\n- `LostOdysseyRecomp/settings/menu.cpp` local source-0.5.12 implementation\n",
+      "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/27",
+      "record_type": "issue",
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/27",
+        "local-user-acceptance-2026-09-14-opening-spanish-fmv",
+        "LostOdysseyRecomp/settings/menu.cpp"
+      ],
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Localization and cutscenes",
+        "Status": "Awaiting validation",
+        "Delivery": "Implemented",
+        "Release": "v0.5.12",
+        "Start date": "2026-09-14",
+        "Target date": null,
+        "Evidence": "Local source 0.5.12 implementation; user accepted Spanish (GameLanguage ID 5) opening-FMV/cutscene subtitles on USA/Europe Disc 1 with Vulkan 3840x2160 on 2026-09-14. Scope is opening scene only; DE/FR/IT FMVs were not visually rechecked. Uncommitted/unpublished: no v0.5.12 package. Issue #27 remains OPEN pending reporter confirmation of the published package. https://github.com/freefrank/LostOdysseyRecomp/issues/27"
+      }
     }
   ]
 }
