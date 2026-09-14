@@ -191,12 +191,23 @@ uint8_t* Allocate()
         return nullptr;
     }
 #else
+    int mmapFlags = MAP_ANONYMOUS | MAP_PRIVATE;
+#ifdef MAP_FIXED_NOREPLACE
+    mmapFlags |= MAP_FIXED_NOREPLACE;
+#endif
     auto* base = static_cast<uint8_t*>(mmap(reinterpret_cast<void*>(0x100000000ull),
-        kSize, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));
+        kSize, PROT_NONE, mmapFlags, -1, 0));
     if (base == MAP_FAILED)
     {
         RecordFailure(FailureOperation::ReservePreferred, uint32_t(errno), -1,
                       reinterpret_cast<void*>(0x100000000ull), kSize);
+        return nullptr;
+    }
+    if (base != reinterpret_cast<uint8_t*>(0x100000000ull))
+    {
+        RecordFailure(FailureOperation::ReservePreferred, uint32_t(ENOMEM), -1,
+                      base, kSize);
+        munmap(base, kSize);
         return nullptr;
     }
     int section = static_cast<int>(syscall(SYS_memfd_create, "lo-guest-memory", 0));
