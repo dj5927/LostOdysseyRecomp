@@ -1,12 +1,13 @@
 # CPU 性能优化指南：3C6T 预算、可行并行与反模式
 
 日期：2026-09-14  
-分支：`cpu-perf`  
-状态：**指南，未实施。** 不授权改运行时、不改源版本、不宣称验收或发布。  
+分支：`cpu-perf` / 实验分支 `cpu-perf-exp`  
+状态：**指南，未实施运行时。** Card A 已用 published v0.5.11 城市包测过（耗尽资源类 = null）。不授权改运行时、不改源版本、不宣称验收或发布。  
 正文：简体中文；符号、路径、函数名保持英文。
 
 配套记录：
 
+- [Card A city measurement（2026-09-14；published v0.5.11，无耗尽资源）](cpu-card-a-city-2026-09-14.md)
 - [CPU 重编译深度诊断（2026-09-13；历史诊断）](cpu-recomp-deep-2026-09-13.md)
 - [性能分析完整报告（2026-09-11；v0.5.4 诊断）](perf-complete-analysis.md)
 - [GPU 环缓冲实测对比（2026-09-11；诊断，非验收）](perf-gpu-ring-compare.md)
@@ -233,7 +234,9 @@ Amdahl 警告：城市场景的历史主因是提交路径上的串行等待，�
 ### 卡片 A — 剩余 fence / split 测量（先做，且本身几乎不是代码改动）
 
 **问题与证据**  
-v0.5.4 城市 `fence_wait` 15.40 ms 来自「`Flush` 立刻等」。当前 `Flush` 已不等，两槽 + 1800/2048 limit 的诊断曾把同城市场景 `fence_wait` 降到 1.67 ms 均值，但范围仍到 11.72 ms，且那不是验收、也不是 v0.5.11 / `cpu-perf` 基线。未知：现在还有多少 mid-frame `Flush`、`RecycleSlot` 是否仍在热路径上睡死。
+v0.5.4 城市 `fence_wait` 15.40 ms 来自「`Flush` 立刻等」。当前 `Flush` 已不等，两槽 + 1800/2048 limit 的诊断曾把同城市场景 `fence_wait` 降到 1.67 ms 均值，但范围仍到 11.72 ms，且那不是验收、也不是 v0.5.11 / `cpu-perf` 基线。
+
+**当前测量（事实，2026-09-14）**：published v0.5.11 Hidden 1280×720 D3D12 AA3 60-cap 城市 `user01`，1836 city frames。`fence_wait_ms` 均值 0.0007、max 0.1371（0 帧 >1 ms）；`nested_flush_ms` 全 0；descriptor / upload / arena splits 全 0（D3D12 limit 1800）；`gpu_batches` 均值 1.0005；GPU queue 均值 0.8115 ms、max 1.5575（0 帧 >16.67 ms）。耗尽资源类 = null。历史 15.40 ms 与两槽诊断 1.67 ms **不得**替换本基线。详见 [Card A city measurement](cpu-card-a-city-2026-09-14.md)。
 
 **代码入口**  
 `LostOdysseyRecomp/gpu/renderer.cpp`：`Flush`、`RecycleSlot`、`Begin`、`DrawImpl`、`Upload`。  
@@ -258,7 +261,7 @@ Slot N 的 descriptor、upload、query、`textureSetCache`、temporal history �
 测量不改代码。若后续改 slot/limit：保留原 `kGpuSlots=2` 与 1800/2048 为默认，用开关或编译期常量回退。
 
 **未决条件**  
-当前包的一次城市对照尚未做。没有它，A 的实现子项全部停在 gate。
+当前包城市对照已完成（published v0.5.11）。没有耗尽的 descriptor / upload / arena / fence 资源；「再加 slot / 再抬 limit」标为低优先级。A 的实现子项全部停在 gate。下一步是卡片 B 的当前 profile，不是改 GPU 槽。
 
 ---
 
@@ -472,8 +475,8 @@ Agent 运行时测试须后台、默认静音、不抢前台。需要前台交�
 
 ## 9. 给下一位实施者的起步清单
 
-1. **先做卡片 A 的测量**，不要加线程。用当前要优化的二进制（写明是 `cpu-perf` 本地构建还是已发布 v0.5.11 包）在固定城市场景打开 `LO_RENDER_TIMING` / `LO_GPU_STATS`，记录每帧 `Flush` 次数、`fence_wait`、`descriptor_splits`、GPU queue。
-2. 若 `fence_wait` 已接近诊断对照里的低个位数毫秒且 `descriptor_splits = 0`：把「再加 slot / 再抬 limit」标为低优先级，转卡片 B 的当前 profile。
+1. **先做卡片 A 的测量**，不要加线程。用当前要优化的二进制（写明是 `cpu-perf` 本地构建还是已发布 v0.5.11 包）在固定城市场景打开 `LO_RENDER_TIMING` / `LO_GPU_STATS`，记录每帧 `Flush` 次数、`fence_wait`、`descriptor_splits`、GPU queue。2026-09-14 已对 **published v0.5.11** 城市包完成一次测量，见 [Card A city measurement](cpu-card-a-city-2026-09-14.md)。
+2. 若 `fence_wait` 已接近诊断对照里的低个位数毫秒且 `descriptor_splits = 0`：把「再加 slot / 再抬 limit」标为低优先级，转卡片 B 的当前 profile。本次测量满足该条件（`fence_wait` 均值 0.0007 ms，splits 全 0）。
 3. 若仍有中途 `Flush`：指出耗尽的是 descriptor、upload 还是 arena，再单独提案。禁止笼统「多缓冲」。
 4. 任何并行准备：先写数据契约（快照、所有权、join、取消），再写代码。默认关。3C6T 下最多再占 1 条硬件线程。
 5. Affinity 保持实验、默认关。修 stub 返回值若是正确性问题，单独提交，不和性能混。
