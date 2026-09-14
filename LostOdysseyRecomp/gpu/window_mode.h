@@ -6,12 +6,38 @@
 #endif
 
 namespace gpu::video::window_mode {
+#ifdef _WIN32
+// VK_MENU is 18. Left and Right Alt both report that code; LM/RMENU can stay unset.
+inline bool MenuAltHeld() {
+    return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+}
+inline bool LeftAltHeld() {
+    return (GetAsyncKeyState(VK_LMENU) & 0x8000) != 0;
+}
+inline bool RightAltHeld() {
+    return (GetAsyncKeyState(VK_RMENU) & 0x8000) != 0;
+}
+#else
+inline bool MenuAltHeld() { return false; }
+inline bool LeftAltHeld() { return false; }
+inline bool RightAltHeld() { return false; }
+#endif
+
+// Accept either the focused game window or a SYSKEY with no SDL focus yet.
+inline bool TargetsGameWindow(const SDL_KeyboardEvent& event, uint32_t gameWindowID) {
+    return event.windowID == 0 || event.windowID == gameWindowID;
+}
+
 inline bool IsToggleChord(const SDL_KeyboardEvent& event) {
-    // Right Alt may be AltGr even without a Ctrl event on some layouts.
-    constexpr auto disallowed = KMOD_RALT | KMOD_CTRL | KMOD_SHIFT | KMOD_GUI | KMOD_MODE;
-    return event.type == SDL_KEYDOWN && !event.repeat &&
-        (event.keysym.sym == SDLK_RETURN || event.keysym.sym == SDLK_KP_ENTER) &&
-        (event.keysym.mod & KMOD_LALT) && !(event.keysym.mod & disallowed);
+    // Right Alt is often AltGr: fake Left Ctrl, MODE, and no KMOD_ALT on Enter.
+    constexpr auto disallowed = KMOD_SHIFT | KMOD_GUI;
+    const bool enter = event.keysym.scancode == SDL_SCANCODE_RETURN ||
+        event.keysym.scancode == SDL_SCANCODE_KP_ENTER ||
+        event.keysym.sym == SDLK_RETURN || event.keysym.sym == SDLK_KP_ENTER;
+    const bool alt = (event.keysym.mod & (KMOD_ALT | KMOD_MODE)) ||
+        MenuAltHeld() || LeftAltHeld() || RightAltHeld();
+    return event.type == SDL_KEYDOWN && !event.repeat && enter && alt &&
+        !(event.keysym.mod & disallowed);
 }
 
 struct Placement {

@@ -628,7 +628,10 @@ namespace gpu::video
             else if (result == 0 && mode == settings::WindowMode::Exclusive)
                 SDL_SetWindowSize(g_window,config.width,config.height);
 #ifdef _WIN32
-            if (result == 0 && mode == settings::WindowMode::Borderless && !window_mode::FitBorderless(g_nativeWindow)) result = -1;
+            // SDL owns the fullscreen transition. A failed bounds repair must
+            // not roll the shortcut back to windowed.
+            if (result == 0 && mode == settings::WindowMode::Borderless)
+                window_mode::FitBorderless(g_nativeWindow);
 #endif
             g_displayFailed=result!=0;
             g_displaySize.store(uint64_t(config.width)<<32|config.height);
@@ -647,8 +650,8 @@ namespace gpu::video
             }
             if (event.type == SDL_KEYDOWN && event.key.keysym.scancode == state.consumedKey) continue;
             if (event.type == SDL_KEYDOWN && window_mode::IsToggleChord(event.key) &&
-                event.key.windowID == SDL_GetWindowID(g_window)) {
-                state.consumedKey = event.key.keysym.scancode;
+                window_mode::TargetsGameWindow(event.key, SDL_GetWindowID(g_window))) {
+                state.consumedKey = event.key.keysym.scancode ? event.key.keysym.scancode : SDL_SCANCODE_RETURN;
                 const auto next = config.windowMode == settings::WindowMode::Windowed
                     ? settings::WindowMode::Borderless : settings::WindowMode::Windowed;
                 const auto ticket = g_displayChanges.TryBegin(config.width, config.height, uint32_t(next));
@@ -659,6 +662,8 @@ namespace gpu::video
                     state.shortcutTicket = ticket;
                     g_reapplyWindow = true;
                     LOG_INFO("video: Alt+Enter requested window mode {}", uint32_t(next));
+                } else {
+                    LOG_WARNING("video: Alt+Enter ignored; display change still pending");
                 }
                 continue;
             }

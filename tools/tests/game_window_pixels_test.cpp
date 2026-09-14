@@ -101,17 +101,35 @@ void RunRenderingFixes()
     Check(window_mode::IsToggleChord(key), "Alt+Enter rejected");
     key.keysym.sym = SDLK_KP_ENTER;
     Check(window_mode::IsToggleChord(key), "Alt+keypad Enter rejected");
+    key = {};
+    key.type = SDL_KEYDOWN;
+    key.keysym.scancode = SDL_SCANCODE_RETURN;
+    key.keysym.mod = KMOD_LALT;
+    Check(window_mode::IsToggleChord(key), "SYSKEY scancode Alt+Enter rejected");
+    Check(window_mode::TargetsGameWindow(key, 7), "unfocused SYSKEY ignored");
+    key.windowID = 7;
+    Check(window_mode::TargetsGameWindow(key, 7), "focused window rejected");
+    key.windowID = 3;
+    Check(!window_mode::TargetsGameWindow(key, 7), "other window toggles fullscreen");
+    key.windowID = 0;
     key.repeat = 1;
     Check(!window_mode::IsToggleChord(key), "repeat toggles fullscreen");
     key.repeat = 0; key.type = SDL_KEYUP;
     Check(!window_mode::IsToggleChord(key), "key release toggles fullscreen");
     key.type = SDL_KEYDOWN;
-    for (auto extra : {KMOD_RALT, KMOD_CTRL, KMOD_SHIFT, KMOD_GUI, KMOD_MODE}) {
+    key.keysym.mod = KMOD_RALT;
+    Check(window_mode::IsToggleChord(key), "Right Alt+Enter rejected");
+    key.keysym.scancode = SDL_SCANCODE_RETURN;
+    key.keysym.sym = SDLK_UNKNOWN;
+    Check(window_mode::IsToggleChord(key), "SYSKEY Right Alt+Enter rejected");
+    for (auto extra : {KMOD_SHIFT, KMOD_GUI}) {
         key.keysym.mod = Uint16(KMOD_LALT | extra);
         Check(!window_mode::IsToggleChord(key), "extra modifier toggles fullscreen");
     }
-    key.keysym.mod = KMOD_RALT;
-    Check(!window_mode::IsToggleChord(key), "AltGr toggles fullscreen");
+    key.keysym.mod = Uint16(KMOD_RALT | KMOD_CTRL);
+    Check(window_mode::IsToggleChord(key), "AltGr+Enter rejected");
+    key.keysym.mod = KMOD_MODE;
+    Check(window_mode::IsToggleChord(key), "AltGr MODE+Enter rejected");
     key.keysym.mod = Uint16(KMOD_LALT | KMOD_CAPS | KMOD_NUM);
     Check(window_mode::IsToggleChord(key), "lock keys suppress shortcut");
     DisplayChangeTracker tracker;
