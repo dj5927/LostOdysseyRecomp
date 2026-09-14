@@ -19,6 +19,12 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## New in v0.5.11
+
+Published Windows x64 package: [v0.5.11](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11).
+
+- Lower-layer GPU failures now record the API, raw error code and resource context, while startup and early allocation failures retain environment, build and memory details. WinHTTP failures preserve raw errors, repeated failures are rate-limited, and GPU adapter/renderer formatting has an emergency fallback. Issues #6 and #22 remain under investigation; these diagnostics do not claim either report is fixed.
+
 ## New in v0.5.10
 
 Published Windows x64 package: [v0.5.10](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.10).
@@ -127,7 +133,7 @@ Pop-Location
 
 Keep the working directory consistent so the intended save/profile folders are used.
 
-**Startup and failure logs.** Each normal launch writes `logs/runtime-<timestamp>.log` in the working directory and mirrors output to `stderr`; set `LO_LOG_FILE=<path>` to choose another file, or `LO_LOG_FILE=0` to disable the duplicate file sink. The current unpublished source additionally records the Windows build, process/native architecture, source/build revision, PE image metadata, compiler, startup memory baseline, GPU, raw driver version, vendor/type and `reported_device_memory_bytes`. When reporting a startup or renderer failure, attach the complete current runtime log and include the executable/source version, backend, GPU and driver details recorded near startup. The diagnostic records preserve raw API codes and the failed resource or allocation context, but they are investigation evidence and do not by themselves identify a root cause. See the [build and logging guide](docs/BUILDING.md) for the path and retention rules.
+**Startup and failure logs.** Each normal launch writes `logs/runtime-<timestamp>.log` in the working directory and mirrors output to `stderr`; set `LO_LOG_FILE=<path>` to choose another file, or `LO_LOG_FILE=0` to disable the duplicate file sink. v0.5.11 additionally records the Windows build, process/native architecture, source/build revision, PE image metadata, compiler, startup memory baseline, GPU, raw driver version, vendor/type and `reported_device_memory_bytes`. When reporting a startup or renderer failure, attach the complete current runtime log and include the executable/source version, backend, GPU and driver details recorded near startup. The diagnostic records preserve raw API codes and the failed resource or allocation context, but they are investigation evidence and do not by themselves identify a root cause. See the [build and logging guide](docs/BUILDING.md) for the path and retention rules.
 
 | Action | Keyboard |
 | :--- | :--- |

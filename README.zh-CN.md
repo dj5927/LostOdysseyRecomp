@@ -19,6 +19,12 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## v0.5.11 新增
+
+已发布 Windows x64 包：[v0.5.11](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11)。
+
+- 底层 GPU 失败现记录 API、原始错误 code 和资源上下文；启动与早期分配失败会保留环境、构建和内存信息。WinHTTP 失败保留原始错误，重复失败会限频，GPU adapter/renderer 格式化失败有应急兜底。Issue #6 和 #22 仍在调查；这些诊断不宣称修复任一报告。
+
 ## v0.5.10 新增
 
 已发布 Windows x64 包：[v0.5.10](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.10)。
@@ -127,7 +133,7 @@ Pop-Location
 
 保持启动工作目录一致，避免读到另一套存档或档案。
 
-**启动与失败日志。** 正常启动会在工作目录写入 `logs/runtime-<timestamp>.log`，并同时输出到 `stderr`；设置 `LO_LOG_FILE=<path>` 可指定其他文件，设置 `LO_LOG_FILE=0` 可关闭重复文件输出。当前未发布源码还会记录 Windows build、进程／原生架构、source/build revision、PE 映像元数据、compiler、启动 memory baseline、GPU、原始 driver version、vendor/type 和 `reported_device_memory_bytes`。报告启动或渲染失败时，请附上当前 runtime log，并保留启动日志附近记录的 executable/source version、backend、GPU 和 driver 信息。诊断记录会保留原始 API code 及失败的资源或分配上下文，但这些记录本身不能确定根因。路径和保留规则见[构建与日志说明](docs/BUILDING.md)。
+**启动与失败日志。** 正常启动会在工作目录写入 `logs/runtime-<timestamp>.log`，并同时输出到 `stderr`；设置 `LO_LOG_FILE=<path>` 可指定其他文件，设置 `LO_LOG_FILE=0` 可关闭重复文件输出。v0.5.11 还会记录 Windows build、进程／原生架构、source/build revision、PE 映像元数据、compiler、启动 memory baseline、GPU、原始 driver version、vendor/type 和 `reported_device_memory_bytes`。报告启动或渲染失败时，请附上当前 runtime log，并保留启动日志附近记录的 executable/source version、backend、GPU 和 driver 信息。诊断记录会保留原始 API code 及失败的资源或分配上下文，但这些记录本身不能确定根因。路径和保留规则见[构建与日志说明](docs/BUILDING.md)。
 
 | 动作 | 键盘 |
 | :--- | :--- |

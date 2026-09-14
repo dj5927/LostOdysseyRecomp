@@ -1985,10 +1985,10 @@
         "Kind": "Bug",
         "Area": "Runtime",
         "Status": "In Progress",
-        "Delivery": "Validated",
+        "Delivery": "Released",
         "Release": "v0.5.11",
         "Start date": "2026-09-07",
-        "Evidence": "v0.5.11 release preparation is in progress; commit/CI/publication are not complete. Retained fixtures passed: Plume 23, memory 259, updater HTTP 94 and D3D12 diagnostic log. Same EXE local log check recorded new startup fields for D3D12/Vulkan; D3D12 reached guest swap #181, while Vulkan stopped after log confirmation. No game acceptance. #6 OPEN/root cause unknown. The prior v0.5.6 association remains historical only. Evidence: out/diagnostic-logging-20260914/local-log-check.json",
+        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #6 remains OPEN with unknown root cause and no reporter acceptance; v0.5.6 is historical only. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11",
         "Source key": "issue-6-report"
       }
     },
@@ -2497,9 +2497,10 @@
         "Kind": "Bug",
         "Area": "Runtime logging",
         "Status": "In Progress",
-        "Delivery": "Validated",
+        "Delivery": "Released",
+        "Release": "v0.5.11",
         "Start date": "2026-09-13",
-        "Evidence": "v0.5.11 release preparation is in progress; commit/CI/publication are not complete. Retained fixtures passed: Plume 23, memory 259, updater HTTP 94 and D3D12 diagnostic log. Same EXE local log check recorded new startup fields for D3D12/Vulkan; D3D12 reached guest swap #181, while Vulkan stopped after log confirmation. No game acceptance. #22 OPEN/root cause unknown. Evidence: out/diagnostic-logging-20260914/local-log-check.json",
+        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #22 remains OPEN with unknown root cause and no reporter acceptance. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11",
         "Source key": "issue-22-renderer-init-report"
       }
     }
