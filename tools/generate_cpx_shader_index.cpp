@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
                 << std::hex << entry.hash << std::dec << "ULL," << (entry.pixel?"true":"false") << "},\n";
             out << "};\n"; locations+=profile.entries.size();
         }
-        out << "inline constexpr CpxIndexPackage cpxPackages[] = {\n"; id=0;
+        out << "inline const CpxIndexPackage cpxPackages[] = {\n"; id=0;
         for (const auto& [digest,profile]:profiles) {
             out << "    {\"" << digest << "\"," << profile.stored << ',' << profile.decoded << ',';
             if (profile.entries.empty()) out << "{}";
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
             }
             out << "};\n";
         }
-        out << "inline constexpr CpxIndexArchive cpxArchives[] = {\n";
+        out << "inline const CpxIndexArchive cpxArchives[] = {\n";
         for (size_t i=0;i<archives.size();++i) {
             const auto& archive=archives[i];
             out << "    {\"" << archive.fpi << "\",\"" << archive.name << "\"," << archive.size << "ULL,";

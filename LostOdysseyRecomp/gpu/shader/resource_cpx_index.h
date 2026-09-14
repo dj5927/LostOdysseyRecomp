@@ -277512,7 +277512,7 @@ inline constexpr IndexEntry cpx_entries_12852[] = {
     {627516ULL,108,0xf31d3268877c9502ULL,false},
     {627826ULL,36,0x4b924ca55152364bULL,true},
 };
-inline constexpr CpxIndexPackage cpxPackages[] = {
+inline const CpxIndexPackage cpxPackages[] = {
     {"0000c2b35d1056d3642aada3b478dbe6d8ea1ea7c0aa7b29ba27f347612df585",21078,84424,{}},
     {"0004399dfc1aff0b4f278986f2b88230cef444ff48c60f0b955e89786035da4d",5310,16402,{}},
     {"00099fd58780b01c2bddaf9b424c935b1a9bbd436099d8e36d60df8ade54a579",1438,4368,{}},
@@ -400293,7 +400293,7 @@ inline constexpr CpxIndexExtent cpx_extents_103[] = {
     {161796096ULL,2072773,UINT32_MAX},
     {163870720ULL,20073851,UINT32_MAX},
 };
-inline constexpr CpxIndexArchive cpxArchives[] = {
+inline const CpxIndexArchive cpxArchives[] = {
     {"39368cecf8482df03fdb82904371ed1dbbba137c031cc4ec1b6654fd292b176e","LO.fpd",1802240ULL,cpx_extents_0},
     {"39368cecf8482df03fdb82904371ed1dbbba137c031cc4ec1b6654fd292b176e","xenon_battle.fpd",587956224ULL,cpx_extents_1},
     {"39368cecf8482df03fdb82904371ed1dbbba137c031cc4ec1b6654fd292b176e","xenon_chr.fpd",694878208ULL,cpx_extents_2},
