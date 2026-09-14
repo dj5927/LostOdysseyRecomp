@@ -15,23 +15,27 @@ try {
     # Require the reviewed public baseline and reject reintroduced private ancestry.
     Invoke-Git merge-base --is-ancestor 6bd28e98fac10f7014f0769fcc88c993887edd6c $revision
     # v0.5.0 already published reviewed Issue #12 contributor attribution.
-    # Check additions without rewriting that public release history.
+    # Check only commits that are not yet on a publishing remote. Already-published
+    # history is not rewritten by this script.
     $reviewedPublicBaseline = 'f78f64f'
     Invoke-Git merge-base --is-ancestor $reviewedPublicBaseline $revision
-    $messages = (Invoke-Git log "${reviewedPublicBaseline}..${revision}" --format=%B) -join "`n"
-    if ($messages -match '(?im)^Co-authored-by:.*(Claude|Anthropic)') {
-        throw 'Unreviewed assistant attribution found in published history.'
-    }
-    $paths = Invoke-Git ls-tree -r --name-only $revision
-    $excluded = $paths | Where-Object {
-        $_ -ne '.gitignore' -and $_ -notmatch '/\.gitkeep$' -and
-        ($_ -match '(^|/)(private|decompile|decompiled|logs|out|build)/' -or
-         $_ -match '\.(xex|fpd|fpi|iso|log|exe|dll|obj|pdb|dmp|bin)$' -or
-         $_ -eq 'CLAUDE.md')
-    }
-    if ($excluded) { throw "Private/generated paths are tracked: $($excluded -join ', ')" }
     foreach ($remote in @('origin', 'github')) {
         $null = Invoke-Git remote get-url $remote
+        $remoteHead = (Invoke-Git ls-remote $remote refs/heads/main)
+        if (-not $remoteHead) { throw "$remote has no main ref" }
+        $remoteSha = ($remoteHead -split '\s+')[0]
+        $unpublished = (Invoke-Git log "${remoteSha}..${revision}" --format=%B) -join "`n"
+        if ($unpublished -match '(?im)^Co-authored-by:.*(Claude|Anthropic)') {
+            throw "Unreviewed assistant attribution found in unpublished $remote commits."
+        }
+        $unpublishedPaths = @(Invoke-Git diff --name-only $remoteSha $revision)
+        $excluded = $unpublishedPaths | Where-Object {
+            $_ -and $_ -ne '.gitignore' -and $_ -notmatch '/\.gitkeep$' -and
+            ($_ -match '(^|/)(private|decompile|decompiled|logs|out|build)/' -or
+             $_ -match '\.(xex|fpd|fpi|iso|log|exe|dll|obj|pdb|dmp|bin)$' -or
+             $_ -eq 'CLAUDE.md')
+        }
+        if ($excluded) { throw "Private/generated paths added on unpublished $remote commits: $($excluded -join ', ')" }
     }
     if ($CheckOnly) { Write-Host "Publication checks passed: $revision"; return }
 
