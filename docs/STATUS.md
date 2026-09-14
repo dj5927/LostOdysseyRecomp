@@ -106,6 +106,16 @@ The resulting ELF at `out/build/linux-clang/LostOdysseyRecomp/LostOdysseyRecomp`
 
 This is accepted first-playable window/boot evidence for the tested WSL path, not whole-game validation, native-Linux-GPU acceptance, Steam Deck support, an AppImage/Flatpak/installer package, CI coverage or a Linux GitHub Release. Linux remains local and unreleased; source version remains 0.5.11. Evidence is retained in `out/build/linux-clang/LostOdysseyRecomp/logs/runtime-1789367206166882.log`.
 
+### Card A city measurement — experiment-only on published v0.5.11 — 2026-09-14
+
+**Implementation:** No runtime source was changed. This is an experiment-only measurement of the already-published v0.5.11 Windows package, using source version 0.5.11 at commit `624729cdb1263b96061b1fa14d4d1c5ba0b50239`. The ZIP SHA-256 is `5de068c4e77c82feb0bbe7cfcf1dacbca3d44aa94bde064f7f59f5ad6944e132`; the runtime SHA-256 is `33a460410b7f397187a12ac6984718c1716997936127f94f5dbcb2ef40315283`.
+
+**Validation:** The bounded protocol used hidden 1280x720 D3D12, AA3, a 60 FPS cap and an isolated `user01` city route. It collected 1,836 city frames with `draws >= 800`; `over_budget` was 0%. `fence_wait_ms` mean/max was 0.0007/0.1371, with zero frames over 1 ms; nested flush remained zero; descriptor, upload and arena splits were all zero at D3D12 1800. `gpu_batches` mean/max was 1.0005/3, `gpu_queue` mean/max was 0.8115/1.5575 with zero samples over 16.67 ms, and `draw_ms` mean/max was 3.4395/6.3522. The dated evidence is [Card A city measurement](notes/cpu-card-a-city-2026-09-14.md).
+
+**Acceptance and interpretation:** `exhausted_resource_class=null`. Do not add GPU slots, raise the 1800/2048 limit or add rings; under guide §9.2, add-slot and raise-limit work should remain low priority. The next measurement is Card B's current profile; Card B was not measured here and `LO_VERTEX_TIMING` was not set. This is not 4K, Vulkan, a 3C6T-restricted run or whole-game validation, and it is not player acceptance. The player's `settings.ini` was not mutated. Historical source-0.5.4 `fence_wait` 15.40 ms and two-slot 1.67 ms figures remain historical context and must not replace this baseline.
+
+**Publication:** This record does not change the published v0.5.11 release, source version or runtime package, and there is no new GitHub Release. No user acceptance of a CPU performance result has been given.
+
 ### Current-scene TAA jitter coverage — local candidate — 2026-09-13
 
 The local candidate extends the current-scene TAA jitter repair by seven vertex-shader paths: `8d3c80b318235b22` to c4, and `3eb16ad927f44289`, `83b23507725f85bf`, `6742ec1abe49589e`, `0f2b89c7eb1c409e`, `fecf2f9d9bef2702` and `2a7867b5eed37f8a` to c7. These paths were selected from the latest three-frame capture (frames 13429–13431): 39 draws per frame, 117 draws total. The strict audit matched two paths; the position fetch 95 versus auxiliary fetch 94 distinction recovered the other five. All seven original vertex-shader microcode hashes match the historical `f24842` family. The current PS `67b10` was not present in these frames and was not moved into the compensation policy. The capture recorded 2,229 submitted draws per frame with no reported drops; actual CPU-uploaded VS/PS constant banks and per-draw enabled/applied records were not instrumented.
