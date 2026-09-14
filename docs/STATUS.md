@@ -1,16 +1,22 @@
 # Project status
 
+## Published v0.5.12 — 2026-09-14
+
+Published at [GitHub Release v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12) on 2026-09-14T21:34:13Z. Release CI [34895591364](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34895591364) succeeded for source/tag commit `36e574b64e0cbb11ddcdc7f68cbc36214b5c084f` after PPC cache synchronization. CI used the prebuilt PPC artifact from `LostOdysseyRecomp-build-inputs`, not `rebuild_ppc`. The ZIP is 44,304,445 bytes with SHA-256 `7cc99618cee509bdea000b736772344de60279f4a439a4f876cc7d49d4c8e60a`; the runtime is 83,536,384 bytes with SHA-256 `d394c173cfa8ecc6ea57c1b9671a1a574ae02d2cd4bb76008392caca66686974`; the updater is 846,336 bytes with SHA-256 `36787c2314d9d554010193a4f020eb8d1a848292920e40af3bb7fb44f1a3893e`. The ZIP hash matches its sidecar, and both public ZIP and `.sha256` downloads returned HTTP 302 to GitHub release assets. The PPC cache key was `cb4a75c2d3fa6e3d5f92e3431e7006f77fd7927dd97f05d27eb488ea4cf87e44`, from private commit `5df5b6efb38537386f6c9522ae9126d800032559`.
+
+The release contains the USA/Europe FMV and event subtitle language-table mapping fix. The local `game_language=5` USA/Europe Spanish opening-FMV check was accepted on 2026-09-14 using Vulkan at 3840×2160 and a startup-bundle hit. This is opening-scene acceptance only; German, French and Italian FMV visuals, complete event coverage, whole-game validation and reporter acceptance remain unverified. Issue [#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27) remains open pending reporter confirmation. No 50-file manifest re-verification is claimed.
+
 ## Published v0.5.11 — 2026-09-14
 
 Published at [GitHub Release v0.5.11](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11) on 2026-09-14T02:09:50Z. Release CI [34797755460](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34797755460) succeeded for source/tag commit `624729cdb1263b96061b1fa14d4d1c5ba0b50239`. The ZIP is 44,304,683 bytes with SHA-256 `5de068c4e77c82feb0bbe7cfcf1dacbca3d44aa94bde064f7f59f5ad6944e132`; the runtime is `33a460410b7f397187a12ac6984718c1716997936127f94f5dbcb2ef40315283`; the updater is 846,336 bytes with SHA-256 `dd38ab687b7ab0713e3ce6b29bce058bfd4b3a7ffebe8d266335532ba6f21750` and matches the ZIP. All 50 payload hashes/CRCs, clean provenance, four public asset downloads and PPC consumption passed. Existing diagnostics and bounded logging checks were reused; no new gameplay acceptance is claimed.
 
 CI consumed PPC key `921d26c12c98de289e659f30f490e09b23d8e2ca08624690e38f1b3dd9294f51` from private commit `ad34fdc295f374c4787c13343be4af7ae3facafc`, matching the synchronized receipt and reusing the existing library. Evidence: `out/v0.5.11/release/{release-source.json,ci-run.json,ci-ppc-consumption.json,delivery-verification.json,public-download-check.json,published-release.json}`.
 
-## Europe FMV subtitle mapping — local source 0.5.12, unpublished — 2026-09-14
+## Europe FMV subtitle mapping — included in published v0.5.12 — 2026-09-14
 
 The host-side `82481BE8` PPC hook now returns the original executable language-table pointer for host `GameLanguage()` IDs 1–9 when `r3=0x8336A5F0` and `r4` is 0 or the current ID. The guest table at `0x832455F0` maps those IDs to INT/JPN/DEU/FRA/SPA/ITA/KOR/CHI/SCH. This extends the earlier SCH-only alias repair: callers that pre-filter with `r4=0` no longer receive the ID-0 English suffix when selecting USA/Europe event and FMV subtitle packages.
 
-A local USA/Europe Disc 1 test with `game_language=5`, Vulkan at 3840×2160 and a startup-bundle hit was accepted by the user for the opening FMV subtitles on 2026-09-14. This is opening-scene acceptance only; German, French and Italian visual confirmation, complete FMV/event coverage, whole-game validation and published-package validation remain unverified. No new fixture was added. Source version 0.5.12 is not published.
+A local USA/Europe Disc 1 test with `game_language=5`, Vulkan at 3840×2160 and a startup-bundle hit was accepted by the user for the opening FMV subtitles on 2026-09-14. This is opening-scene acceptance only; German, French and Italian visual confirmation, complete FMV/event coverage, whole-game validation and reporter acceptance remain unverified. No new fixture was added. The fix is included in published v0.5.12; publication checks did not re-verify the 50-file manifest.
 
 ## Published v0.5.10 — 2026-09-13
 

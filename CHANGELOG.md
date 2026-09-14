@@ -14,17 +14,21 @@ One record of completed changes, with unpublished work separated from verified r
 
 - 已在 `600b08e` 部署 GitHub Issue triage workflow 更新，支持授权协作者的 `@codex` 评论请求、按评论去重、最近人类讨论和有界的 first-party 代码检索。19 项 triage/mention 检查及 7 项 retrieval 检查已通过；首次公开 `@codex` 回复仍待观察。
 
-## v0.5.12 — 2026-09-14
+## v0.5.12 — 2026-09-14 / Published / 已发布
 
 ### English
 
 - Fix USA/Europe FMV and event subtitle language mapping. The `82481BE8` hook now returns the original executable language-table pointer for host `GameLanguage()` IDs 1–9, preserving the existing Simplified Chinese repair. Callers that pre-filter with `r4=0` can resolve INT/JPN/DEU/FRA/SPA/ITA suffixes instead of aliasing to the ID-0 English record. Issue [#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27).
 - A local USA/Europe Spanish opening-FMV check passed on 2026-09-14 with `game_language=5` and Vulkan at 3840×2160. German, French and Italian FMV visuals, complete event coverage and whole-game validation remain unverified.
 
+Published at [GitHub Release v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12) on 2026-09-14T21:34:13Z. Release CI [34895591364](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34895591364) succeeded for source/tag commit `36e574b64e0cbb11ddcdc7f68cbc36214b5c084f` after the PPC cache was synchronized. CI used the prebuilt PPC artifact from `LostOdysseyRecomp-build-inputs`, not `rebuild_ppc`; cache key `cb4a75c2d3fa6e3d5f92e3431e7006f77fd7927dd97f05d27eb488ea4cf87e44` came from private commit `5df5b6efb38537386f6c9522ae9126d800032559`. The Windows ZIP is 44,304,445 bytes with SHA-256 `7cc99618cee509bdea000b736772344de60279f4a439a4f876cc7d49d4c8e60a`; the runtime is 83,536,384 bytes with SHA-256 `d394c173cfa8ecc6ea57c1b9671a1a574ae02d2cd4bb76008392caca66686974`; the updater is 846,336 bytes with SHA-256 `36787c2314d9d554010193a4f020eb8d1a848292920e40af3bb7fb44f1a3893e`. The ZIP hash matches its sidecar, and both public ZIP and `.sha256` downloads returned HTTP 302 to GitHub release assets. Issue [#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27) remains open pending reporter confirmation. Publication checks do not claim 50-file manifest re-verification, German/French/Italian FMV visuals, whole-game validation or reporter acceptance.
+
 ### 简体中文
 
 - 修复 USA/Europe FMV／事件字幕语言映射。`82481BE8` hook 现在会为宿主 `GameLanguage()` ID 1–9 返回原可执行文件语言表指针，并保留既有简体中文修复。调用方以 `r4=0` 预筛选时，可解析 INT/JPN/DEU/FRA/SPA/ITA 后缀，而不再别名到 ID-0 英文记录。[#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27)。
 - 2026-09-14 本地 USA/Europe 西班牙语开场 FMV 检查通过，`game_language=5`，Vulkan 3840×2160。德语、法语、意大利语 FMV 画面、完整事件覆盖和全游戏验证仍未核验。
+
+已于 2026-09-14T21:34:13Z 发布 [GitHub Release v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12)。Release CI [34895591364](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34895591364) 使用源码／标签提交 `36e574b64e0cbb11ddcdc7f68cbc36214b5c084f` 成功；PPC 使用 `LostOdysseyRecomp-build-inputs` 中的预编译缓存，而非 `rebuild_ppc`。缓存 key 为 `cb4a75c2d3fa6e3d5f92e3431e7006f77fd7927dd97f05d27eb488ea4cf87e44`，来自私有提交 `5df5b6efb38537386f6c9522ae9126d800032559`。Windows ZIP 大小为 44,304,445 字节，SHA-256 为 `7cc99618cee509bdea000b736772344de60279f4a439a4f876cc7d49d4c8e60a`；runtime 为 83,536,384 字节，SHA-256 为 `d394c173cfa8ecc6ea57c1b9671a1a574ae02d2cd4bb76008392caca66686974`；updater 为 846,336 字节，SHA-256 为 `36787c2314d9d554010193a4f020eb8d1a848292920e40af3bb7fb44f1a3893e`。ZIP 哈希与 sidecar 一致，ZIP 和 `.sha256` 两个公开下载均返回 HTTP 302 到 GitHub release-assets。Issue [#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27) 仍开放，等待报告者确认。发布检查不宣称重新核对 50 文件 manifest、德／法／意 FMV 画面、全游戏验证或报告者验收。
 
 ## v0.5.11 — 2026-09-14 / Published / 已发布
 

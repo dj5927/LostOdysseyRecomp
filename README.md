@@ -19,6 +19,13 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## New in v0.5.12
+
+Published Windows x64 package: [v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12).
+
+- Fix USA/Europe FMV and event subtitle language mapping for the supported language IDs. A local Spanish opening-FMV check was accepted; German, French and Italian FMV visuals, complete event coverage, whole-game validation and reporter acceptance remain unverified. See the [edition support note](docs/notes/europe-support.md).
+- The ZIP SHA-256 is `7cc99618cee509bdea000b736772344de60279f4a439a4f876cc7d49d4c8e60a`; the public ZIP and checksum downloads are available from the [latest release](https://github.com/freefrank/LostOdysseyRecomp/releases/latest).
+
 ## New in v0.5.11
 
 Published Windows x64 package: [v0.5.11](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11).

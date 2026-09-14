@@ -2,9 +2,9 @@
 
 Status: **2026-09-06, included in published v0.2**. Commit `dcc946299cdc2984783793ad5871a0ad0b90a2c9` and its `v0.2` tag were pushed to both remotes. The dated local test packages below preserve pre-release evidence; they are not the official release artifact. Chapter-boundary gameplay and a complete playthrough remain unverified.
 
-## 2026-09-14 FMV/event subtitle mapping clarification — source 0.5.12, unpublished
+## 2026-09-14 FMV/event subtitle mapping clarification — included in published v0.5.12
 
-The host `82481BE8` language-table hook now covers host game-language IDs 1–9, so the USA/Europe DE/FR/ES/IT event and FMV subtitle suffix mapping uses the same corrected path as the earlier SCH repair. The local USA/Europe test with `game_language=5` accepted the opening FMV subtitles on 2026-09-14 using Vulkan at 3840×2160 and a startup-bundle hit. This confirms the opening Spanish scene only. It does not establish complete event/FMV coverage, a complete playthrough, visual confirmation for German/French/Italian, or validation of a published package. The source 0.5.12 change remains unpublished.
+The host `82481BE8` language-table hook now covers host game-language IDs 1–9, so the USA/Europe DE/FR/ES/IT event and FMV subtitle suffix mapping uses the same corrected path as the earlier SCH repair. The local USA/Europe test with `game_language=5` accepted the opening FMV subtitles on 2026-09-14 using Vulkan at 3840×2160 and a startup-bundle hit. This confirms the opening Spanish scene only. It does not establish complete event/FMV coverage, a complete playthrough, visual confirmation for German/French/Italian, or reporter acceptance. The fix is included in published [v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12); publication checks did not re-verify the 50-file manifest.
 
 ## Combined resource metadata — 2026-09-07
 
