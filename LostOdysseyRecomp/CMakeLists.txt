@@ -92,11 +92,16 @@ target_link_libraries(LostOdysseyRecomp PRIVATE
     xxHash::xxhash
     o1heap
     SDL2::SDL2-static)
+if(UNIX)
+    target_link_libraries(LostOdysseyRecomp PRIVATE pthread dl)
+endif()
 target_link_libraries(LostOdysseyRecomp PRIVATE lo_avcodec)
 
 if(LO_BUILD_GPU)
     target_link_libraries(LostOdysseyRecomp PRIVATE plume)
-    target_include_directories(LostOdysseyRecomp PRIVATE ${CMAKE_SOURCE_DIR}/thirdparty/plume)
+    target_include_directories(LostOdysseyRecomp PRIVATE
+        ${CMAKE_SOURCE_DIR}/thirdparty/plume
+        ${CMAKE_SOURCE_DIR}/tools/XenosRecomp/thirdparty/dxc-bin/inc)
     target_compile_definitions(LostOdysseyRecomp PRIVATE LO_GPU_PLUME=1)
     if(WIN32)
         target_link_libraries(LostOdysseyRecomp PRIVATE d3d12 dxgi)
@@ -326,7 +331,8 @@ add_executable(LoShaderTool
     ${CMAKE_SOURCE_DIR}/tools/xenos_shader_tool/main.cpp
     ${LO_RUNTIME_ROOT}/gpu/shader/xenos_translator.cpp
     ${LO_RUNTIME_ROOT}/gpu/shader/dxc_compiler.cpp)
-target_include_directories(LoShaderTool PRIVATE ${LO_RUNTIME_ROOT})
+    target_include_directories(LoShaderTool PRIVATE ${LO_RUNTIME_ROOT}
+        ${CMAKE_SOURCE_DIR}/tools/XenosRecomp/thirdparty/dxc-bin/inc)
 target_compile_features(LoShaderTool PRIVATE cxx_std_20)
 target_compile_definitions(LoShaderTool PRIVATE NOMINMAX)
 target_link_libraries(LoShaderTool PRIVATE fmt::fmt)
@@ -577,6 +583,15 @@ if(WIN32 AND LO_BUILD_GPU)
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         "${LO_DXC_BINARY_DIR}/${binary}" "$<TARGET_FILE_DIR:${target}>/${binary}" VERBATIM)
             endforeach()
+        endif()
+    endforeach()
+elseif(UNIX AND LO_BUILD_GPU)
+    set(LO_DXC_SO "${CMAKE_SOURCE_DIR}/tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so")
+    foreach(target LostOdysseyRecomp LoShaderTool)
+        if(TARGET ${target} AND EXISTS "${LO_DXC_SO}")
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${LO_DXC_SO}" "$<TARGET_FILE_DIR:${target}>/libdxcompiler.so" VERBATIM)
         endif()
     endforeach()
 endif()
