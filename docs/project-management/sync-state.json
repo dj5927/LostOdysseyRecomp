@@ -1362,7 +1362,7 @@
         "Status": "In Progress",
         "Delivery": "In progress",
         "Source key": "shader-log-coverage-audit",
-        "Release": "v0.5.3",
+        "Release": "v0.5.6-hotfix1",
         "Evidence": "v0.5.3 is published Latest from 6fa9adc281c5693ac0af8a47fec815b20c29ff50; CI 34505504344, package verification and four anonymous public-asset checks passed. Compact diagnostics are included in the published client. Private archive schema-4 and Worker schema 1–4 deployment remain recorded. Publication does not establish a visual repair, player acceptance or full updater transaction."
       },
       "title": "Add independent shader logs and cumulative coverage auditing",
@@ -1676,12 +1676,13 @@
       "fields": {
         "Kind": "Feature",
         "Area": "Platforms",
-        "Status": "Todo",
-        "Delivery": "Not started",
-        "Source key": "linux-steamdeck-platform"
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Source key": "linux-steamdeck-platform",
+        "Start date": "2026-09-14"
       },
       "title": "Port and validate Linux and Steam Deck",
-      "body_sha256": "55ec0a03293a13f4a9abe6e0140cba03daf3e9fbeff3765d97d8d398ced422b1"
+      "body_sha256": "7f0cb95406b652c973ea2e54dbc6f30acb3e8cadcecd3b150a285f17dfc57981"
     },
     "screen-space-gi-ssr": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56e-0",
@@ -1899,7 +1900,7 @@
         "Source key": "recompiler-remaining-contracts",
         "Evidence": "Generated-source guard sub-scope: ppc_codegen generate produced 247 C++ units with 843 .u32/zero .u64 selectors and unchanged instruction-stream hashes for 246 units; seven guard fixtures and CMake/LoPpcCodegenCheck dependency checks passed. Historical 3,258/109/843-table-44,523 evidence was reused without rerun. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. Its 44,237,061-byte ZIP SHA-256 is 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218; 50 file hash/CRC/version/clean-provenance and four anonymous 200-download asset checks passed. Remaining PPC contracts, game run, Issue #14 root cause and player acceptance remain open.",
         "Start date": "2026-09-10",
-        "Release": "v0.5.4",
+        "Release": "v0.5.6",
         "Target date": null
       },
       "title": "Maintain PPC generated-source provenance guard and remaining contracts",
@@ -2385,7 +2386,8 @@
         "Delivery": "In progress",
         "Start date": "2026-09-12",
         "Evidence": "Investigation active. The original attached log is historical source v0.5.0 (LR 829DFDCC, CTR 829DFEF0). A second reporter log is historical source v0.4.2 (LR 823CB53C, CTR 0), with a virtual call at guest 823CB538 matching a call site discussed in docs/notes/issue12-root-cause.md, but without an object-freeing capture. Neither log establishes a current-version reproduction or a shared root cause. The current gc_render_flush.cpp repair exists at 17e3ab7. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records this task's current work and is integrated with main locally, unpushed and unreleased; no new runtime validation or reporter acceptance is recorded.",
-        "Source key": "issue14-cage-crash-investigation"
+        "Source key": "issue14-cage-crash-investigation",
+        "Release": "v0.5.6"
       }
     },
     "issue15-save-hang-investigation": {
