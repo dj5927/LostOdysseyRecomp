@@ -19,6 +19,12 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## New in v0.5.13
+
+The Windows x64 package is being prepared and will be published as v0.5.13; it is not published yet.
+
+- **Alt+Enter** toggles between Windowed and Borderless presentation modes without selecting DXGI exclusive fullscreen. Left Alt, Right Alt and AltGr are supported. Live local acceptance confirmed both Alt variants in the actual game window; whole-game, exclusive-fullscreen, mixed-DPI, mouse and packaged-release validation remain unverified.
+
 ## New in v0.5.12
 
 Published Windows x64 package: [v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12).

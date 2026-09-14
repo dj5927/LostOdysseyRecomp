@@ -14,6 +14,18 @@ One record of completed changes, with unpublished work separated from verified r
 
 - 已在 `600b08e` 部署 GitHub Issue triage workflow 更新，支持授权协作者的 `@codex` 评论请求、按评论去重、最近人类讨论和有界的 first-party 代码检索。19 项 triage/mention 检查及 7 项 retrieval 检查已通过；首次公开 `@codex` 回复仍待观察。
 
+## v0.5.13 — 2026-09-14
+
+### English
+
+- Add an accepted **Alt+Enter** shortcut that toggles **Windowed** and **Borderless** presentation modes without selecting DXGI exclusive fullscreen. The chord accepts left Alt, right Alt and AltGr while retaining Shift/GUI rejection, placement handling and debounce; `DXGI_MWA_NO_ALT_ENTER` remains set.
+- The focused `LoGameWindowPixelsTest --rendering-fixes-only` fixture passed after the SYSKEY, `windowID=0`, right-Alt and AltGr/`VK_MENU=18` updates. Live local acceptance confirmed both left-Alt+Enter and right-Alt+Enter in the actual game window on 2026-09-14. Whole-game, exclusive-fullscreen, mixed-DPI, mouse and packaged-release validation remain unverified; the v0.5.13 Windows package is being prepared and is not yet published.
+
+### 简体中文
+
+- 增加已验收的 **Alt+Enter** 快捷键，在 **Windowed** 与 **Borderless** 显示模式之间切换，不选择 DXGI exclusive fullscreen。快捷键支持左 Alt、右 Alt 和 AltGr，同时保留 Shift／GUI 拒绝、窗口位置处理和去抖；`DXGI_MWA_NO_ALT_ENTER` 仍保持设置。
+- 更新 SYSKEY、`windowID=0`、右 Alt 和 AltGr／`VK_MENU=18` 覆盖后的定向 `LoGameWindowPixelsTest --rendering-fixes-only` 夹具已通过。2026-09-14 在实际游戏窗口中现场验收了左 Alt+Enter 和右 Alt+Enter。全游戏、exclusive fullscreen、混合 DPI、鼠标和发布包验证仍未核验；v0.5.13 Windows 包正在准备，尚未发布。
+
 ## v0.5.12 — 2026-09-14 / Published / 已发布
 
 ### English

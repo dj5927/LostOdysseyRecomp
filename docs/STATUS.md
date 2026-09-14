@@ -1,5 +1,15 @@
 # Project status
 
+## v0.5.13 preparation — Alt+Enter window/fullscreen toggle — 2026-09-14
+
+The source change adds an **Alt+Enter** presentation toggle between **Windowed** and **Borderless**. It does not select DXGI exclusive fullscreen, and `DXGI_MWA_NO_ALT_ENTER` remains set. The chord accepts SYSKEY scancode-only `RETURN`, `windowID=0`, left Alt, right Alt and AltGr (`KMOD_RALT|KMOD_CTRL` or `KMOD_MODE`). On Win32, `GetAsyncKeyState(VK_MENU)` is combined with left/right Alt handling because both Alt keys report key code 18 and right Alt may arrive as Ctrl without `KMOD_ALT`. `FitBorderless` is best-effort and cannot roll a successful toggle back to Windowed; Shift/GUI rejection, placement and debounce remain unchanged.
+
+The implementation is in `LostOdysseyRecomp/gpu/window_mode.h` and `LostOdysseyRecomp/gpu/video.cpp`, with corresponding fixture coverage in `tools/tests/game_window_pixels_test.cpp`. The focused `LoGameWindowPixelsTest --rendering-fixes-only` run passed after the SYSKEY, `windowID=0`, right-Alt and AltGr/`VK_MENU=18` fixture updates.
+
+Live local acceptance on 2026-09-14 confirmed left Alt+Enter and right Alt+Enter in the actual game window. The accepted run used a local RelWithDebInfo build of the same chord code, Vulkan on an RTX 5080, `window_mode=0` Windowed, a 3840×2160-class display, and `LO_NO_UPDATE=1 --game disc1`. This is local shortcut acceptance, not acceptance of the published package.
+
+Source/release version 0.5.13 is being prepared; v0.5.13 has not been committed, pushed, tagged or published. No package hash, CI run, release URL or download verification is claimed here. Whole-game, DXGI exclusive-fullscreen, mixed-DPI, mouse and packaged-release validation remain unverified.
+
 ## Published v0.5.12 — 2026-09-14
 
 Published at [GitHub Release v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12) on 2026-09-14T21:34:13Z. Release CI [34895591364](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34895591364) succeeded for source/tag commit `36e574b64e0cbb11ddcdc7f68cbc36214b5c084f` after PPC cache synchronization. CI used the prebuilt PPC artifact from `LostOdysseyRecomp-build-inputs`, not `rebuild_ppc`. The ZIP is 44,304,445 bytes with SHA-256 `7cc99618cee509bdea000b736772344de60279f4a439a4f876cc7d49d4c8e60a`; the runtime is 83,536,384 bytes with SHA-256 `d394c173cfa8ecc6ea57c1b9671a1a574ae02d2cd4bb76008392caca66686974`; the updater is 846,336 bytes with SHA-256 `36787c2314d9d554010193a4f020eb8d1a848292920e40af3bb7fb44f1a3893e`. The ZIP hash matches its sidecar, and both public ZIP and `.sha256` downloads returned HTTP 302 to GitHub release assets. The PPC cache key was `cb4a75c2d3fa6e3d5f92e3431e7006f77fd7927dd97f05d27eb488ea4cf87e44`, from private commit `5df5b6efb38537386f6c9522ae9126d800032559`.
