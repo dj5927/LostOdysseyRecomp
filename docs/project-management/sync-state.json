@@ -2524,10 +2524,10 @@
         "Kind": "Bug",
         "Area": "Localization and cutscenes",
         "Status": "Awaiting validation",
-        "Delivery": "Implemented",
+        "Delivery": "Released",
         "Release": "v0.5.12",
         "Start date": "2026-09-14",
-        "Evidence": "Local source 0.5.12 implementation; user accepted Spanish (GameLanguage ID 5) opening-FMV/cutscene subtitles on USA/Europe Disc 1 with Vulkan 3840x2160 on 2026-09-14. Scope is opening scene only; DE/FR/IT FMVs were not visually rechecked. Uncommitted/unpublished: no v0.5.12 package. Issue #27 remains OPEN pending reporter confirmation of the published package. https://github.com/freefrank/LostOdysseyRecomp/issues/27",
+        "Evidence": "Implemented in source/tag 36e574b and published as v0.5.12 at 2026-09-14T21:34:13Z. Release CI 34895591364 passed using prebuilt PPC from LostOdysseyRecomp-build-inputs. Local opening Spanish (GameLanguage ID 5) FMV/cutscene acceptance on USA/Europe Disc 1 with Vulkan 3840x2160 is retained; DE/FR/IT FMVs were not visually rechecked. Publication/CI do not establish reporter acceptance. Issue #27 remains OPEN pending reporter confirmation of the published package. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12",
         "Source key": "issue-27-spanish-fmv-subtitles"
       }
     }
