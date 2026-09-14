@@ -1,7 +1,9 @@
 #pragma once
 #include "backend_selection.h"
 #include <algorithm>
+#ifdef _WIN32
 #include <plume_d3d12.h>
+#endif
 #include <plume_vulkan.h>
 
 namespace gpu::backend {
@@ -11,13 +13,16 @@ inline Capabilities Inspect(Backend backend, plume::RenderDevice* device) {
     if (!device) return c;
     c.device = true;
     c.geometryShader = device->getCapabilities().geometryShader;
+#ifdef _WIN32
     if (backend == Backend::D3D12) {
         auto* native = static_cast<plume::D3D12Device*>(device);
         c.shaderModel = native->shaderModel;
         D3D12_FEATURE_DATA_D3D12_OPTIONS options{};
         if (SUCCEEDED(native->d3d->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options))))
             c.bindingTier = options.ResourceBindingTier;
-    } else if (backend == Backend::Vulkan) {
+    } else
+#endif
+    if (backend == Backend::Vulkan) {
         const auto* native = static_cast<plume::VulkanDevice*>(device);
         const auto& limits = native->physicalDeviceProperties.limits;
         c.apiVersion = native->physicalDeviceProperties.apiVersion;

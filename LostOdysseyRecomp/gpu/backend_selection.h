@@ -75,6 +75,19 @@ Selection Select(Backend requested, Try&& attempt, Reset&& reset) {
     Selection result; result.requested = requested;
     if (!Known(requested)) { result.attempts.push_back({requested, "Unsupported: unknown backend"}); return result; }
     if (requested == Backend::D3D11) result.attempts.push_back({requested, Missing(requested, {})});
+#ifndef _WIN32
+    if (requested == Backend::D3D12) {
+        result.attempts.push_back({Backend::D3D12, "D3D12 is not available on this platform"});
+    }
+    const auto candidate = Backend::Vulkan;
+    std::string error;
+    try { error = attempt(candidate); }
+    catch (const std::exception& e) { error = std::string("initialization exception: ") + e.what(); }
+    catch (...) { error = "unknown initialization exception"; }
+    if (error.empty()) { result.attempts.push_back({candidate, {}}); result.selected = candidate; return result; }
+    reset();
+    result.attempts.push_back({candidate, std::move(error)});
+#else
     const auto first = requested == Backend::D3D11 ? Backend::D3D12 : requested;
     for (const auto backend : std::array{first, first == Backend::Vulkan ? Backend::D3D12 : Backend::Vulkan}) {
         std::string error;
@@ -85,6 +98,7 @@ Selection Select(Backend requested, Try&& attempt, Reset&& reset) {
         reset();
         result.attempts.push_back({backend, std::move(error)});
     }
+#endif
     return result;
 }
 }
