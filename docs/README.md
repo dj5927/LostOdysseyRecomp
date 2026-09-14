@@ -14,6 +14,7 @@
 | [Supported editions](notes/europe-support.md) | USA, Europe and Europe, Asia evidence; exact XEX validation |
 | [Automatic disc selection](notes/disc-selection.md) | Implemented manager flow and remaining story-transition coverage |
 | [Release packaging](notes/release-packaging.md) | Windows build artifacts, dependencies and CI input |
+| [Automated issue triage](notes/issue-triage.md) | Preliminary GitHub Issue analysis workflow, configuration and deployment boundaries |
 | [Shader index](notes/shader-resource-index.md) | Built-in locations, fallback and cold-start comparison |
 | [Synchronization](PUBLISHING.md) | One public history, Gitea/GitHub dual push and archive policy |
 | [Debug requirements](debug-menu-requirements.md) | Available and requested controls |

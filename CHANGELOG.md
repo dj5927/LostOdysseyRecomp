@@ -4,6 +4,16 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
+## Unreleased / 未发布
+
+### English
+
+- Stage the opt-in GitHub Issue triage workflow for deployment from `main`; it provides bounded preliminary comments, manual dry runs and duplicate-comment protection. The workflow and CI activation remain pending verification after this push.
+
+### 简体中文
+
+- 准备从 `main` 部署可选的 GitHub Issue triage workflow，提供有界的初步回复、手动 dry run 和重复评论防护；workflow 及 CI 启用仍待本次 push 后核验。
+
 ## v0.5.11 — 2026-09-14 / Published / 已发布
 
 ### English

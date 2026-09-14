@@ -1,0 +1,53 @@
+name: Issue triage
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to analyze
+        required: true
+        type: string
+      dry_run:
+        description: Preview without posting a comment
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Analyze issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          ISSUE_TRIAGE_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          ISSUE_TRIAGE_API_KEY: ${{ secrets.ISSUE_TRIAGE_API_KEY }}
+          ISSUE_TRIAGE_BASE_URL: ${{ vars.ISSUE_TRIAGE_BASE_URL || 'https://api.zkx.ca/v1' }}
+          ISSUE_TRIAGE_MODEL: ${{ vars.ISSUE_TRIAGE_MODEL || 'gpt-5.6-luna' }}
+        run: python tools/issue_triage/triage.py
+      - name: Upload dry-run preview
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-triage-preview
+          path: issue-triage-preview.md
+          if-no-files-found: ignore
+          retention-days: 7
