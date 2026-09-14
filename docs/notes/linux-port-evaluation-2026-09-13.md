@@ -2,6 +2,10 @@
 
 评估基线：公开 `main` / 已发布源码版本 **0.5.10**。本次只写入方案与裁定，**不实施移植、不改版本号、不承诺完成或发布日期**。Linux / Steam Deck 仍是独立未来平台工作。
 
+## 当前状态澄清（2026-09-14）
+
+以上结论保留为 2026-09-13 的规划检查点，不是后续结果的改写。之后的 `linux` 工作树已实现首可玩 Vulkan-only 未打包 ELF，并在 WSL2 Manjaro 的 Mesa Dozen Vulkan-on-D3D12 路径上由用户观看窗口后正常退出。该验证仅接受这条 WSL first-playable 路径；不代表原生 Linux GPU、全游戏、Steam Deck、安装包或 Linux GitHub Release。当前实现与验证边界见 [当前状态](../STATUS.md) 和 [未发布变更](../../CHANGELOG.md#unreleased--未发布)。
+
 本分支范围：**首可玩 Vulkan-only 未打包 ELF**。用户明确排除 installer、F1 debug menu、updater，这些不进入工作分解。
 
 ## 结论

@@ -94,9 +94,17 @@ The independent Release build linked `LostOdysseyRecomp.exe` and the four target
 
 Published at [GitHub Release v0.5.11](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11) on 2026-09-14T02:09:50Z. Release CI [34797755460](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34797755460) succeeded for source/tag commit `624729cdb1263b96061b1fa14d4d1c5ba0b50239`; package, updater, payload/CRC, public-download and PPC provenance verification passed. The v0.5.11 package includes this diagnostic instrumentation. No additional gameplay or reporter acceptance is claimed.
 
-### Linux first-playable evaluation — planning only — 2026-09-13
+### Linux first-playable evaluation — historical planning checkpoint — 2026-09-13
 
-The [Linux port evaluation](notes/linux-port-evaluation-2026-09-13.md) records a first-playable direction for a Vulkan-only, unbundled ELF using host Mesa, SDL2 and X11/XWayland. This is planning and a technical verdict only: Linux was not configured, compiled or run, no Linux binary exists, and the evaluation does not authorize implementation. Linux and Steam Deck remain independent future platform work; packaging is outside the first-playable scope. The published v0.5.10 Windows x64 release and its publication facts are unchanged.
+The [Linux port evaluation](notes/linux-port-evaluation-2026-09-13.md) preserves the original first-playable direction and its then-current conclusion: Vulkan-only, unbundled ELF using host Mesa, SDL2 and X11/XWayland. Its statement that Linux had not been configured, compiled or run is historical to that checkpoint and must not be read as current status. The published Windows v0.5.11 release and its publication facts are unchanged.
+
+### Linux first-playable — local implementation and WSL validation — 2026-09-14
+
+The `linux` working tree now implements a Vulkan-only, unbundled Linux ELF path. The `linux-clang` CMake preset uses Ninja, clang/clang++ and RelWithDebInfo; Linux compiles generated PowerPC sources directly instead of consuming the Windows prebuilt library. Host path handling, case-folded resource resolution, Linux CRT mappings, fixed guest mapping validation, SDL Vulkan presentation, swapchain-format fallback and the Linux DXC `dlopen` path are included. An explicit `--game` candidate is isolated to the supplied install root, `disc1` or `default.xex`; when `--game` is used, launch CWD must already be the ELF directory because executable-directory chdir is skipped.
+
+The resulting ELF at `out/build/linux-clang/LostOdysseyRecomp/LostOdysseyRecomp` was built with clang 22.1.8 and run in WSL2 Manjaro on 2026-09-14. The user watched the first-playable window for approximately ten minutes and closed it; the process exited 0. The run recognized the supplied `disc1`, loaded the XEX, created a 1280x720 Vulkan swapchain, prepared 28,484 known shaders (28,482 ready; two rejected during preparation), submitted frames and produced nonzero audio. Vulkan was provided by Mesa Dozen wrapping Microsoft Direct3D12 on an NVIDIA GeForce RTX 5080; Dozen is not conformant, so this is WSL Vulkan-on-D3D12 evidence rather than native Linux NVIDIA/Mesa validation. The log also confirms a nonempty SHA-256 identity for the adjacent `libdxcompiler.so` and the Vulkan backend reaching ready state.
+
+This is accepted first-playable window/boot evidence for the tested WSL path, not whole-game validation, native-Linux-GPU acceptance, Steam Deck support, an AppImage/Flatpak/installer package, CI coverage or a Linux GitHub Release. Linux remains local and unreleased; source version remains 0.5.11. Evidence is retained in `out/build/linux-clang/LostOdysseyRecomp/logs/runtime-1789367206166882.log`.
 
 ### Current-scene TAA jitter coverage — local candidate — 2026-09-13
 
