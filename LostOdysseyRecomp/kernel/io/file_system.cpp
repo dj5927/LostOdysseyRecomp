@@ -9,11 +9,10 @@
 #include <os/logger.h>
 #ifdef _WIN32
 #include <io.h>
+#endif
 
 static std::mutex g_lastOpenedMutex;
 static std::string g_lastOpenedFile;
-
-#endif
 
 // Semantics follow Xenia's kernel/xboxkrnl/xboxkrnl_io.cc (BSD-3).
 
@@ -275,7 +274,68 @@ std::filesystem::path FileSystem::ResolvePath(std::string_view path)
         built += rest;
     }
     std::replace(built.begin(), built.end(), '\\', '/');
+#ifndef _WIN32
+    std::filesystem::path resultPath = std::u8string_view((const char8_t*)built.c_str());
+    std::error_code ec;
+    if (!std::filesystem::exists(resultPath, ec))
+    {
+        std::filesystem::path resolved = resultPath.root_path();
+        auto it = resultPath.begin();
+        auto end = resultPath.end();
+        if (resultPath.has_root_path())
+        {
+            if (resultPath.has_root_name())
+                ++it;
+            if (resultPath.has_root_directory())
+                ++it;
+        }
+
+        auto equalNoCase = [](std::string_view a, std::string_view b) {
+            if (a.size() != b.size())
+                return false;
+            for (size_t i = 0; i < a.size(); ++i)
+            {
+                if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i]))
+                    return false;
+            }
+            return true;
+        };
+
+        for (; it != end; ++it)
+        {
+            const std::string comp = FileSystem::PathUtf8(*it);
+            if (comp.empty() || comp == ".")
+                continue;
+            if (comp == "..")
+            {
+                resolved /= *it;
+                continue;
+            }
+
+            bool matched = false;
+            if (std::filesystem::is_directory(resolved, ec))
+            {
+                for (const auto& entry : std::filesystem::directory_iterator(resolved, ec))
+                {
+                    const std::string entryName = FileSystem::PathUtf8(entry.path().filename());
+                    if (equalNoCase(entryName, comp))
+                    {
+                        resolved /= entry.path().filename();
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!matched)
+                resolved /= *it;
+        }
+        return resolved;
+    }
+    return resultPath;
+#else
     return std::u8string_view((const char8_t*)built.c_str());
+#endif
 }
 
 static std::string GuestAnsiString(const XANSI_STRING* str)
