@@ -3,6 +3,8 @@ name: Issue triage
 on:
   issues:
     types: [opened]
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       issue_number:
@@ -13,6 +15,10 @@ on:
         description: Preview without posting a comment
         default: true
         type: boolean
+      comment_id:
+        description: Optional existing @codex comment ID to analyze
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -24,6 +30,11 @@ concurrency:
 
 jobs:
   triage:
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (!github.event.issue.pull_request && github.event.comment.user.type != 'Bot' &&
+      contains(github.event.comment.body, '@codex') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -38,11 +49,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
+          ISSUE_COMMENT_ID: ${{ github.event.comment.id || inputs.comment_id }}
           ISSUE_TRIAGE_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
           ISSUE_TRIAGE_API_KEY: ${{ secrets.ISSUE_TRIAGE_API_KEY }}
           ISSUE_TRIAGE_BASE_URL: ${{ vars.ISSUE_TRIAGE_BASE_URL || 'https://api.zkx.ca/v1' }}
           ISSUE_TRIAGE_MODEL: ${{ vars.ISSUE_TRIAGE_MODEL || 'gpt-5.6-luna' }}
-        run: python tools/issue_triage/triage.py
+        run: |
+          export SOURCE_REVISION="$(git rev-parse HEAD)"
+          python tools/issue_triage/triage.py
       - name: Upload dry-run preview
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run
         uses: actions/upload-artifact@v4
