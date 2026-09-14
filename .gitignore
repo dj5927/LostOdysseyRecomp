@@ -140,3 +140,6 @@ CLAUDE.md
 
 /.agent/
 /.agents/
+/AGENTS.md
+/docs/agents/
+/.opencode/
