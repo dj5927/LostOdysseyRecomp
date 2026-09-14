@@ -99,15 +99,14 @@ namespace settings::game_path
     {
         const auto exeDirectory = AbsoluteFrom(executableDirectory, std::filesystem::current_path());
 
-        // An explicit path is an isolation boundary. Keep it exactly as the
-        // caller supplied it, including a missing path, and never search for a
-        // different installation on its behalf.
+        // An explicit path is an isolation boundary. Recognize only the
+        // supplied candidate (install root, disc1, or default.xex). A missing
+        // path stays as supplied and never falls through to another install.
         if (explicitGame)
         {
-            // --game retains its historical directory-only contract. The
-            // configured-file convenience forms below do not silently widen
-            // that contract for an explicit launch.
-            return { *explicitGame, Source::ExplicitArgument, HasDefaultXex(*explicitGame), false };
+            if (const auto root = Recognize(*explicitGame))
+                return { *root, Source::ExplicitArgument, true, false };
+            return { *explicitGame, Source::ExplicitArgument, false, false };
         }
 
         Resolution result;

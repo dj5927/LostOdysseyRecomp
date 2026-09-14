@@ -144,6 +144,18 @@ int main()
     Check(!configuredResult.valid && configuredResult.configuredPathRejected,
           "missing configured path was not reported as rejected");
 
+    // --game accepts the same layout forms as game-path.txt: install root,
+    // disc1, or default.xex. Recognition stays inside the supplied candidate.
+    const auto explicitImported = fixture.root / "explicit-imported";
+    const auto explicitImportedDisc = explicitImported / "disc1";
+    fixture.Marker(explicitImportedDisc);
+    CheckRoot(Resolve(fixture.exe, explicitImported), explicitImportedDisc, Source::ExplicitArgument,
+              "explicit imported disc root was not recognized");
+    CheckRoot(Resolve(fixture.exe, explicitImportedDisc), explicitImportedDisc, Source::ExplicitArgument,
+              "explicit disc1 directory was rewritten");
+    CheckRoot(Resolve(fixture.exe, explicitImportedDisc / "default.xex"), explicitImportedDisc,
+              Source::ExplicitArgument, "explicit default.xex was not recognized");
+
     // A missing explicit path is returned unchanged and cannot fall through
     // to the valid nested layout above.
     const auto missing = fixture.root / "missing-explicit-game";
