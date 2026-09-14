@@ -4793,17 +4793,17 @@
     {
       "key": "alt-enter-window-fullscreen-toggle",
       "title": "Add Alt+Enter window/fullscreen toggle",
-      "body": "<!-- lo-project:alt-enter-window-fullscreen-toggle -->\n\n## Historical handoff checkpoint\n\nThe original requirement was to support Alt+Enter switching between windowed and fullscreen presentation.\n\n## Scope and completion criteria\n\n- [ ] Toggle through Alt+Enter in the actual game path.\n- [ ] Restore the prior window size and position in the actual game path.\n- [ ] Confirm held-key debounce in the actual game path.\n\n## Current — 2026-09-09, source 0.5.6\n\nAlt+Enter, saved placement and pending-transition handling passed the corrected native 3840x2160 fixture. Background execution forces Windowed mode, so actual game fullscreen/windowed lifecycle and player acceptance remain pending.\n\n## Sources\n\n- desktop-display-acceptance\n",
+      "body": "<!-- lo-project:alt-enter-window-fullscreen-toggle -->\n\n## Historical handoff checkpoint\n\nThe original requirement was to support Alt+Enter switching between windowed and fullscreen presentation.\n\n## Scope and completion criteria\n\n- [x] Toggle through Alt+Enter in the actual game path.\n- [~] Restore the prior window size and position in the actual game path; the native fixture passed, but live placement was not separately re-measured.\n- [~] Confirm held-key debounce in the actual game path; the native fixture passed, but live debounce was not separately re-measured.\n\n## Current — 2026-09-14, source 0.5.13\n\nThe live local game path accepted Left Alt+Enter and, after the AltGr/VK_MENU fix, Right Alt+Enter on Vulkan with an RTX 5080, Windowed start, `LO_NO_UPDATE=1` and `--game disc1`; the user confirmed the latter with “可以了”. The native fixture had already passed SYSKEY/windowID, Right-Alt and related cases, including saved placement and pending-transition handling. This is live local shortcut acceptance only, not packaged-release or whole-game acceptance. Placement and debounce were not separately re-measured in the live run. Mixed-DPI, mouse, Exclusive DXGI fullscreen and underscan remain outside this item.\n\n## Sources\n\n- desktop-display-acceptance\n- LostOdysseyRecomp/gpu/window_mode.h\n- LostOdysseyRecomp/gpu/video.cpp\n- tools/tests/game_window_pixels_test.cpp\n",
       "issue_url": null,
       "fields": {
         "Kind": "Feature",
         "Area": "Desktop windowing",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Validated",
-        "Release": "v0.5.0",
+        "Release": "v0.5.13",
         "Start date": null,
         "Target date": null,
-        "Evidence": "Source 0.5.6 Alt+Enter, saved placement and pending-transition handling passed the corrected native window fixture at physical 3840x2160. Background execution forces Windowed mode, so the actual game fullscreen/windowed lifecycle, Vulkan coverage, player acceptance and release remain pending."
+        "Evidence": "Accepted live local game-path toggle on 2026-09-14: Left Alt+Enter, then Right Alt+Enter after the AltGr/VK_MENU fix, on Vulkan with RTX 5080, Windowed start, LO_NO_UPDATE=1 and --game disc1; user confirmed Right Alt with ‘可以了’. Native SYSKEY/windowID, Right-Alt, placement and pending-transition fixture evidence is retained. Status is Done for the accepted toggle scope; Delivery remains Validated because v0.5.13 is not yet published. Live placement/debounce were not separately re-measured; mixed-DPI, mouse, Exclusive DXGI fullscreen and underscan remain open."
       },
       "source_refs": [
         "desktop-display-acceptance"
