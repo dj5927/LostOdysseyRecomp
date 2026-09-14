@@ -2291,13 +2291,13 @@
         "Kind": "Feature",
         "Area": "Desktop windowing",
         "Status": "Done",
-        "Delivery": "Validated",
+        "Delivery": "Released",
         "Source key": "alt-enter-window-fullscreen-toggle",
         "Release": "v0.5.13",
-        "Evidence": "Accepted live local game-path toggle on 2026-09-14: Left Alt+Enter, then Right Alt+Enter after the AltGr/VK_MENU fix, on Vulkan with RTX 5080, Windowed start, LO_NO_UPDATE=1 and --game disc1; user confirmed Right Alt with ‘可以了’. Native SYSKEY/windowID, Right-Alt, placement and pending-transition fixture evidence is retained. Status is Done for the accepted toggle scope; Delivery remains Validated because v0.5.13 is not yet published. Live placement/debounce were not separately re-measured; mixed-DPI, mouse, Exclusive DXGI fullscreen and underscan remain open."
+        "Evidence": "v0.5.13 was published 2026-09-14T23:36:59Z from 545af9be26ebafed364f68c1b2725c10b5b03206; Release CI 34908617463 succeeded after private PPC fingerprint retarget d4feb17917189a5b9f051b48b783f5fc62081658. Public ZIP: 44,304,038 bytes, SHA-256 a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd; public ZIP and sidecar returned HTTP 302. Earlier live local game-path acceptance covers Left Alt+Enter and Right Alt+Enter after the AltGr/VK_MENU fix on Vulkan with RTX 5080, Windowed start, LO_NO_UPDATE=1 and --game disc1; it was not run against the published package. Native SYSKEY/windowID, Right-Alt, placement and pending-transition fixture evidence is retained. Whole-game, exclusive fullscreen, mixed-DPI, mouse and packaged-release gameplay remain unverified; live placement/debounce were not separately re-measured and underscan remains open."
       },
       "title": "Add Alt+Enter window/fullscreen toggle",
-      "body_sha256": "ab1c6577b36e3e1a0b61b6a43142b3fbb5f083647dbdff0d5459f0326bc7be61"
+      "body_sha256": "43d29848a6970825966b28a93dd9f5738a2607931cb49a119da11861d9c81517"
     },
     "4k-runtime-performance-diagnosis": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6K5JU",
