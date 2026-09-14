@@ -47,8 +47,14 @@ def request_json(url, token, method='GET', payload=None):
         return json.loads(raw)
     except urllib.error.HTTPError as exc:
         raise TriageError(f'HTTP request failed ({exc.code})') from None
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
-        raise TriageError('Network request or JSON decoding failed') from None
+    except urllib.error.URLError as exc:
+        reason = exc.reason
+        raise TriageError(f'Network request failed at {urllib.parse.urlsplit(url).hostname}: '
+                          f'{type(reason).__name__} (errno={getattr(reason, "errno", None)})') from None
+    except (TimeoutError, OSError) as exc:
+        raise TriageError(f'Network request failed: {type(exc).__name__}') from None
+    except ValueError:
+        raise TriageError(f'Invalid JSON from {urllib.parse.urlsplit(url).hostname}') from None
 
 
 def existing_comment(issue_url, token):
