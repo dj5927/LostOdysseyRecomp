@@ -1360,7 +1360,7 @@
         "Kind": "Infrastructure",
         "Area": "Shader diagnostics",
         "Status": "In Progress",
-        "Delivery": "Implemented",
+        "Delivery": "In progress",
         "Source key": "shader-log-coverage-audit",
         "Release": "v0.5.3",
         "Evidence": "v0.5.3 is published Latest from 6fa9adc281c5693ac0af8a47fec815b20c29ff50; CI 34505504344, package verification and four anonymous public-asset checks passed. Compact diagnostics are included in the published client. Private archive schema-4 and Worker schema 1–4 deployment remain recorded. Publication does not establish a visual repair, player acceptance or full updater transaction."
@@ -2510,7 +2510,7 @@
         "Kind": "Infrastructure",
         "Area": "Maintainer workflow",
         "Status": "In Progress",
-        "Delivery": "In progress",
+        "Delivery": "Implemented",
         "Start date": "2026-09-14",
         "Evidence": "Published on main through a116d1c; secret configured and BOM handling corrected. API /models returned HTTP 200; chat-completions returned 16 total tokens (11 input, 5 output). Eleven mock tests and one encoding regression passed. Hosted run 34886197607 succeeded; workflow 358120201 is active. Its Issue #27 dry-run artifact was reviewed and did not POST. Real new-Issue automatic public reply, triage quality, repair, validation, acceptance and release remain pending.",
         "Source key": "openai-compatible-issue-triage-automation"
