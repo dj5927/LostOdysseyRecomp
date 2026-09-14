@@ -56,6 +56,7 @@
 | [Xenia 实机画面对照（2026-09-04）](xenia-render-comparison.md) |
 | [性能分析完整报告（2026-09-11；诊断，未改运行时）](perf-complete-analysis.md) |
 | [CPU 重编译深度诊断（2026-09-13；历史诊断，未改运行时）](cpu-recomp-deep-2026-09-13.md) |
+| [CPU 性能优化指南：3C6T 预算、可行并行与反模式（2026-09-14；指南，未实施）](cpu-performance-optimization-guide.md) |
 | [GPU 环缓冲实测对比（2026-09-11；user01 城市，非验收）](perf-gpu-ring-compare.md) |
 | [Vulkan depth-clear performance (2026-09-13; bounded 4K comparison)](vulkan-depth-clear-performance-2026-09-13.md) |
 | [4K Vulkan shadow loop GPU 审查（2026-09-12；实施、测试与实景边界）](gpu-shadow-loop-audit-2026-09-12.md) |
