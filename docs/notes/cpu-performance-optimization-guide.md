@@ -2,13 +2,14 @@
 
 日期：2026-09-14  
 分支：`cpu-perf` / 实验分支 `cpu-perf-exp`  
-状态：**指南，未实施运行时。** Card A / Card B 已用 published v0.5.11 城市包测过（耗尽资源类 = null；B1/B2/B3 均不实施）。不授权改运行时、不改源版本、不宣称验收或发布。
+状态：**指南，未实施运行时。** Card A / Card B / Card C 已用 published v0.5.11 测过（耗尽资源类 = null；B1/B2/B3 与 Parallel Prepare 均不实施）。不授权改运行时、不改源版本、不宣称验收或发布。
 正文：简体中文；符号、路径、函数名保持英文。
 
 配套记录：
 
 - [Card A city measurement（2026-09-14；published v0.5.11，无耗尽资源）](cpu-card-a-city-2026-09-14.md)
 - [Card B city measurement（2026-09-14；published v0.5.11，B1/B2/B3 不实施）](cpu-card-b-city-2026-09-14.md)
+- [Card C prepare gate（2026-09-14；published v0.5.11，不实施 Parallel Prepare）](cpu-card-c-prepare-gate-2026-09-14.md)
 - [CPU 重编译深度诊断（2026-09-13；历史诊断）](cpu-recomp-deep-2026-09-13.md)
 - [性能分析完整报告（2026-09-11；v0.5.4 诊断）](perf-complete-analysis.md)
 - [GPU 环缓冲实测对比（2026-09-11；诊断，非验收）](perf-gpu-ring-compare.md)
@@ -386,8 +387,10 @@ Game + Render + GPU worker + 音频已经占满或接近 3C6T。新 worker 默�
 **回退**  
 编译期或运行时开关回到串行 prepare；默认关。
 
+**当前测量（事实，2026-09-14）**：复用 Card B 城市日志，无新城市跑。启动 shader bundle 2248 ms（设备模块 56 ms），pipeline prepare 21 ms / 4 workers / 222 recipes。城市场景 per-frame `copy_ms` 0.0091、`shader_lookup_ms` 0.051、`pipeline_lookup_ms` 0.03，小于排队/复制开销。新 Parallel Prepare 缺快照/所有权/join/取消/串行回退。详见 [Card C prepare gate](cpu-card-c-prepare-gate-2026-09-14.md)。
+
 **未决条件**  
-独立任务尺寸、输入稳定性、与已有异步工作的叠加。全是 gate。Card B 当前 profile 已存在，不解除本卡片。
+独立任务尺寸、输入稳定性、与已有异步工作的叠加。全是 gate。本轮 **不实施** 新 Parallel Prepare；不要再加第三套准备池。Card D 仍默认关。
 
 ---
 

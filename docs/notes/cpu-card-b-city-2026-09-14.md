@@ -80,6 +80,6 @@ Card B's current profile exists on published v0.5.11 city:
 - Do **not** expand SIMD without a length histogram.
 - Do **not** write another texture hash mix.
 - Do **not** expand `poll_wait` Kind / cap / OS-sleep.
-- Cards C/D stay blocked until a data-contract measurement exists.
+- Card C's prepare gate is now recorded separately; Card D stays blocked on its own affinity experiment, default off.
 
 This is one Hidden 1280×720 D3D12 city window. It is not 4K, Vulkan, 3C6T-restricted, whole-game, or player acceptance evidence.
