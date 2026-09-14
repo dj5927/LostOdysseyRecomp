@@ -29,7 +29,10 @@ def tracked_tree(path, base, patch=None):
         if patch:
             git(path, 'apply', '--cached', '--whitespace=nowarn', str(patch), env=env)
         else:
-            git(path, 'add', '-u', '--', '.', env=env)
+            # A maintained patch may add files that ordinary git apply leaves
+            # untracked. Include them in this private tree; any extra file or
+            # differing content still makes it diverge from the expected patch.
+            git(path, 'add', '-A', '--', '.', env=env)
         return git(path, 'write-tree', env=env).decode().strip()
 
 def source_state(root):
@@ -75,9 +78,8 @@ def source_state(root):
                     actual = tracked_tree(path, pinned)
                     indexed = git(path, 'write-tree').decode().strip()
                     base_tree = git(path, 'rev-parse', pinned + '^{tree}').decode().strip()
-                    untracked = git(path, 'ls-files', '--others', '--exclude-standard', '-z')
                     entry.update(expected_tree=expected, actual_tree=actual)
-                    entry['dirty'] = actual != expected or indexed not in (base_tree, expected) or bool(untracked)
+                    entry['dirty'] = actual != expected or indexed not in (base_tree, expected)
                     entry['reason'] = 'unknown changes' if entry['dirty'] else 'exact tracked build patch'
                 except subprocess.CalledProcessError:
                     entry['reason'] = 'tracked patch does not apply to pinned source'
