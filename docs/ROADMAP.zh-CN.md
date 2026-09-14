@@ -48,6 +48,8 @@ D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定�
 
   Vulkan v0.5.9 已发布：深度清除及绘制状态/缓存改动复用已有验证；CI 34778434518 和四个公开下载文件均核验通过。固定 4K/60 W 结果为 7.50 → 43.48 FPS；binding-only 后续不证明整体收益。4K60、1080p60@15W 及玩家验收仍待完成。详见 [Vulkan 验证记录](notes/vulkan-depth-clear-performance-2026-09-13.md)。
 
+  **Card A 城市实验（已发布 v0.5.11）：**指南仍仅为指南，未实施运行时。已对 published v0.5.11／source `0.5.11`（`624729c`）完成 Hidden 1280×720 D3D12 城市测量：`exhausted_resource_class=null`；fence wait、nested Flush、descriptor/upload/arena split 与 GPU queue 均未表明有耗尽资源类或城市瓶颈。这不是运行时改动、版本改动、新 GitHub Release、CPU 性能验收或玩家验收。本次未设置 `LO_VERTEX_TIMING`，Card B 的 current-profile stage histogram 尚未测量；Cards C/D 继续受该 profile 门控。见 [Card A 证据](notes/cpu-card-a-city-2026-09-14.md)。
+
 
 - [~] **v0.5.8 TAA 与 CPU 纳入：**[v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8) 已于 2026-09-13T15:11:11Z 从 6e6f11cf 公开发布；[Release CI 34764115203](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34764115203) 通过。干净 source-0.5.8 包已通过 ZIP CRC、全部 50 个 payload hash，以及四个公开资产的匿名核验（bytes、SHA、sidecar 和 API digest）。其中包含 TAA cde8b50 解决及 SIMD／LO_QUERY_TRACE presence cache 修复。TAA 原场景视觉验收和更广的性能／shader 启动调查仍待完成；历史 v0.5.6 有界城市发布证据及既有 40 W 窗口均保留其原始身份。
 

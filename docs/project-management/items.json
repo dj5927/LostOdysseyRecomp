@@ -4973,7 +4973,7 @@
         "Release": "v0.5.9",
         "Start date": "2026-09-11",
         "Target date": null,
-        "Evidence": "Published v0.5.9 Latest on 2026-09-13T19:50:00Z from d26ee8b021784d7232b5319d816227867f98050d. CI34778434518 succeeded, using matching PPC metadata and the existing library. ZIP44269995bytes SHA256 fd71bf65f92b242f81a350b5b6e97ea7f1991107a2c30e91ece2dd261bac0591; all50 payload hashes and all4 anonymous public asset downloads verified. Vulkan depth-clear and cache/binding optimizations shipped; prior diagnostic7.49638->43.47614FPS is bounded4K/60W evidence, not this clean release benchmark. Binding-only had no overallFPS/CPU gain. TAA unchanged fromv0.5.8; 4K60,1080p60at15W and playeracceptance remain pending. No new runtime tests."
+        "Evidence": "Card A completed on 2026-09-14 using the published v0.5.11 package (source 0.5.11 / 624729c) in the Hidden 1280x720 D3D12 city protocol: exhausted_resource_class=null; fence waits, nested Flush time, and descriptor/upload/arena splits did not identify an exhausted resource class, and the GPU queue was not the city bottleneck. This is experiment evidence only: no runtime change, source version change, new GitHub Release, or CPU-performance/player acceptance. LO_VERTEX_TIMING was not set, so Card B current-profile stage histograms remain unmeasured; Cards C/D stay gated. Published v0.5.9 delivery evidence remains historical and its Release field is unchanged. Sources: docs/notes/cpu-card-a-city-2026-09-14.md; commits ecdddab, 124a6df, 336a906."
       },
       "source_refs": [
         "docs/notes/perf-gpu-ring-compare.md",
@@ -5007,16 +5007,21 @@
         "out/cpu-recomp-deep-20260913/texture-cache-snapshot.json",
         "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.9",
         "https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34778434518",
-        "out/v0.5.9/release-verification.json"
+        "out/v0.5.9/release-verification.json",
+        "docs/notes/cpu-performance-optimization-guide.md",
+        "docs/notes/cpu-card-a-city-2026-09-14.md",
+        "ecdddab",
+        "124a6df",
+        "336a906"
       ],
       "source_lines": [
         {
           "path": "docs/ROADMAP.md",
-          "line": 31
+          "line": 43
         },
         {
           "path": "docs/ROADMAP.zh-CN.md",
-          "line": 31
+          "line": 43
         }
       ],
       "record_type": "backlog"
