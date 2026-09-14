@@ -224,7 +224,7 @@ def ensure_push(root, check_only=False):
     if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.environ.get("LO_PPC_SYNC_ACTIVE"):
         print("PPC ensure-push: skipped (CI or recursive build)")
         return None
-    fingerprint = ppc_prebuilt.fingerprint(root)
+    fingerprint = ppc_prebuilt.fingerprint(root, verify=False)
     commit = remote_commit()
     remote = remote_manifest(commit) if commit else None
     if remote is None:

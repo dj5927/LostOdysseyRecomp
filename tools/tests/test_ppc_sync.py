@@ -28,7 +28,7 @@ class PpcSyncTests(unittest.TestCase):
         self.environment = patch.dict(os.environ, {}, clear=True)
         self.environment.start()
         self.addCleanup(self.environment.stop)
-        self.fp = patch.object(sync.ppc_prebuilt, "fingerprint", side_effect=lambda root: copy.deepcopy(self.evidence["fingerprint"])).start()
+        self.fp = patch.object(sync.ppc_prebuilt, "fingerprint", side_effect=lambda root, verify=True: copy.deepcopy(self.evidence["fingerprint"])).start()
         self.contract = patch.object(sync.ppc_prebuilt, "compile_contract", side_effect=lambda *args: (copy.deepcopy(self.evidence["contract"]), "22.1")).start()
         self.addCleanup(patch.stopall)
         self.key, _ = sync.identity(self.root, self.build)
@@ -169,6 +169,14 @@ class PpcSyncTests(unittest.TestCase):
         inputs["fingerprint"]["inputs"] = {"source": "other"}
         self.assertFalse(sync.library_reusable(inputs, fingerprint))
         self.assertFalse(sync.library_reusable(None, fingerprint))
+
+    def test_ensure_push_does_not_require_generated_ppc(self):
+        fingerprint = self.cmake_fingerprint()
+        self.evidence["fingerprint"] = fingerprint
+        self.manifest["fingerprint"] = fingerprint
+        with patch.object(sync.ppc_prebuilt, "fingerprint", return_value=fingerprint) as fp, patch.object(sync, "remote_commit", return_value=SHA), patch.object(sync, "remote_manifest", return_value=self.manifest):
+            sync.ensure_push(self.root)
+            fp.assert_called_once_with(self.root, verify=False)
 
     def test_ensure_push_skips_in_ci(self):
         with patch.dict(os.environ, {"CI": "1"}), patch.object(sync, "remote_commit") as remote:

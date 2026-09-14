@@ -19,8 +19,9 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def fingerprint(root):
-    ppc_codegen.check(root)
+def fingerprint(root, verify=True):
+    if verify:
+        ppc_codegen.check(root)
     manifest = json.loads((root / "LostOdysseyRecompLib/ppc/codegen-manifest.json").read_text())
     paths = [root / "LostOdysseyRecomp/gpu/ppc_mmio.h"]
     paths += [p for p in (root / "tools/XenonRecomp/thirdparty/simde").rglob("*")
