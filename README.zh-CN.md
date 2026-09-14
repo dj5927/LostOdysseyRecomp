@@ -19,6 +19,8 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+Linux 首可玩支持目前仅限从源码构建的 Vulkan ELF；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。目前没有发布 Linux 软件包。
+
 ## v0.5.13 新增
 
 已发布 Windows x64 包：[v0.5.13](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.13)。ZIP SHA-256 为 `a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd`。
