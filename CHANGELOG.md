@@ -14,6 +14,18 @@ One record of completed changes, with unpublished work separated from verified r
 
 - 已在 `600b08e` 部署 GitHub Issue triage workflow 更新，支持授权协作者的 `@codex` 评论请求、按评论去重、最近人类讨论和有界的 first-party 代码检索。19 项 triage/mention 检查及 7 项 retrieval 检查已通过；首次公开 `@codex` 回复仍待观察。
 
+## v0.5.12 — 2026-09-14
+
+### English
+
+- Fix USA/Europe FMV and event subtitle language mapping. The `82481BE8` hook now returns the original executable language-table pointer for host `GameLanguage()` IDs 1–9, preserving the existing Simplified Chinese repair. Callers that pre-filter with `r4=0` can resolve INT/JPN/DEU/FRA/SPA/ITA suffixes instead of aliasing to the ID-0 English record. Issue [#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27).
+- A local USA/Europe Spanish opening-FMV check passed on 2026-09-14 with `game_language=5` and Vulkan at 3840×2160. German, French and Italian FMV visuals, complete event coverage and whole-game validation remain unverified.
+
+### 简体中文
+
+- 修复 USA/Europe FMV／事件字幕语言映射。`82481BE8` hook 现在会为宿主 `GameLanguage()` ID 1–9 返回原可执行文件语言表指针，并保留既有简体中文修复。调用方以 `r4=0` 预筛选时，可解析 INT/JPN/DEU/FRA/SPA/ITA 后缀，而不再别名到 ID-0 英文记录。[#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27)。
+- 2026-09-14 本地 USA/Europe 西班牙语开场 FMV 检查通过，`game_language=5`，Vulkan 3840×2160。德语、法语、意大利语 FMV 画面、完整事件覆盖和全游戏验证仍未核验。
+
 ## v0.5.11 — 2026-09-14 / Published / 已发布
 
 ### English

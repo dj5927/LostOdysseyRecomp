@@ -2,6 +2,10 @@
 
 Status: **2026-09-06, included in published v0.2**. Commit `dcc946299cdc2984783793ad5871a0ad0b90a2c9` and its `v0.2` tag were pushed to both remotes. The dated local test packages below preserve pre-release evidence; they are not the official release artifact. Chapter-boundary gameplay and a complete playthrough remain unverified.
 
+## 2026-09-14 FMV/event subtitle mapping clarification — source 0.5.12, unpublished
+
+The host `82481BE8` language-table hook now covers host game-language IDs 1–9, so the USA/Europe DE/FR/ES/IT event and FMV subtitle suffix mapping uses the same corrected path as the earlier SCH repair. The local USA/Europe test with `game_language=5` accepted the opening FMV subtitles on 2026-09-14 using Vulkan at 3840×2160 and a startup-bundle hit. This confirms the opening Spanish scene only. It does not establish complete event/FMV coverage, a complete playthrough, visual confirmation for German/French/Italian, or validation of a published package. The source 0.5.12 change remains unpublished.
+
 ## Combined resource metadata — 2026-09-07
 
 Local built-in bare-FPD and CPX metadata now includes the Asian and USA/Europe resource sets. Existing resource-identity matching selects a layout automatically; there is no region selector or matching-code change. The CPX table contains 104 archive layouts, 12,857 package profiles and 275,186 locations, retaining the original Asian profiles. Both generators accept repeatable `--additional-root` inputs; this does not permit mixed editions inside one imported installation.

@@ -6,6 +6,12 @@ Published at [GitHub Release v0.5.11](https://github.com/freefrank/LostOdysseyRe
 
 CI consumed PPC key `921d26c12c98de289e659f30f490e09b23d8e2ca08624690e38f1b3dd9294f51` from private commit `ad34fdc295f374c4787c13343be4af7ae3facafc`, matching the synchronized receipt and reusing the existing library. Evidence: `out/v0.5.11/release/{release-source.json,ci-run.json,ci-ppc-consumption.json,delivery-verification.json,public-download-check.json,published-release.json}`.
 
+## Europe FMV subtitle mapping — local source 0.5.12, unpublished — 2026-09-14
+
+The host-side `82481BE8` PPC hook now returns the original executable language-table pointer for host `GameLanguage()` IDs 1–9 when `r3=0x8336A5F0` and `r4` is 0 or the current ID. The guest table at `0x832455F0` maps those IDs to INT/JPN/DEU/FRA/SPA/ITA/KOR/CHI/SCH. This extends the earlier SCH-only alias repair: callers that pre-filter with `r4=0` no longer receive the ID-0 English suffix when selecting USA/Europe event and FMV subtitle packages.
+
+A local USA/Europe Disc 1 test with `game_language=5`, Vulkan at 3840×2160 and a startup-bundle hit was accepted by the user for the opening FMV subtitles on 2026-09-14. This is opening-scene acceptance only; German, French and Italian visual confirmation, complete FMV/event coverage, whole-game validation and published-package validation remain unverified. No new fixture was added. Source version 0.5.12 is not published.
+
 ## Published v0.5.10 — 2026-09-13
 
 Published at [GitHub Release v0.5.10](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.10) on 2026-09-13T21:20:10Z. Release CI [34783107248](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34783107248) passed for source/tag commit `db63ebaf50fed9612ca66a498f162ad6be69a54e`. The clean ZIP is 44,288,884 bytes with SHA-256 `e1b6b9a84bcf0360f104db2e001ca5e740552834b554a4bf5812dd9c8f52f6eb`; runtime SHA-256 is `25c3c83366143b5f74943ee0cd88789cca0042b3d4a06a7ef986fa8d8de94995`. All 50 manifest payload hashes and ZIP CRCs passed; all four public assets matched anonymous HTTP downloads, sizes, SHA-256 and API digests. CI consumed PPC key `481e10e3e18a083fbc8f3207422a2065c5ba548c39b2588336b02f3da75effdf` from private commit `eb883038c92fdfc0e154b5e3f8b61e346a98034e`. Existing functional checks were reused; no new gameplay or frame-time acceptance is claimed.
