@@ -8,11 +8,11 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
-- Stage the opt-in GitHub Issue triage workflow for deployment from `main`; it provides bounded preliminary comments, manual dry runs and duplicate-comment protection. The workflow and CI activation remain pending verification after this push.
+- Enable the opt-in GitHub Issue triage workflow on `main`; hosted CI run [34886197607](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34886197607) succeeded and the active workflow provides bounded preliminary comments, manual dry runs and duplicate-comment protection. A first live comment on a newly opened Issue has not yet been observed.
 
 ### 简体中文
 
-- 准备从 `main` 部署可选的 GitHub Issue triage workflow，提供有界的初步回复、手动 dry run 和重复评论防护；workflow 及 CI 启用仍待本次 push 后核验。
+- 已在 `main` 启用可选的 GitHub Issue triage workflow；hosted CI run `34886197607` 已成功，active workflow 提供有界的初步回复、手动 dry run 和重复评论防护。首次真实新 Issue 评论尚未观察。
 
 ## v0.5.11 — 2026-09-14 / Published / 已发布
 

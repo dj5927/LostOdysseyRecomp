@@ -91,6 +91,12 @@ class TriageTests(unittest.TestCase):
         with self.assertRaises(triage.TriageError):
             triage.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://elsewhere.test')
 
+    def test_invalid_header_encoding_is_sanitized(self):
+        error = UnicodeEncodeError('latin-1', '\ufeffSECRET', 0, 1, 'invalid')
+        with patch('urllib.request.OpenerDirector.open', side_effect=error):
+            with self.assertRaisesRegex(triage.TriageError, '^Invalid request encoding or response data$'):
+                triage.request_json('https://example.test', 'secret')
+
     def test_comment_pagination_fails_closed(self):
         with patch.object(triage, 'request_json', return_value=[{}] * 100) as call:
             with self.assertRaises(triage.TriageError):

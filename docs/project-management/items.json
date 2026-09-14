@@ -5211,6 +5211,32 @@
         "Target date": null,
         "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #22 remains OPEN with unknown root cause and no reporter acceptance. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11"
       }
+    },
+    {
+      "key": "openai-compatible-issue-triage-automation",
+      "title": "Automate new GitHub Issue analysis and replies",
+      "body": "<!-- lo-project:openai-compatible-issue-triage-automation -->\n\nUse an Issue-opened workflow and a configured OpenAI-compatible API to analyze new GitHub Issues and post a bounded triage reply. The reply states that a repair requires separate confirmation; it does not claim a diagnosis, implementation, validation, player acceptance, or release.\n\n## Current delivery state\n\nThe workflow and local triage tool are published on `main` through `a116d1c`; the repository secret is configured and its BOM handling is corrected. No credential or private conversation is recorded in this work item.\n\n## Recorded validation\n\nThe endpoint check returned HTTP 200 for `/models`; the configured chat-completions request returned normally with 16 total tokens (11 input and 5 output). Eleven local mock tests and one encoding regression passed. Hosted run [34886197607](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34886197607) succeeded; workflow 358120201 is active. Its Issue #27 dry-run artifact was downloaded and reviewed, and did not POST a comment.\n\nThis proves deployed configuration and the bounded dry-run path only. A real new-Issue automatic public comment, triage quality, repair, validation, player acceptance and release remain unobserved or pending.\n\n## Completion criteria\n\n- [ ] Observe one appropriate automatic public reply for a new Issue without exposing credentials or private conversations\n- [ ] Confirm duplicate/retry behavior and moderation boundaries\n- [ ] Keep any repair investigation, implementation, validation and reporter acceptance as separate work\n\n## Sources\n\n- `dce8608451bf219163d8e7241e7e79cc301b17ad` and `a116d1c` on `main`\n- https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34886197607\n- `.github/workflows/issue-triage.yml`\n- `tools/issue_triage/triage.py`\n",
+      "issue_url": null,
+      "fields": {
+        "Kind": "Infrastructure",
+        "Area": "Maintainer workflow",
+        "Status": "In Progress",
+        "Delivery": "Implemented",
+        "Release": null,
+        "Start date": "2026-09-14",
+        "Target date": null,
+        "Evidence": "Published on main through a116d1c; secret configured and BOM handling corrected. API /models returned HTTP 200; chat-completions returned 16 total tokens (11 input, 5 output). Eleven mock tests and one encoding regression passed. Hosted run 34886197607 succeeded; workflow 358120201 is active. Its Issue #27 dry-run artifact was reviewed and did not POST. Real new-Issue automatic public reply, triage quality, repair, validation, acceptance and release remain pending."
+      },
+      "source_refs": [
+        ".github/workflows/issue-triage.yml",
+        "tools/issue_triage/triage.py",
+        "maintainer-api-verification-2026-09-14",
+        "https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34886197607",
+        "dce8608451bf219163d8e7241e7e79cc301b17ad",
+        "a116d1c"
+      ],
+      "source_lines": [],
+      "record_type": "backlog"
     }
   ]
 }

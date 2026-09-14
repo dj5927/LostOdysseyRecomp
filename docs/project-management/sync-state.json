@@ -1360,7 +1360,7 @@
         "Kind": "Infrastructure",
         "Area": "Shader diagnostics",
         "Status": "In Progress",
-        "Delivery": "In progress",
+        "Delivery": "Implemented",
         "Source key": "shader-log-coverage-audit",
         "Release": "v0.5.3",
         "Evidence": "v0.5.3 is published Latest from 6fa9adc281c5693ac0af8a47fec815b20c29ff50; CI 34505504344, package verification and four anonymous public-asset checks passed. Compact diagnostics are included in the published client. Private archive schema-4 and Worker schema 1–4 deployment remain recorded. Publication does not establish a visual repair, player acceptance or full updater transaction."
@@ -2503,6 +2503,20 @@
         "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #22 remains OPEN with unknown root cause and no reporter acceptance. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11",
         "Source key": "issue-22-renderer-init-report"
       }
+    },
+    "openai-compatible-issue-triage-automation": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg66-lg",
+      "fields": {
+        "Kind": "Infrastructure",
+        "Area": "Maintainer workflow",
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Start date": "2026-09-14",
+        "Evidence": "Published on main through a116d1c; secret configured and BOM handling corrected. API /models returned HTTP 200; chat-completions returned 16 total tokens (11 input, 5 output). Eleven mock tests and one encoding regression passed. Hosted run 34886197607 succeeded; workflow 358120201 is active. Its Issue #27 dry-run artifact was reviewed and did not POST. Real new-Issue automatic public reply, triage quality, repair, validation, acceptance and release remain pending.",
+        "Source key": "openai-compatible-issue-triage-automation"
+      },
+      "title": "Automate new GitHub Issue analysis and replies",
+      "body_sha256": "43b8016419071c82b75e9cfbf25ca810d64ec59cbb9c924197b288c20264769b"
     }
   }
 }
