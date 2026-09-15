@@ -31,7 +31,7 @@ Linux 首可玩支持目前仅限从源码构建的 Vulkan ELF；请参阅[构�
 
 已发布 Windows x64 包：[v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12)。
 
-- 修复受支持语言 ID 的 USA/Europe FMV 与事件字幕语言映射。本地西班牙语开场 FMV 检查已通过并获接受；德语、法语、意大利语 FMV 画面、完整事件覆盖、全游戏验证和报告者验收仍未核验。详见[版本支持说明](docs/notes/europe-support.md)。
+- 修复受支持语言 ID 的 USA/Europe FMV 与事件字幕语言映射。报告者已确认 v0.5.12 西班牙语 FMV 字幕（Vulkan 与 Direct3D 12）；德语、法语、意大利语 FMV 覆盖已确认。完整事件覆盖和全游戏验证仍未核验。详见[版本支持说明](docs/notes/europe-support.md)。Issue [#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27) 已关闭。
 - ZIP SHA-256 为 `7cc99618cee509bdea000b736772344de60279f4a439a4f876cc7d49d4c8e60a`；公开 ZIP 和校验文件可从[最新发布](https://github.com/freefrank/LostOdysseyRecomp/releases/latest)下载。
 
 ## v0.5.11 新增

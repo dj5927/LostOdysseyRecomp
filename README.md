@@ -31,7 +31,7 @@ Published Windows x64 package: [v0.5.13](https://github.com/freefrank/LostOdysse
 
 Published Windows x64 package: [v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12).
 
-- Fix USA/Europe FMV and event subtitle language mapping for the supported language IDs. A local Spanish opening-FMV check was accepted; German, French and Italian FMV visuals, complete event coverage, whole-game validation and reporter acceptance remain unverified. See the [edition support note](docs/notes/europe-support.md).
+- Fix USA/Europe FMV and event subtitle language mapping for the supported language IDs. The reporter confirmed Spanish FMV subtitles on v0.5.12 (Vulkan and Direct3D 12); DE/FR/IT FMV coverage is confirmed. Complete event coverage and whole-game validation remain unverified. See the [edition support note](docs/notes/europe-support.md). Issue [#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27) is closed.
 - The ZIP SHA-256 is `7cc99618cee509bdea000b736772344de60279f4a439a4f876cc7d49d4c8e60a`; the public ZIP and checksum downloads are available from the [latest release](https://github.com/freefrank/LostOdysseyRecomp/releases/latest).
 
 ## New in v0.5.11
