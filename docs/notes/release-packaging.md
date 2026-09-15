@@ -1,8 +1,10 @@
 # Installer and Windows release pipeline
 
-The portable importer lives in `tools/installer`. Its backend uses only the Python standard
-library. The graphical frontend uses Tk and is frozen into a single InstallGame.exe using
-PyInstaller. No interpreter installation is needed on the destination machine.
+The portable importer backend remains in `tools/installer` for development fixtures, while the
+release runtime contains the native SDL installer and its `ScanContent`/`InstallContent` flow.
+Release packaging no longer freezes or ships a separate `InstallGame.exe` or
+`LostOdysseyUpdater.exe`; the native importer and updater run from the single
+`LostOdysseyRecomp.exe` binary.
 
 ## Current v0.5.0 CI delivery — 2026-09-09
 
@@ -14,9 +16,9 @@ Prepare submodules and generate PPC sources as described in BUILDING.md. Then:
 
 ```powershell
 tools/build_release.bat
-python -m venv out/installer-venv
-out/installer-venv/Scripts/python.exe -m pip install -r tools/release/requirements.txt
-out/installer-venv/Scripts/python.exe tools/package_release.py
+python -m venv out/release-venv
+out/release-venv/Scripts/python.exe -m pip install -r tools/release/requirements.txt
+out/release-venv/Scripts/python.exe tools/package_release.py
 ```
 
 The dedicated `out/build/release` directory uses clang-cl, Release and static CRT.
@@ -34,7 +36,9 @@ as a Vulkan SDK component.
 Only explicitly selected payload files enter the ZIP. Game data, saves, settings, shader caches,
 private build inputs, generated source, logs and PDBs are not packaged. The manifest records the
 source commit, development state, payload checksums and DLL imports. The package has a separate
-SHA256 file. Dependency license texts accompany the binaries.
+SHA256 file. Dependency license texts accompany the binaries, including
+`licenses/FONT-PROVENANCE.md` and the complete SDL-sourced `licenses/Unifont-OFL-1.1.txt` notice for
+the embedded installer font.
 
 ## GitHub Actions
 

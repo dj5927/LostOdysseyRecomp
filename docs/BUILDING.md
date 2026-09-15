@@ -107,7 +107,7 @@ evidence](notes/release-packaging.md) for the branch, commit and retained logs.
 
 Audio configuration fetches the pinned Xenia FFmpeg source via CMake FetchContent, so first configuration needs network access. See [ffmpeg.cmake](../thirdparty/ffmpeg.cmake) and its [license](../thirdparty/ffmpeg-LICENSE.txt). This is a frame-level XMAFRAMES decoder, not a system FFmpeg executable requirement.
 
-Release builds do not require a separately installed Vulkan SDK. Windows Vulkan headers, volk and VMA come from the patched plume submodule; the GPU driver supplies `vulkan-1.dll` and its ICD. The runtime requests Vulkan 1.2, buffer-device-address, geometry shaders and Win32 WSI. Use the exact paired DXC v1.8.2407 DLLs copied by CMake and tracked in [DXC provenance](../thirdparty/dxc-licenses/PROVENANCE.json); do not substitute one DLL independently. Building the runtime also builds `LostOdysseyUpdater` in the same output directory, which the package step expects.
+Release builds do not require a separately installed Vulkan SDK. Windows Vulkan headers, volk and VMA come from the patched plume submodule; the GPU driver supplies `vulkan-1.dll` and its ICD. The runtime requests Vulkan 1.2, buffer-device-address, geometry shaders and Win32 WSI. Use the exact paired DXC v1.8.2407 DLLs copied by CMake and tracked in [DXC provenance](../thirdparty/dxc-licenses/PROVENANCE.json); do not substitute one DLL independently. Release packaging ships the single `LostOdysseyRecomp.exe` binary; the updater and importer run from that binary.
 
 ## Building on Linux
 

@@ -89,7 +89,7 @@ Linux 首可玩支持目前仅限从源码构建的 Vulkan ELF；请参阅[构�
 | :--- | :--- |
 | 系统 | Windows x64、支持 AVX 的 CPU、Direct3D 12 或 Vulkan 图形驱动 |
 | 游戏数据 | 已核对的 Europe, Asia 或 USA, Europe 版；启动需要 Disc 1 |
-| 其他光盘 | 通过 `InstallGame.exe` 追加导入；后续光盘流程尚未完整验证 |
+| 其他光盘 | 已发布版本通过 `InstallGame.exe` 追加导入；后续光盘流程尚未完整验证 |
 
 支持的光盘版本、文件位置和更新方式见[安装指南](docs/INSTALLING.md)。
 
@@ -114,7 +114,7 @@ Linux 首可玩支持目前仅限从源码构建的 Vulkan ELF；请参阅[构�
 | CPU 使用率 | 减少不必要的轮询，复用渲染计算 |
 | 输入与调试 | 手柄和键盘输入；英文／简体中文 F1 菜单提供捕获、地图信息与同地图 POI 传送 |
 
-打开 `InstallGame.exe`，选择 **Files** 或 **Folder**，即可导入游戏光盘和受支持的 DLC。见[安装说明](docs/INSTALLING.md#automatic-content-import)。
+已发布版本通过 `InstallGame.exe` 的 **Files** 或 **Folder** 导入游戏光盘和受支持的 DLC。未发布开发版改为通过 `LostOdysseyRecomp.exe --install` 打开内置目录浏览器。验证边界见[安装说明](docs/INSTALLING.md#automatic-content-import)和[开发状态](docs/STATUS.md)。
 
 验证进展和剩余工作见[公开维护者 Project](https://github.com/users/freefrank/projects/3)。
 

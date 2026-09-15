@@ -2,20 +2,20 @@
 
 This guide describes the current Windows v0.5.4 package, with Direct3D 12 and Vulkan graphics backends.
 
-1. Extract the entire package to a writable folder, outside Program Files. Keep the executable, importer, updater helper, validated DXC v1.8.2407 DLL pair and license files together.
+1. Extract the entire package to a writable folder, outside Program Files. Keep the main executable, validated DXC v1.8.2407 DLL pair and license files together.
 2. Run **LostOdysseyRecomp.exe** directly. If game files are missing, the importer opens; select your source and review its recognition result before importing.
 3. On first launch, choose interface/game language and graphics settings. The game continues after setup and the separate shader preparation stages.
 
-You can also run **InstallGame.exe** separately to import additional discs or DLC. Disc 1 is required to start.
+The built-in importer can also be opened from the game to import additional discs or DLC. Disc 1 is required to start.
 
-The package includes the game executable, importer, updater helper, validated DXC v1.8.2407 DLL pair, dependency licenses and a SHA256 manifest. Python and Visual Studio are not required. Windows x64 and an AVX-capable CPU are required. D3D12 is the default graphics path; the development Vulkan path requires a compatible Windows driver and uses the driver-provided Vulkan loader rather than a bundled SDK.
+The package includes the game executable and built-in importer/updater, validated DXC v1.8.2407 DLL pair, dependency licenses and a SHA256 manifest. Python and Visual Studio are not required. Windows x64 and an AVX-capable CPU are required. D3D12 is the default graphics path; the development Vulkan path requires a compatible Windows driver and uses the driver-provided Vulkan loader rather than a bundled SDK.
 Game files are supplied by the user and are not included in the download.
 
 <a id="automatic-content-import"></a>
 
 ## Automatic content import
 
-Run **InstallGame.exe**, then choose **Files** to select one or more files, or **Folder** to scan a directory. The importer recognizes supported game discs and Lost Odyssey DLC from their headers and structure; you do not need to choose a disc or DLC mode. Mixed selections are reviewed together before import.
+On first launch, choose **Files** to select one or more files, or **Folder** to scan a directory. The same content importer can be reopened from the game when assets are missing. It recognizes supported game discs and Lost Odyssey DLC from their headers and structure; you do not need to choose a disc or DLC mode. Mixed selections are reviewed together before import.
 
 The import order is game-disc transaction, shared game-path save, then DLC transaction. If DLC import fails or is cancelled after discs succeed, the completed discs remain installed and the retry contains only the remaining DLC. A game-path save failure is warned about without rolling back completed imports. DLC-only imports do not change `game-path.txt`.
 
@@ -43,6 +43,8 @@ Game-language choices follow the installed edition: English, Japanese, German, F
 and Italian for USA/Europe; English, Japanese, Korean, Traditional Chinese and Simplified Chinese
 for the audited Asian set. The settings interface retains its existing five translations.
 A saved game-language choice unavailable in the current edition falls back to English.
+The embedded installer UI font is a packed Unifont subset from the pinned SDL source; it is not an
+original Lost Odyssey font and does not claim full Unicode coverage or game-style visual fidelity.
 
 Discs are copied to `game/disc1` through `game/disc4` by default. You can select an external
 game destination; the executable reads `game-path.txt` beside the executable. For direct startup,
@@ -55,7 +57,7 @@ corresponding imported `discN` directory. No manual disc-selection button is req
 four discs from the same edition under the same parent directory. The original game reloads
 the target disc's own index and archives; the importer does not merge them into one rewritten index.
 If the target is missing, from another edition or incomplete, the request fails and the current
-mount remains selected. Import the required disc with InstallGame.exe. This feature is not in v0.1.
+mount remains selected. Import the required disc with the built-in importer.
 Controlled switching tests do not establish chapter-boundary progression or full-game compatibility.
 
 ## DLC recognition
@@ -118,7 +120,7 @@ Linux runs through Vulkan only. Direct3D 12 is Windows-only and is unavailable o
 
 ### First-run configuration
 
-The interactive GUI folder-picker importer (`InstallGame.exe`) is Windows-only. On Linux, tell the game where your files are located using the `--game` command-line argument, or by creating a `game-path.txt` file containing the folder path right beside the executable.
+The embedded Files/Folder importer has native source handling and cross-platform POSIX lock compatibility, but the interactive graphical window remains Windows-only in current builds. On Linux, tell the game where your files are located using the `--game` command-line argument, or by creating a `game-path.txt` file containing the folder path right beside the executable.
 
 ### Launching the game
 

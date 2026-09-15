@@ -13,8 +13,7 @@ every glyph, width and byte matched, and codepoints were strictly increasing.
 - Packing changes storage layout and selects glyphs; it does not establish
   full Unicode coverage, readable Chinese rendering or game-style fidelity.
 
-This is a source-development checkpoint. Before distributing a binary that
-embeds the font, retain the upstream font notices and OFL text in its payload
-and verify the release license manifest. Binary license packaging has not been
-validated here. The unused `installer_font_data.inl` VGA experiment is not part
-of this checkpoint or the active font implementation.
+Release packages retain this notice as `licenses/FONT-PROVENANCE.md` and include
+the complete upstream OFL text as `licenses/Unifont-OFL-1.1.txt`. The unused
+`installer_font_data.inl` VGA experiment is not part of the active font
+implementation.
