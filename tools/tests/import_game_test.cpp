@@ -1,4 +1,7 @@
 #include <cassert>
+#include <algorithm>
+#include <chrono>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -9,6 +12,116 @@
 
 namespace
 {
+void Require(bool condition, const std::string& message)
+{
+    if (!condition) throw std::runtime_error("[extracted-dlc] " + message);
+}
+
+std::vector<uint8_t> ReadBytes(const std::filesystem::path& path)
+{
+    std::ifstream input(path, std::ios::binary);
+    Require(static_cast<bool>(input), "could not open " + path.string());
+    return {std::istreambuf_iterator<char>(input), {}};
+}
+
+void RequireTreeEqual(const std::filesystem::path& expected, const std::filesystem::path& actual)
+{
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(expected))
+    {
+        if (!entry.is_regular_file()) continue;
+        auto relative = entry.path().lexically_relative(expected);
+        auto candidate = actual / relative;
+        Require(std::filesystem::is_regular_file(candidate), "missing installed file " + relative.string());
+        Require(ReadBytes(entry.path()) == ReadBytes(candidate), "payload mismatch " + relative.string());
+    }
+}
+
+void RunExtractedDlcTest()
+{
+    const std::filesystem::path source("D:/Mihoyo/LostOdysseyRecomp-windows-x64/game/dlc");
+    Require(std::filesystem::is_directory(source), "extracted DLC source is missing");
+
+    auto scan = install::ScanContent(source);
+    Require(scan.packages.size() == 3, "expected three extracted DLC packages");
+    auto direct = install::ScanContent(scan.packages.front().path);
+    Require(direct.packages.size() == 1, "direct package scan did not return one package");
+
+    const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("lo-extracted-dlc-test-" + std::to_string(unique));
+    struct Cleanup { std::filesystem::path path; ~Cleanup() { std::error_code ec; std::filesystem::remove_all(path, ec); } } cleanup{root};
+    const auto destination = root / "game";
+    auto result = install::InstallContent(scan, destination);
+    Require(result.dlcImported.size() == 3, "initial DLC import did not publish three packages");
+    for (const auto& package : scan.packages)
+    {
+        RequireTreeEqual(package.path, destination / "dlc" / package.contentId);
+        std::cout << "[PASS] Exact payload and sidecars: " << package.displayName << '\n';
+    }
+    auto duplicate = install::InstallContent(scan, destination);
+    Require(duplicate.dlcUnchanged.size() == 3 && duplicate.dlcImported.empty(), "duplicate import was not unchanged");
+
+    const auto isolated = root / "isolated";
+    std::filesystem::create_directories(isolated);
+    const auto originalPackage = scan.packages.front().path;
+    const auto isolatedPackage = isolated / originalPackage.filename();
+    std::filesystem::copy(originalPackage, isolatedPackage, std::filesystem::copy_options::recursive);
+    auto reject = [&](const std::string& label) {
+        bool failed = false;
+        try { auto rejected = install::ScanContent(isolated); failed = rejected.packages.empty() && !rejected.rejected.empty(); }
+        catch (const install::Error&) { failed = true; }
+        Require(failed, label + " was accepted");
+    };
+    std::filesystem::path payload;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(isolatedPackage))
+        if (entry.is_regular_file() && entry.path().filename() != ".lo-content" && entry.path().filename() != ".lo-dlc-header" && entry.path().filename() != ".lo-dlc.json") { payload = entry.path(); break; }
+    Require(!payload.empty(), "package payload is missing in source");
+    { std::ofstream output(payload, std::ios::binary | std::ios::app); output.put('\x01'); }
+    reject("mutated payload");
+    std::filesystem::remove(payload);
+    reject("missing payload");
+    std::filesystem::remove_all(isolatedPackage);
+    std::filesystem::copy(originalPackage, isolatedPackage, std::filesystem::copy_options::recursive);
+    const auto manifestBytes = ReadBytes(isolatedPackage / ".lo-dlc.json");
+    std::string manifestText(manifestBytes.begin(), manifestBytes.end());
+    const auto pathStart = manifestText.find("\"path\": \"");
+    Require(pathStart != std::string::npos, "fixture manifest lacks file path");
+    manifestText.insert(pathStart + 9, "../");
+    { std::ofstream manifest(isolatedPackage / ".lo-dlc.json", std::ios::binary | std::ios::trunc); manifest << manifestText; }
+    reject("manifest traversal");
+
+    { std::ofstream manifest(isolatedPackage / ".lo-dlc.json", std::ios::binary | std::ios::trunc); manifest.write(reinterpret_cast<const char*>(manifestBytes.data()), manifestBytes.size()); }
+    auto isolatedScan = install::ScanContent(isolatedPackage);
+    for (const auto& overlap : {isolatedPackage, isolatedPackage / "out", isolated})
+    {
+        bool refused = false;
+        try { install::InstallContent(isolatedScan, overlap); }
+        catch (const install::Error&) { refused = true; }
+        Require(refused, "overlapping destination was accepted");
+    }
+    RequireTreeEqual(originalPackage, isolatedPackage);
+    { std::ofstream manifest(isolatedPackage / ".lo-dlc.json", std::ios::binary | std::ios::app); manifest << '\n'; }
+    auto conflict = install::ScanContent(std::vector<std::filesystem::path>{originalPackage, isolatedPackage});
+    Require(conflict.packages.size() == 1 && conflict.rejected.size() == 1, "different extracted manifest was silently deduplicated");
+
+    bool scanCancelled = false;
+    try { install::ScanContent(source, [] { return true; }); }
+    catch (const install::Error& error) { scanCancelled = error.cancelled(); }
+    Require(scanCancelled, "scan cancellation was not reported");
+    const auto cancelledDestination = root / "cancelled";
+    bool copyCancelled = false;
+    bool copying = false;
+    try { install::InstallContent(direct, cancelledDestination,
+        [&](uint64_t done, uint64_t, std::string_view) { if (done > 0) copying = true; }, [&] { return copying; }); }
+    catch (const install::Error& error) { copyCancelled = error.cancelled(); }
+    Require(copying && copyCancelled, "mid-copy cancellation was not reported");
+    Require(!std::filesystem::exists(cancelledDestination / ".import.lock"), "cancellation left import lock");
+    for (const auto& entry : std::filesystem::directory_iterator(cancelledDestination))
+        Require(entry.path().filename().string().find(".dlc-import-") != 0, "cancellation left staging root");
+    Require(std::filesystem::is_empty(cancelledDestination / "dlc"), "cancellation published a package");
+    std::cout << "[PASS] Extracted DLC scan/import/duplicate/cancellation/error boundaries" << std::endl;
+}
+
 std::vector<uint8_t> MakeXex(uint32_t disc = 1, uint32_t media = 0x39F7D748, uint32_t version = 4, uint32_t base = 4)
 {
     std::vector<uint8_t> data(128, 0);
@@ -62,11 +175,18 @@ void WriteDiscFiles(const std::filesystem::path& dir, uint32_t disc, bool includ
 }
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc > 1 && std::string(argv[1]) == "--extracted-dlc")
+    {
+        try { RunExtractedDlcTest(); return 0; }
+        catch (const std::exception& error) { std::cerr << error.what() << std::endl; return 1; }
+    }
     std::cout << "Starting LoImportGameTest..." << std::endl;
 
-    std::filesystem::path tempDir = std::filesystem::temp_directory_path() / ("lo-import-test-" + std::to_string(GetCurrentProcessId()));
+    const auto uniqueId = std::chrono::steady_clock::now().time_since_epoch().count();
+    std::filesystem::path tempDir = std::filesystem::temp_directory_path() /
+                                     ("lo-import-test-" + std::to_string(uniqueId));
     std::filesystem::remove_all(tempDir);
     std::filesystem::create_directories(tempDir);
 
@@ -178,6 +298,31 @@ int main()
     assert(writeOk);
     assert(std::filesystem::exists(tempDir / "game-path.txt"));
     std::cout << "[PASS] Game path persistence" << std::endl;
+
+    // 5b. A pre-existing lock must reject a second importer without touching the destination.
+    std::filesystem::path lockedDest = tempDir / "lockedDest";
+    std::filesystem::create_directories(lockedDest);
+    {
+        std::ofstream lock(lockedDest / ".import.lock", std::ios::binary);
+        lock << "active";
+    }
+    bool lockRejected = false;
+    try
+    {
+        install::InstallDiscs(sourceStandard, lockedDest);
+    }
+    catch (const install::Error& err)
+    {
+        lockRejected = std::string(err.what()).find("Another import owns") != std::string::npos;
+    }
+    assert(lockRejected);
+    assert(std::filesystem::exists(lockedDest / ".import.lock"));
+    std::cout << "[PASS] Import lock exclusivity" << std::endl;
+
+    // 5c. Portable SHA-256 retains the standard vector used by import identity checks.
+    assert(install::crypto::Sha256Hex("", 0) ==
+           "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    std::cout << "[PASS] Portable SHA-256 vector" << std::endl;
 
     // 6. Test cancellation during scan/install
     bool cancelled = false;

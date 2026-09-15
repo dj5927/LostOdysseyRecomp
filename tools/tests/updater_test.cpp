@@ -82,7 +82,7 @@ bool CreatePackage(const fs::path &archivePath, std::string_view version,
 }
 
 updater::StagedUpdate BuildStaged(const fs::path &caseRoot, const fs::path &probe, const fs::path &helper,
-                                  const fs::path &marker)
+                                  const fs::path &marker, bool launchAfterApply = false)
 {
     const auto source = caseRoot / "source";
     const auto install = caseRoot / "install";
@@ -106,7 +106,8 @@ updater::StagedUpdate BuildStaged(const fs::path &caseRoot, const fs::path &prob
     fs::copy_file(staged.stageRoot / "LostOdysseyUpdater.exe", staged.runnerPath,
                   fs::copy_options::overwrite_existing);
     Expect(updater::WriteApplyPlan(staged, fs::absolute(install / "LostOdysseyRecomp.exe"),
-                                  {L"--updated-marker", fs::absolute(marker).wstring()}, error), error.c_str());
+                                  {L"--updated-marker", fs::absolute(marker).wstring()}, error,
+                                  launchAfterApply), error.c_str());
     return staged;
 }
 
@@ -138,7 +139,7 @@ int ParentMode(const fs::path &helper, const fs::path &plan)
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
     PROCESS_INFORMATION process{};
-    if (!CreateProcessW(helper.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &process))
+    if (!CreateProcessW(helper.c_str(), command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process))
     {
         CloseHandle(ready);
         return 21;
@@ -148,6 +149,48 @@ int ParentMode(const fs::path &helper, const fs::path &plan)
     const auto wait = WaitForSingleObject(ready, 10000);
     CloseHandle(ready);
     return wait == WAIT_OBJECT_0 ? 0 : 22;
+}
+
+int StartupRestartMode(const fs::path &runtime, const fs::path &probe, const fs::path &helper,
+                       const fs::path &root)
+{
+    SetEnvironmentVariableW(L"LO_UPDATER_SILENT", L"1");
+    std::error_code error;
+    fs::remove_all(root, error);
+    fs::create_directories(root);
+    const auto marker = root / "updated.marker";
+    const auto install = root / "install";
+    Write(install / "LostOdysseyRecomp.exe", "old-game");
+    Write(install / "LostOdysseyUpdater.exe", "old-helper");
+    Write(install / "bin/runtime.dll", "old-runtime");
+    auto staged = BuildStaged(root, probe, helper, marker, true);
+    fs::copy_file(staged.planPath, root / "plan-before-apply.json", fs::copy_options::overwrite_existing);
+    const auto resultPath = staged.installRoot / ".update" / "last-result.txt";
+    const auto resultDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+    DWORD parentExit = ERROR_SUCCESS;
+    wchar_t modulePath[MAX_PATH]{};
+    GetModuleFileNameW(nullptr, modulePath, DWORD(std::size(modulePath)));
+    const auto parentCommand = Quote(modulePath) + L" --parent " +
+                               Quote(runtime.wstring()) + L" " + Quote(staged.planPath.wstring());
+    const bool parentFinished = LaunchAndWait(parentCommand, parentExit);
+    while (std::chrono::steady_clock::now() < resultDeadline &&
+           (Read(resultPath).find("updated=") == std::string::npos ||
+           Read(marker).find("updated process started") == std::string::npos))
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    const bool resultWritten = Read(resultPath).find("updated=") != std::string::npos;
+    const bool probeStarted = Read(marker).find("updated process started") != std::string::npos;
+    const bool passed = parentFinished && parentExit == 0 && resultWritten && probeStarted;
+    if (!passed) std::wcerr << L"fixture retained at " << root.wstring() << L'\n';
+    else fs::remove_all(root, error);
+    SetEnvironmentVariableW(L"LO_UPDATER_SILENT", nullptr);
+    if (!passed)
+    {
+        std::cerr << "FAIL: production startup auto-restart (parent=" << parentExit
+                  << ", result=" << resultWritten << ", marker=" << probeStarted << ")\n";
+        return 1;
+    }
+    std::cout << "PASS: production startup auto-restart marker and result\n";
+    return 0;
 }
 } // namespace
 
@@ -266,6 +309,15 @@ int wmain(int argc, wchar_t **argv)
         return failures ? 1 : 0;
     }
     if (argc == 4 && std::wstring_view(argv[1]) == L"--parent") return ParentMode(argv[2], argv[3]);
+    if (argc == 2 && std::wstring_view(argv[1]) == L"--startup-restart")
+    {
+        const auto self = fs::absolute(argv[0]);
+        return StartupRestartMode(self.parent_path() / "LostOdysseyRecomp.exe",
+                                  self.parent_path() / "LoUpdaterProbe.exe",
+                                  self.parent_path() / "LostOdysseyUpdater.exe",
+                                  fs::temp_directory_path() / ("LostOdysseyUpdaterStartup-" +
+                                                               std::to_string(GetCurrentProcessId())));
+    }
     const fs::path root = fs::absolute("out/v0.5.0/updater/fixture-work");
     std::error_code filesystemError;
     fs::remove_all(root, filesystemError);
