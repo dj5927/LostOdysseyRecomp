@@ -9,7 +9,6 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 SUITES = {
-    "importer": "Python importer fixtures; no compiler or game data",
     "shader-index": "Standalone resource scanner fixtures",
     "shaders": "Resource scanner, CPX decoder and dynamic VS fixtures",
     "pipeline": "Standalone pipeline recipe persistence fixtures",
@@ -76,10 +75,7 @@ def main():
             raise RuntimeError("scratch directory escaped test output")
         for name in dict.fromkeys(args.suites):
             print(f"Running {name}", flush=True)
-            if name == "importer":
-                run([sys.executable, "-B", "-m", "unittest", "discover", "-s", "tools/tests",
-                     "-p", "test_import_game.py", "-v"])
-            elif name in FIXTURES:
+            if name in FIXTURES:
                 bin_dir = output / "bin"
                 bin_dir.mkdir(exist_ok=True)
                 for source, takes_scratch in FIXTURES[name]:

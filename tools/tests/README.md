@@ -111,25 +111,14 @@ python -B tools/tests/test_ppc_sync.py
 
 ```powershell
 tools\test.bat --list
-tools\test.bat importer
 tools\test.bat shaders pipeline
 ```
 
 `tools/test.bat` forwards to `tools/tests/run.py`. Python is required; native fixture compilation also needs `clang-cl` and the Windows SDK discovered by `tools/setup_windows.bat`. Runtime suites use existing build outputs and never trigger an implicit full build. `--build-dir` defaults to `out/build/release`; it takes the CMake build root, not the directory containing the executable. The runner appends `LostOdysseyRecomp/<target>.exe`. A configured `out/build/windows-clang` can be supplied instead.
 
-## Installer window checks
+## Native installer checks
 
-`python -B tools/tests/test_installer_ui.py` selects the new Windows/Tk window checks only. The recorded nine passing cases cover resize hit targets, narrow layout/scrolling, long paths, cancel/retry/close, native frame styles, unchanged polling, DPI metrics and non-activating minimize. Two affected existing controller checks also passed; no importer backend suite was repeated. Subsequent copy reduction used real normal/minimum-size renders, without repeating these checks. Evidence and limitations: [desktop UI validation](../../docs/notes/desktop-ui-modernization.md), with the local report in `out/v0.5.0/ui-modernization/installer/REPORT.md`. These checks do not launch the game or establish physical multi-monitor interaction.
-
-For the installer drag-dispatch re-entrancy regression, run the focused case directly:
-
-```powershell
-python -B tools/tests/test_installer_ui.py DragDispatch
-```
-
-The recorded result is 1/1. It uses a message-only HWND and no displayed window, and checks queued `WM_NCLBUTTONDOWN` dispatch with signed negative screen coordinates. The reporter separately confirmed the real installer drag fix. This check does not measure stall or performance behavior, launch the installer import flow, or launch the game. The broader `InstallerUI` fixture setup previously failed its foreground-HWND assertion before reaching drag behavior and is not evidence for this regression.
-
-The installer-only local package is `out/installer-drag-fix/dist/InstallGame.exe` (11,888,743 bytes; SHA256 `707CD7D2E9F4AB3BF33363E172FAAD5CFCFA6B1A53161FEE0E7F53735B7C7FA7`). It was built with Python 3.12.10 and PyInstaller 6.22.2. Read-only embedded-PYZ inspection of `WindowChrome.drag` found `PostMessageW`, no `SendMessageW`, and the four required modules; do not infer installer import-flow or game validation from that inspection.
+Current importer coverage is the native `LoImportGameTest` and `LoInstallerControllerTest` targets. The Python/Tk `tools/installer` sources and `test_installer_ui.py` / `test_import_game.py` fixtures have been removed. Historical Tk window and drag-dispatch evidence remains in [desktop UI validation](../../docs/notes/desktop-ui-modernization.md) and `out/v0.5.0/ui-modernization/installer/REPORT.md`; those checks no longer have a runnable Python entry point.
 
 ## Updater window checks
 
@@ -180,11 +169,9 @@ Use the existing `LoMenuRenderTest` target for host raster checks; menu-asset de
 
 The later real-package observation is recorded in `out/v0.5.0/dlc-validation/REPORT.md`: three imports and intact duplicate recognition passed, while one historical game run faulted after partial content reads. Preserve that failure and the earlier synthetic results separately; no reward or dungeon acceptance is implied.
 
-The installer’s automatic content-import UX uses one Files/Folder selection flow. It recognizes game discs, STFS DLC and mixed sources from content, presents one review, and commits discs before the shared-path save and DLC transaction. The focused result recorded 13 new cases plus 2 directly affected GUI cases, all passing on the first run in 0.934 seconds. It reused 20 unchanged DLC cases, two native modes and the independent STFS review. Evidence: `out/v0.5.2/auto-import/installer/REPORT.md`, `result.json` and `tests-initial.log`. This check did not start Tk, the game, audio, a build or packaging.
+The native importer’s automatic content-import UX uses one Files/Folder selection flow. It recognizes game discs, STFS DLC and mixed sources from content, presents one review, and commits discs before the shared-path save and DLC transaction. Current coverage is `LoImportGameTest` and `LoInstallerControllerTest`. Historical Python `test_dlc_import.py` / `test_auto_import.py` results remain in `out/v0.5.1/dlc-import/importer/REPORT.md` and `out/v0.5.2/auto-import/installer/REPORT.md`; those Python entry points have been removed.
 
-`python -B tools/tests/test_dlc_import.py` selects the DLC parser/importer checks without the old disc suites. The historical v0.5.1 result has 22 passing focused cases, including independent STFS block-address vectors and windowless installer controller checks. `--runtime-fixture <new-directory>` creates a synthetic STFS package and imports it through the production Python reader for the native handoff.
-
-Build `LoStorageTest` only when the affected native inputs change. Its `dlc <new-isolation-directory> <imported-game-root>` and `dlc-restart <new-isolation-directory> <imported-game-root>` modes call the actual guest content and file imports, without a game window, renderer or audio. Both recorded modes passed, reading all 5,940 payload bytes in each process. Reproduction commands and retained results are in `out/v0.5.1/dlc-import/runtime/REPORT.md`; Python evidence is in the adjacent `importer/REPORT.md`. Synthetic tests do not establish real DLC rewards, areas or edition compatibility. Reuse these results for packaging and version changes.
+Build `LoStorageTest` only when the affected native inputs change. Its `dlc <new-isolation-directory> <imported-game-root>` and `dlc-restart <new-isolation-directory> <imported-game-root>` modes call the actual guest content and file imports, without a game window, renderer or audio. Both recorded modes passed, reading all 5,940 payload bytes in each process. Reproduction commands and retained results are in `out/v0.5.1/dlc-import/runtime/REPORT.md`. Synthetic tests do not establish real DLC rewards, areas or edition compatibility. Reuse these results for packaging and version changes.
 
 ## Selected native targets
 
@@ -361,7 +348,6 @@ tools\test.bat startup --build-dir out/build/release
 
 | Suite | Scope |
 |---|---|
-| `importer` | Importer input and extraction checks |
 | `shader-index` | Bare-resource and CPX layout-bound direct extraction, including automatic selection between same-name/same-size layouts by FPI identity; required-block/microcode validation, unknown-layout and failed-extraction fallback, duplicate/empty skips, unread-modification boundaries, strict/direct manifest separation, source equivalence, SHA256 vectors and explicit progress units |
 | `shaders` | Resource scanning, CPX decoding and bounded dynamic-VS fixtures |
 | `pipeline` | Pipeline recipe validation, corruption/truncation and atomic-write fixtures |
@@ -635,7 +621,7 @@ See the [follow-up record](../../docs/notes/handoff-v0.4.0-followup.md) for curr
 
 ## CI and build boundaries
 
-Importer, shader and pipeline workflows are independent, path-filtered checks for main pushes, pull requests and manual dispatch. Tags do not repeat these jobs. The runtime workflow is manual only and selects one of `storage`, `hid` or `startup`, with its own explicit generation/build steps. CMake test targets are excluded from the default build; request the needed targets explicitly.
+Shader and pipeline workflows are independent, path-filtered checks for main pushes, pull requests and manual dispatch. Tags do not repeat these jobs. Native importer coverage is the explicit `LoImportGameTest` / `LoInstallerControllerTest` CMake targets, not a `tools/test.bat` suite. The runtime workflow is manual only and selects one of `storage`, `hid` or `startup`, with its own explicit generation/build steps. CMake test targets are excluded from the default build; request the needed targets explicitly.
 
 Release packaging accepts a manual `release_tag` and checks out that existing tag. Changing the workflow on main does not change the tagged game sources or require retagging them.
 

@@ -1,9 +1,9 @@
 # Installing Lost Odyssey Recomp
 
-This guide describes the current Windows v0.5.4 package, with Direct3D 12 and Vulkan graphics backends.
+This guide describes the current Windows package, with Direct3D 12 and Vulkan graphics backends. The importer and updater are built into **LostOdysseyRecomp.exe**; there is no separate `InstallGame.exe` or `LostOdysseyUpdater.exe`.
 
 1. Extract the entire package to a writable folder, outside Program Files. Keep the main executable, validated DXC v1.8.2407 DLL pair and license files together.
-2. Run **LostOdysseyRecomp.exe** directly. If game files are missing, the importer opens; select your source and review its recognition result before importing.
+2. Run **LostOdysseyRecomp.exe** directly. If game files are missing, the built-in importer opens; select your source and review its recognition result before importing.
 3. On first launch, choose interface/game language and graphics settings. The game continues after setup and the separate shader preparation stages.
 
 The built-in importer can also be opened from the game to import additional discs or DLC. Disc 1 is required to start.
@@ -15,7 +15,7 @@ Game files are supplied by the user and are not included in the download.
 
 ## Automatic content import
 
-On first launch, choose **Files** to select one or more files, or **Folder** to scan a directory. The same content importer can be reopened from the game when assets are missing. It recognizes supported game discs and Lost Odyssey DLC from their headers and structure; you do not need to choose a disc or DLC mode. Mixed selections are reviewed together before import.
+On first launch of **LostOdysseyRecomp.exe**, choose **Files** to select one or more files, or **Folder** to scan a directory. The same content importer can be reopened from the game when assets are missing. It recognizes supported game discs and Lost Odyssey DLC from their headers and structure; you do not need to choose a disc or DLC mode. Mixed selections are reviewed together before import.
 
 The import order is game-disc transaction, shared game-path save, then DLC transaction. If DLC import fails or is cancelled after discs succeed, the completed discs remain installed and the retry contains only the remaining DLC. A game-path save failure is warned about without rolling back completed imports. DLC-only imports do not change `game-path.txt`.
 

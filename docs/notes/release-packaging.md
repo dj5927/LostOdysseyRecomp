@@ -1,10 +1,11 @@
 # Installer and Windows release pipeline
 
-The portable importer backend remains in `tools/installer` for development fixtures, while the
-release runtime contains the native SDL installer and its `ScanContent`/`InstallContent` flow.
-Release packaging no longer freezes or ships a separate `InstallGame.exe` or
-`LostOdysseyUpdater.exe`; the native importer and updater run from the single
-`LostOdysseyRecomp.exe` binary.
+The native SDL installer and its `ScanContent`/`InstallContent` flow run from
+`LostOdysseyRecomp.exe`. The Python `tools/installer` sources and frozen
+`InstallGame.exe` helper have been removed. Release packaging does not ship a
+separate `InstallGame.exe` or `LostOdysseyUpdater.exe`; the native importer and
+updater run from the single runtime binary. The CMake `LostOdysseyUpdater`
+target remains available for host-side fixtures.
 
 ## Current v0.5.0 CI delivery — 2026-09-09
 
@@ -42,7 +43,6 @@ the embedded installer font.
 
 ## GitHub Actions
 
-`test-importer.yml` runs public fixture tests on pushes and pull requests without game data.
 `release.yml` builds when dispatched manually or when a `v*` tag is pushed.
 It uses hosted Windows 2022. Private inputs are checked out from a pinned commit of
 `freefrank/LostOdysseyRecomp-build-inputs` using a read-only deploy key stored in the

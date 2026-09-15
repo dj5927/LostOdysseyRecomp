@@ -89,7 +89,7 @@ The published updater checks GitHub's latest Release: a higher numeric version u
 | :--- | :--- |
 | System | Windows x64, AVX-capable CPU, Direct3D 12 or Vulkan graphics driver |
 | Game data | Audited Europe, Asia or USA, Europe edition; Disc 1 is required to start |
-| Additional discs | Published releases: import with `InstallGame.exe`; later-disc progression is not fully verified |
+| Additional discs | Import additional discs or DLC from the built-in importer in `LostOdysseyRecomp.exe`; later-disc progression is not fully verified |
 
 See the [installation guide](docs/INSTALLING.md) for accepted disc versions, file locations and updating.
 
@@ -114,7 +114,7 @@ See the [installation guide](docs/INSTALLING.md) for accepted disc versions, fil
 | CPU use | Reduced unnecessary polling and reuse of rendering work |
 | Input and debug | Controller and keyboard input; English/Simplified Chinese F1 menu with capture, map information and same-map POI teleport |
 
-Published releases use `InstallGame.exe` with **Files** or **Folder** to import game discs and supported DLC. Unpublished development builds instead offer the embedded directory browser through `LostOdysseyRecomp.exe --install`. See the [installation guide](docs/INSTALLING.md#automatic-content-import) and [development status](docs/STATUS.md) for validation limits.
+Published packages import game discs and supported DLC with **Files** or **Folder** in `LostOdysseyRecomp.exe`. The same built-in importer can be reopened when assets are missing. See the [installation guide](docs/INSTALLING.md#automatic-content-import) and [development status](docs/STATUS.md) for validation limits.
 
 Validation progress and remaining work are tracked in the [Maintainer Project](https://github.com/users/freefrank/projects/3).
 

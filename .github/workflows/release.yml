@@ -129,7 +129,7 @@ jobs:
         env:
           LO_BUILD_JOBS: '2'
         run: call tools\build_release.bat
-      - name: Package runtime and importer
+      - name: Package runtime
         run: |
           if ($env:RELEASE_TAG) {
             python tools/package_release.py --version $env:RELEASE_TAG
