@@ -1,5 +1,30 @@
 # Project status
 
+## R3 CPU waiting-path modernization and native Vulkan test — unpublished development — 2026-09-15
+
+The source implements the R3 CPU waiting-path modernization on the local `deck` branch (uncommitted development checkpoint, source version remains `0.5.13`, not a release).
+- **Condition-variable kernel waits**: Adds `LostOdysseyRecomp/notified_wait.h` with predicate/deadline condition-variable helpers (`notified_wait::For` and `notified_wait::Until`). Replaces 200 µs polling sleep loops in `kernel/imports.cpp` for finite-timeout Event, Semaphore, and Mutant waits with condition-variable predicate and deadline waits while preserving consume, recursive ownership, and timeout semantics.
+- **GPU command processor notification**: `gpu/command_processor.{h,cpp}` notifies on write-pointer updates (`SetWritePointer`) and shutdown (`Shutdown`), replacing the arbitrary 200-iteration yield loop in `WorkerMain` with a bounded 500 µs `notified_wait::For` wait while preserving SDL event pumping (`video::PumpEvents()`).
+- **Direct fixture**: Adds `LoNotifiedWaitTest` (`tools/tests/notified_wait_test.cpp`) to `LostOdysseyRecomp/CMakeLists.txt` covering pre-notification, early wake, deadline timeout, and CommandProcessor write-pointer wake behavior.
+
+Focused verification and bounded evidence:
+- Windows unit fixture `LoNotifiedWaitTest` passed all cases: pre-notify, early wake, deadline, and CP-pointer wake.
+- Existing regression fixture `LoPollWaitTest` passed without regression.
+- Full Windows target compiled cleanly; diff check passed.
+- Native Linux build and codegen passed after applying maintained dependency patches.
+- Actual 15 W native Vulkan run on AMD Radeon 8060S:
+  - Created and resized 1280x720 swapchain, selected Vulkan backend, started guest runtime.
+  - Power limits configured to STAPM 15 W / Fast 25 W / Slow 20 W.
+  - Startup shader preparation at allowed 60 W completed 28,484 known shaders (28,482 ready, 2 deterministic failures), then runtime consumed the startup bundle.
+  - Ran 90 seconds with zero errors or fatal diagnostics.
+  - Frame rates: target was 60 FPS; stable earlier windows observed around 58.46–58.58 FPS; later heavier scene observed around 37–40 FPS.
+
+Validation limits and open boundaries:
+- Do NOT claim locked 60 FPS (heavier scene drops to 37–40 FPS at 15 W).
+- Bounded 90-second run only; no full-game playthrough, cutscene progression, or long-term stability validation.
+- No player visual acceptance has been performed.
+- Development code is uncommitted on the local `deck` branch; no push, PR, CI run, or GitHub Release exists for this checkpoint.
+
 ## Unified main binary installer and updater - unpublished development - 2026-09-15
 
 The source unifies the content importer and updater into the single `LostOdysseyRecomp.exe` runtime binary. Separate `InstallGame.exe` and `LostOdysseyUpdater.exe` helper executables are excluded from the release payload; the legacy updater target remains available for fixtures. Source version remains `0.5.13` (development executable, not a release).
