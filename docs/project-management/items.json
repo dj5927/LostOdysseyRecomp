@@ -2824,7 +2824,7 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Shader diagnostics",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "In progress",
         "Release": "v0.5.6-hotfix1",
         "Start date": null,
@@ -3742,31 +3742,32 @@
     {
       "key": "linux-steamdeck-platform",
       "title": "Port and validate Linux and Steam Deck",
-      "body": "<!-- lo-project:linux-steamdeck-platform -->\n\nLinux/Steam Deck 仍是独立平台工作；PC Vulkan 通过不能直接宣称支持。\n\n## Scope and completion criteria\n\n- [ ] 建立工具链、依赖、窗口/输入/音频/文件路径和部署方案\n- [ ] 结合 Vulkan 实现检查平台特有资源、同步和显存约束\n- [ ] 验证实际设备分辨率/性能、手柄及保存路径\n\n## Validation and acceptance\n\nLinux 与真实 Steam Deck 独立运行和游戏流程验收；没有明确版本/日期承诺。\n\n尚未完成所列场景验收；实现/发布/测试与用户验收独立。\n\nDependencies (source keys): `vulkan-runtime-integration`.\n\nstage_detail: Not started\n\n## Sources\n\n- [docs/ROADMAP.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.zh-CN.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.zh-CN.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.zh-CN.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.zh-CN.md) (repository reference; working-tree requirements may be newer)\n",
+      "body": "<!-- lo-project:linux-steamdeck-platform -->\n\nLinux/Steam Deck remain independent platform work; the bounded Linux first-playable result does not imply native Linux or Steam Deck support.\n\n## First-playable evaluation — implemented and WSL-validated\n\nThe 2026-09-13 evaluation remains the planning record. The first-playable target is a Vulkan-only unbundled ELF launched with `./LostOdysseyRecomp --game <disc>` on host Mesa + SDL2 + X11/XWayland, reaching the game screen.\n\n## Scope and completion criteria\n\n- [x] Establish the Linux toolchain, dependencies, Vulkan window/device path, input/audio/file paths and the `--game` launch route for the bounded host path.\n- [x] Resolve the first-playable shader compiler/cache identity, PPC compilation, host path/CRT, case-folding and address-space blockers.\n- [x] Configure, compile and run the unbundled ELF on WSL2 Manjaro with Mesa Dozen (RTX 5080 through dzn), reaching a 1280x720 Vulkan window.\n- [ ] After first playable, separately validate native Linux ICD and real Steam Deck execution, packaging, whole-game flow, controller, save path, resolution and performance.\n\n## Out of scope for this branch's first playable\n\nInstaller, F1 debug menu, updater, AppImage, Flatpak, Steam Deck packaging and D3D12-on-Linux.\n\n## Validation and acceptance\n\nThe WSL2 Manjaro foreground run on 2026-09-14 around 00:26–00:36 local exited 0 after the user closed the window at about 594 seconds. The ELF was 246294968 bytes with BuildID `bade81073a37e1e262e4c5ec7bef67e80037ee9a`; Vulkan used Mesa Dozen wrapping an RTX 5080 through WSL Vulkan-on-D3D12, the 1280x720 swapchain used the BGRA fallback from RGBA, XEX loaded from `/mnt/d/Mihoyo/LostOdysseyRecomp-windows-x64/game/disc1`, 28482/28484 shaders were ready, and audio was unmuted. This is first-playable WSL evidence only: it is not whole-game acceptance, native Linux ICD validation, Steam Deck validation, a published Linux package, or evidence that the published Windows v0.5.11 ZIP includes Linux.\n\nSource version 0.5.11 is implementation progress on the `linux` branch, not a Linux publication. Remaining work includes native Linux ICD, Steam Deck, packaging, whole-game/controller/save/performance validation.\n\nDependencies (source keys): `vulkan-runtime-integration`.\n\nstage_detail: First-playable implemented and WSL-validated; broader Linux and Steam Deck validation pending\n\n## Sources\n\n- docs/notes/linux-port-evaluation-2026-09-13.md\n- docs/ROADMAP.md\n- docs/ROADMAP.zh-CN.md\n",
       "issue_url": null,
       "fields": {
         "Kind": "Feature",
         "Area": "Platforms",
-        "Status": "Todo",
-        "Delivery": "Not started",
+        "Status": "In Progress",
+        "Delivery": "In progress",
         "Release": null,
-        "Start date": null,
+        "Start date": "2026-09-14",
         "Target date": null
       },
       "source_refs": [
         "docs/ROADMAP.md",
         "docs/ROADMAP.zh-CN.md",
-        "docs/ROADMAP.md#phase-4-modernization",
-        "docs/ROADMAP.zh-CN.md#阶段-4现代化"
+        "docs/notes/linux-port-evaluation-2026-09-13.md",
+        "docs/ROADMAP.md#v050-pc-graphics",
+        "docs/ROADMAP.zh-CN.md#v050-pc-graphics"
       ],
       "source_lines": [
         {
           "path": "docs/ROADMAP.md",
-          "line": 199
+          "line": 20
         },
         {
           "path": "docs/ROADMAP.zh-CN.md",
-          "line": 199
+          "line": 20
         }
       ],
       "record_type": "backlog"
@@ -4173,7 +4174,7 @@
       "fields": {
         "Kind": "Research",
         "Area": "Recompiler",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "In progress",
         "Evidence": "Generated-source guard sub-scope: ppc_codegen generate produced 247 C++ units with 843 .u32/zero .u64 selectors and unchanged instruction-stream hashes for 246 units; seven guard fixtures and CMake/LoPpcCodegenCheck dependency checks passed. Historical 3,258/109/843-table-44,523 evidence was reused without rerun. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. Its 44,237,061-byte ZIP SHA-256 is 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218; 50 file hash/CRC/version/clean-provenance and four anonymous 200-download asset checks passed. Remaining PPC contracts, game run, Issue #14 root cause and player acceptance remain open.",
         "Release": "v0.5.6",
@@ -4579,7 +4580,7 @@
     {
       "key": "qol-github-binary-updater",
       "title": "Add safe GitHub binary update checks",
-      "body": "<!-- lo-project:qol-github-binary-updater -->\n\nWhen a newer matching GitHub binary is available, automatically download and update it with package verification, exit-before-replace, rollback, offline startup, preserved user data, and future macOS/Linux AppImage package selection. Begin with Windows.\n\n## Implemented and host-validated — source and delivery target v0.5.1\n\nThe user superseded the earlier fixed-v0.5.0 target for this updater patch. GitHub Latest now updates when the remote numeric version core is higher than the installed core, or when numeric cores are equal and their dash suffixes differ. A lower remote numeric core remains ineligible; build metadata is ignored. The updater code is `e17570cb67ef85596514a03ee0e5c7ac311b5727`; `github/main` and `origin/main` both contain `bf549d3ca9e1877afecfcc0c5344624f704b2e78`.\n\n`LoUpdaterTest --version-policy` passed 14 checks with 0 failures after compiling the target including `windows_http.cpp`. This retained focused host-side policy result was not rerun for the target-only change. That policy-only checkpoint did not include a game build/run, network request, download, update transaction, helper execution, player acceptance or publication; later evidence follows below.\n\n## Previous validation and limits\n\nUpdater UI refinement was validated in local source 0.4.17. The dedicated native fixture passed progress, cancellation boundaries, idle redraw caching, window controls and cleanup. Actual normal, unknown-total and narrow Chinese windows were reviewed on an inactive desktop without changing foreground focus. Core, helper, progress UI, main-entry metadata, and package dependency integration also passed the recorded package identity checks.\n\n## Sources\n\n- docs/notes/v0.5.0-qol-requirements.md\n- e17570cb67ef85596514a03ee0e5c7ac311b5727\n- bf549d3ca9e1877afecfcc0c5344624f704b2e78\n- LostOdysseyRecomp/updater/update.h\n- LostOdysseyRecomp/updater/update.cpp\n- LostOdysseyRecomp/updater/windows_http.cpp\n\n## Standalone updater — local 0.5.1\n\nStandalone startup is implemented locally in source 0.5.1. No arguments select an adjacent formal installation, verify its game EXE hash and read its installed version; malformed helper arguments remain rejected. Manual runs honor LO_NO_UPDATE and check the exact game process path before preparation and handoff. The existing helper waits for this updater to exit, replaces files and launches the game from the installation directory. The final Release /MT host-only build passed 43 checks, including actual no-argument routing, Unicode/unrelated cwd, fake running-process guards and a real helper handoff replacing synthetic files and launching a WIN32 probe. No real game or public download was run. At this local validation checkpoint the standalone addition was uncommitted; it is now included in the release recorded below. Evidence: `out/standalone-host/REPORT.md`, `fixture.log` and `manifest.json`.\n\n## Published v0.5.1-updaterfix\n\nPublished v0.5.1-updaterfix from 396e7809e074c6cf6aa4740c1789516f2a4824c4; CI 34437883096 passed. ZIP SHA256 d8b58c991eeaff0f6edfbfa371c673fa781ecc9963123dba320cc97131ba9f7f. All 50 payload hashes and anonymous downloads verified. Retained standalone 43/0, policy 14/0, packaging 7/0; no additional game/runtime tests. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.1-updaterfix\n\nStandalone updater SHA256: `d0b68e81744d1ac63e0ef86664c2ccdf385d6b0c7a5ab146dcc37c479dbc3457`. The release is normal Latest, so the existing latest-release endpoint can discover it.\n\n## Published v0.5.3\n\nThe updater repair is included in published v0.5.3 (2026-09-10T17:18:02Z), built from `6fa9adc281c5693ac0af8a47fec815b20c29ff50` by successful CI `34505504344`. The v0.5.3 ZIP and its standalone updater passed package and public-download verification. The prior v0.5.2 evidence remains historical; no full update transaction, game run or player acceptance is recorded.\n\n## v0.5.7 release preparation\n\nMain candidate `6112c065cc49bf700f8e89760fef2aad1474c3df` prepares this existing work for the authorized v0.5.7 release. PPC identity, main push, tag, package and public Release are pending.\n",
+      "body": "<!-- lo-project:qol-github-binary-updater -->\n\nWhen a newer matching GitHub binary is available, automatically download and update it with package verification, exit-before-replace, rollback, offline startup, preserved user data, and future macOS/Linux AppImage package selection. Begin with Windows.\n\n## Implemented and host-validated — source and delivery target v0.5.1\n\nThe user superseded the earlier fixed-v0.5.0 target for this updater patch. GitHub Latest now updates when the remote numeric version core is higher than the installed core, or when numeric cores are equal and their dash suffixes differ. A lower remote numeric core remains ineligible; build metadata is ignored. The updater code is `e17570cb67ef85596514a03ee0e5c7ac311b5727`; `github/main` and `origin/main` both contain `bf549d3ca9e1877afecfcc0c5344624f704b2e78`.\n\n`LoUpdaterTest --version-policy` passed 14 checks with 0 failures after compiling the target including `windows_http.cpp`. This retained focused host-side policy result was not rerun for the target-only change. That policy-only checkpoint did not include a game build/run, network request, download, update transaction, helper execution, player acceptance or publication; later evidence follows below.\n\n## Previous validation and limits\n\nUpdater UI refinement was validated in local source 0.4.17. The dedicated native fixture passed progress, cancellation boundaries, idle redraw caching, window controls and cleanup. Actual normal, unknown-total and narrow Chinese windows were reviewed on an inactive desktop without changing foreground focus. Core, helper, progress UI, main-entry metadata, and package dependency integration also passed the recorded package identity checks.\n\n## Sources\n\n- docs/notes/v0.5.0-qol-requirements.md\n- e17570cb67ef85596514a03ee0e5c7ac311b5727\n- bf549d3ca9e1877afecfcc0c5344624f704b2e78\n- LostOdysseyRecomp/updater/update.h\n- LostOdysseyRecomp/updater/update.cpp\n- LostOdysseyRecomp/updater/windows_http.cpp\n\n## Standalone updater — local 0.5.1\n\nStandalone startup is implemented locally in source 0.5.1. No arguments select an adjacent formal installation, verify its game EXE hash and read its installed version; malformed helper arguments remain rejected. Manual runs honor LO_NO_UPDATE and check the exact game process path before preparation and handoff. The existing helper waits for this updater to exit, replaces files and launches the game from the installation directory. The final Release /MT host-only build passed 43 checks, including actual no-argument routing, Unicode/unrelated cwd, fake running-process guards and a real helper handoff replacing synthetic files and launching a WIN32 probe. No real game or public download was run. At this local validation checkpoint the standalone addition was uncommitted; it is now included in the release recorded below. Evidence: `out/standalone-host/REPORT.md`, `fixture.log` and `manifest.json`.\n\n## Published v0.5.1-updaterfix\n\nPublished v0.5.1-updaterfix from 396e7809e074c6cf6aa4740c1789516f2a4824c4; CI 34437883096 passed. ZIP SHA256 d8b58c991eeaff0f6edfbfa371c673fa781ecc9963123dba320cc97131ba9f7f. All 50 payload hashes and anonymous downloads verified. Retained standalone 43/0, policy 14/0, packaging 7/0; no additional game/runtime tests. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.1-updaterfix\n\nStandalone updater SHA256: `d0b68e81744d1ac63e0ef86664c2ccdf385d6b0c7a5ab146dcc37c479dbc3457`. The release is normal Latest, so the existing latest-release endpoint can discover it.\n\n## Published v0.5.3\n\nThe updater repair is included in published v0.5.3 (2026-09-10T17:18:02Z), built from `6fa9adc281c5693ac0af8a47fec815b20c29ff50` by successful CI `34505504344`. The v0.5.3 ZIP and its standalone updater passed package and public-download verification. The prior v0.5.2 evidence remains historical; no full update transaction, game run or player acceptance is recorded.\n",
       "issue_url": null,
       "fields": {
         "Kind": "Feature",
@@ -4589,7 +4590,7 @@
         "Release": "v0.5.7",
         "Start date": null,
         "Target date": "2026-09-08",
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. Retained synthetic updater evidence remains separate: no real update transaction, visible prompt interaction or player acceptance is recorded."
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks."
       },
       "source_refs": [
         "docs/notes/v0.5.0-qol-requirements.md",
@@ -4755,7 +4756,7 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Desktop windowing",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Validated",
         "Release": "v0.5.0",
         "Start date": null,
@@ -4777,7 +4778,7 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Desktop windowing",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Validated",
         "Release": "v0.5.0",
         "Start date": null,
@@ -4941,7 +4942,7 @@
     {
       "key": "assembly-level-performance-analysis-tool",
       "title": "Build an assembly-level performance analysis tool",
-      "body": "<!-- lo-project:assembly-level-performance-analysis-tool -->\n\nBuild an external Win64 assembly-level performance analysis tool for the game. It captures wall-clock RIP snapshots, resolves DbgHelp PDB symbols and source locations, and produces Capstone-based x64 instruction hotspots in HTML and JSON. The report includes thread CPU-time tables and filtering, function self-sample ranking, and optional PPC generated-source context annotations.\n\n## Validation and limits\n\nSeven focused Python report cases passed. MSVC 19.44 built the Release executable. A background synthetic 2-second collection requested 10 ms samples and completed with 187 hits, zero failures, 31 busy-symbol/PDB/source-resolved hits, and exit code 0 for both fixture and collector. `out/asm-profiler/capture.json` produced `report.html` and `report.json` successfully. The Release executable SHA-256 is `D6326A19C51E97EE1338364A98F36A7F2CB29AEB537C82F6B100BC3104B9D0F1`.\n\nThis is wall-clock sampling, not CPU-cycle accounting; Toolhelp overhead yielded about 31 request rounds in two seconds, so requested interval is not actual frequency. PPC annotations provide generated-source context only, not an exact guest PC. GPU instruction profiling is not supported. v0.5.4 is published; actual-game sampling and player acceptance remain pending.\n\n## Sources\n\n- `tools/asm-profiler/collector.cpp`\n- `tools/asm-profiler/CMakeLists.txt`\n- `tools/asm-profiler/fixture.cpp`\n- `tools/asm-profiler/report.py`\n- `tools/asm-profiler/requirements.txt`\n- `tools/asm-profiler/test_report.py`\n- `out/asm-profiler/capture.json`\n- User requirement and implementation evidence recorded on 2026-09-10\n",
+      "body": "<!-- lo-project:assembly-level-performance-analysis-tool -->\n\nBuild an external Win64 assembly-level performance analysis tool for the game. It captures wall-clock RIP snapshots, resolves DbgHelp PDB symbols and source locations, and produces Capstone-based x64 instruction hotspots in HTML and JSON. The report includes thread CPU-time tables and filtering, function self-sample ranking, and optional PPC generated-source context annotations.\n\n## Validation and limits\n\nSeven focused Python report cases passed. MSVC 19.44 built the Release executable. A background synthetic 2-second collection requested 10 ms samples and completed with 187 hits, zero failures, 31 busy-symbol/PDB/source-resolved hits, and exit code 0 for both fixture and collector. `out/asm-profiler/capture.json` produced `report.html` and `report.json` successfully. The Release executable SHA-256 is `D6326A19C51E97EE1338364A98F36A7F2CB29AEB537C82F6B100BC3104B9D0F1`.\n\nThis is wall-clock sampling, not CPU-cycle accounting; Toolhelp overhead yielded about 31 request rounds in two seconds, so requested interval is not actual frequency. PPC annotations provide generated-source context only, not an exact guest PC. GPU instruction profiling is not supported. v0.5.4 is published. Actual-game sampling completed on 2026-09-12, but no matching PDB was available for game-function attribution; player acceptance remains pending.\n\n## Sources\n\n- `tools/asm-profiler/collector.cpp`\n- `tools/asm-profiler/CMakeLists.txt`\n- `tools/asm-profiler/fixture.cpp`\n- `tools/asm-profiler/report.py`\n- `tools/asm-profiler/requirements.txt`\n- `tools/asm-profiler/test_report.py`\n- `out/asm-profiler/capture.json`\n- `out/asm-profiler/live-20260912-pid41936/capture.json`\n- `out/live-profile-20260912-2023/report.md`\n- User requirement and implementation evidence recorded on 2026-09-10\n",
       "issue_url": null,
       "fields": {
         "Kind": "Infrastructure",
@@ -4951,7 +4952,7 @@
         "Release": "v0.5.4",
         "Start date": "2026-09-10",
         "Target date": "2026-09-10",
-        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Actual-game sampling and player acceptance remain pending."
+        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Actual-game sampling completed on 2026-09-12: PID 41936 ran for 10.0093 seconds with 9,300 wall-clock snapshots, zero failures and 62 threads. No matching PDB was available, so game-function attribution was not attempted. Evidence: out/asm-profiler/live-20260912-pid41936/capture.json and out/live-profile-20260912-2023/report.md. Player acceptance remains pending."
       },
       "source_refs": [
         "User requirement and implementation evidence recorded on 2026-09-10"
@@ -4972,7 +4973,7 @@
         "Release": "v0.5.9",
         "Start date": "2026-09-11",
         "Target date": null,
-        "Evidence": "Published v0.5.9 Latest on 2026-09-13T19:50:00Z from d26ee8b021784d7232b5319d816227867f98050d. CI34778434518 succeeded, using matching PPC metadata and the existing library. ZIP44269995bytes SHA256 fd71bf65f92b242f81a350b5b6e97ea7f1991107a2c30e91ece2dd261bac0591; all50 payload hashes and all4 anonymous public asset downloads verified. Vulkan depth-clear and cache/binding optimizations shipped; prior diagnostic7.49638->43.47614FPS is bounded4K/60W evidence, not this clean release benchmark. Binding-only had no overallFPS/CPU gain. TAA unchanged fromv0.5.8; 4K60,1080p60at15W and playeracceptance remain pending. No new runtime tests."
+         "Evidence": "Cards A-D use published v0.5.11 commit 624729cdb1263b96061b1fa14d4d1c5ba0b50239; ZIP SHA256 5de068c4e77c82feb0bbe7cfcf1dacbca3d44aa94bde064f7f59f5ad6944e132; EXE SHA256 33a460410b7f397187a12ac6984718c1716997936127f94f5dbcb2ef40315283. A: exhausted_resource_class=null. B: 1846 city frames, match 0.1535 ms/42% vertex stage; B1/B2/B3 implement=false. C: bundle 2248 ms; pipeline 21 ms/4 workers/222 recipes; lookup 0.051/0.030 ms; Parallel Prepare implement=false/no third pool. D: affinity 0x3F, 1370 city frames, over_budget 0%, fence_wait 0.0008/0.1336 ms, gpu_queue 0.8162/1.8092 ms, draw_ms 3.805/4.556/13.65 ms, zero splits; default pinning implement=false. Experiments only: no runtime/source-version/release/CPU-performance/player-acceptance change; D not Steam Deck, 15W or 1080p60@15W; target v0.5.9. Sources: cpu-card-a/b/c/d-2026-09-14.md. City-report TODO: portable safe inventory and isolated bundled test save; see bilingual roadmaps."
       },
       "source_refs": [
         "docs/notes/perf-gpu-ring-compare.md",
@@ -5006,28 +5007,36 @@
         "out/cpu-recomp-deep-20260913/texture-cache-snapshot.json",
         "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.9",
         "https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34778434518",
-        "out/v0.5.9/release-verification.json"
+        "out/v0.5.9/release-verification.json",
+        "docs/notes/cpu-performance-optimization-guide.md",
+        "docs/notes/cpu-card-a-city-2026-09-14.md",
+        "docs/notes/cpu-card-b-city-2026-09-14.md",
+         "docs/notes/cpu-card-c-prepare-gate-2026-09-14.md",
+         "docs/notes/cpu-card-d-3c6t-city-2026-09-14.md",
+         "ecdddab",
+        "124a6df",
+        "336a906"
       ],
       "source_lines": [
         {
           "path": "docs/ROADMAP.md",
-          "line": 31
+          "line": 43
         },
         {
           "path": "docs/ROADMAP.zh-CN.md",
-          "line": 31
+          "line": 43
         }
       ],
       "record_type": "backlog"
     },
     {
       "key": "issue14-cage-crash-investigation",
-      "title": "Crash in Cages after Bogimoray boss and Numara soldiers",
+      "title": "Crash in Cages after Bogimoray boss and Numara soliders",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/14",
       "fields": {
         "Kind": "Bug",
         "Area": "Gameplay progression",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "In progress",
         "Release": "v0.5.6",
         "Start date": "2026-09-12",
@@ -5046,17 +5055,17 @@
     },
     {
       "key": "issue15-save-hang-investigation",
-      "title": "[Bug] Hang after saving",
+      "title": "[Bug] Hang after saving.",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/15",
       "fields": {
         "Kind": "Bug",
         "Area": "Save & Storage",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.6",
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "The StageArchive manifest repair is included in published v0.5.6 and package/public-download checks passed. Investigation remains active: the original source-v0.5.4 log retained 60 fps/audio until closure; mixed installs remain unknown because up-to-date compares only version. No helper/game rerun or player acceptance; Issue #15 hang root cause remains unknown."
+        "Evidence": "The associated StageArchive manifest repair is included in published v0.5.6 and its package/public-download checks passed. Investigation remains active: the original source-v0.5.4 log retained 60 fps/audio until closure; same save later loaded and a second save did not hang. Other components/mixed installs remain unknown because up-to-date compares only version. No helper/game rerun or player acceptance; Issue #15 hang root cause remains unknown."
       },
       "source_refs": [
         "https://github.com/freefrank/LostOdysseyRecomp/issues/15",
@@ -5071,17 +5080,17 @@
     },
     {
       "key": "issue16-train-freeze-investigation",
-      "title": "[Bug] Train cutscene freeze/crash reported as Xenia-like",
+      "title": "[Bug] train get frozen where king get frozen crash same is Xenia",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/16",
       "fields": {
         "Kind": "Bug",
         "Area": "Gameplay progression",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.6",
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "The particle compatibility repair is included in published v0.5.6; CI/package/public-download evidence verifies delivery only. Historical bounded local main d50c240d target replay passed on D3D12/local Asian Disc 3 from user09 and was not repeated against the release package. Reporter/player acceptance, Vulkan, other-region and full-game coverage remain pending."
+        "Evidence": "The particle compatibility repair is included in published v0.5.6; CI/package/public-download evidence verifies delivery only. Bounded local main d50c240d target replay passed on D3D12/local Asian Disc 3 from user09; it is not repeated against the release package. Reporter/player acceptance, Vulkan, other-region and full-game coverage remain pending."
       },
       "source_refs": [
         "https://github.com/freefrank/LostOdysseyRecomp/issues/16",
@@ -5099,7 +5108,7 @@
     {
       "key": "release-v0-5-6",
       "title": "Publish v0.5.6 bug-fix release",
-      "body": "<!-- lo-project:release-v0-5-6 -->\n\n## Published v0.5.6\n\nPublished 2026-09-13T00:05:47Z as the public latest non-prerelease from `7124f4b3912df715167acf01f469974045cc3e08`. CI 34726533463 succeeded. The 44,255,182-byte ZIP SHA-256 is `ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9`; provenance, 50 member hashes/CRCs and all four anonymous public-download checks passed.\n\n## Boundaries\n\nPackage verification does not repeat the bounded D3D12/Asian Disc 3 validation, establish full-game/Vulkan/other-region coverage, or establish reporter/player acceptance.\n\n## Sources\n\n- `out/v0.5.6/release/delivery-verification.json`\n- `out/v0.5.6/release/public-download-check.json`\n- `out/v0.5.6/release/ci-run.json`",
+      "body": "<!-- lo-project:release-v0-5-6 -->\n\nPublished v0.5.6 at 2026-09-13T00:05:47Z from 7124f4b. CI 34726533463 succeeded. ZIP SHA-256 ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9; provenance, 50 member hashes/CRCs and four anonymous public-download checks passed. Package verification does not establish gameplay or player acceptance.",
       "issue_url": null,
       "fields": {
         "Kind": "Release",
@@ -5109,7 +5118,7 @@
         "Release": "v0.5.6",
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "Published v0.5.6 at 2026-09-13T00:05:47Z from source 7124f4b3912df715167acf01f469974045cc3e08. CI 34726533463 (workflow fe37c1a4e3be20ce6bc3e339ecadb187b80329cf) succeeded. Delivery verification passed: 44,255,182-byte ZIP SHA-256 ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9, 50 manifest files and CRC/member hashes; updater SHA-256 d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74. All four public assets passed anonymous HTTP 200, size and hash checks."
+        "Evidence": "Published v0.5.6 at 2026-09-13T00:05:47Z: public non-prerelease latest release from source 7124f4b3912df715167acf01f469974045cc3e08; CI 34726533463 (workflow fe37c1a4e3be20ce6bc3e339ecadb187b80329cf) succeeded. Delivery verification passed: 44,255,182-byte ZIP SHA-256 ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9, 50 manifest files and CRC/member hashes; updater SHA-256 d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74. All four public assets passed anonymous HTTP 200, size and hash checks."
       },
       "source_refs": [
         "out/v0.5.6/release/ppc-upload.json",
@@ -5127,7 +5136,7 @@
     {
       "key": "vulkan-ps-loopend-predicate-exit",
       "title": "Fix Vulkan pixel-shader LoopEnd predicate exit",
-      "body": "<!-- lo-project:vulkan-ps-loopend-predicate-exit -->\n\nCorrect the Xenos pixel-shader LoopEnd translation when its predicate ends a loop. Preserve Xbox 64-lane exit semantics and add regression coverage for related shaders.\n\n## Diagnosis evidence\n\nRelease v0.5.6, Vulkan, RTX 5080, 3840x2160 capture frame 12462: PS `a195c4db25859691` has a CF LoopEnd whose predicate break is missing from translation. The loop executes 255 iterations although at most eight are effective, producing empty work. The recompiled baseline matched the captured SPIR-V; a one-line offline shader-only probe with `if (!p0) break` produced a byte-identical final PNG. After all games exited, ABBA means fell from 7.711424 to 1.244464 ms for affected shadow draws (83.9%) and from 14.026832 to 7.1088 ms for all timed events (49.3%).\n\n## Limits\n\nInitial diagnosis was a single-frame offline probe. Current local implementation is a bounded structural production repair for the proven LoopEnd pattern, validated by recorded guards and synthetic GPU cases. Complex-loop coverage, gameplay validation, player acceptance and release remain pending; it does not establish FPS or power change.\n\n## Sources\n\n- `out/gpu-profile-20260912/ab-01/ab-counters.json`\n- `docs/notes/gpu-shadow-loop-audit-2026-09-12.md`",
+      "body": "<!-- lo-project:vulkan-ps-loopend-predicate-exit -->\n\nCorrect the Xenos pixel-shader LoopEnd translation when its predicate ends a loop. Preserve Xbox 64-lane exit semantics and add regression coverage for related shaders.\n\n## Diagnosis evidence\n\nRelease v0.5.6, Vulkan, RTX 5080, 3840x2160 capture frame 12462: PS `a195c4db25859691` has a CF LoopEnd whose predicate break is missing from translation. The loop executes 255 iterations although at most eight are effective, producing empty work. The recompiled baseline matched the captured SPIR-V; a one-line offline shader-only probe with `if (!p0) break` produced a byte-identical final PNG. After all games exited, ABBA means fell from 7.711424 to 1.244464 ms for affected shadow draws (83.9%) and from 14.026832 to 7.1088 ms for all timed events (49.3%).\n\n## Limits\n\nThis is a single-frame local diagnosis and offline probe, not a production translator fix, regression pass, game validation, player acceptance or release. It does not establish FPS or power change.\n\n## Sources\n\n- `out/gpu-profile-20260912/ab-01/ab-counters.json`\n- `docs/notes/gpu-shadow-loop-audit-2026-09-12.md`",
       "issue_url": null,
       "fields": {
         "Kind": "Bug",
@@ -5137,7 +5146,7 @@
         "Release": "v0.5.7",
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. The bounded LoopEnd fixture evidence remains retained. Complex loops, actual game GPU power/cross-scene validation and player acceptance remain pending."
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks."
       },
       "source_refs": [
         "out/gpu-profile-20260912/ab-01/ab-counters.json",
@@ -5149,7 +5158,7 @@
     {
       "key": "adjacent-resolve-copy-elision",
       "title": "Eliminate redundant adjacent resolve copies",
-      "body": "<!-- lo-project:adjacent-resolve-copy-elision -->\n\nRemove a duplicate resolve copy only when the immediately adjacent copy has the same source, target allocation, format and region; invalidate on all interference and preserve side effects.\n\n## Validation boundary\n\nLocal gpu-perf implementation and Release build completed. Thirty CPU cases and the existing FP16-copy GPU fixture on Vulkan and D3D12 (three allocations, two passes each) passed with zero pixel difference and correct hit counts. Actual game hit, cross-scene behavior and player acceptance are pending.\n\n## Sources\n\n- out/gpu-profile-20260912/analysis-02/duplicate-resolve-implementation.md\n",
+      "body": "<!-- lo-project:adjacent-resolve-copy-elision -->\n\nRemove a duplicate resolve copy when the immediately adjacent copy has the same source, target allocation, format and region; invalidate on all interference and preserve side effects.\n\n## Validation boundary\n\nLocal gpu-perf implementation and Release build completed, uncommitted and unpublished. Thirty CPU cases and the existing FP16-copy GPU fixture on Vulkan and D3D12 (three allocations, two passes each) passed with zero pixel difference and correct hit counts. Actual game hit, cross-scene behavior and player acceptance are pending.\n\n## Sources\n\n- out/gpu-profile-20260912/analysis-02/duplicate-resolve-implementation.md\n",
       "issue_url": null,
       "fields": {
         "Kind": "Bug",
@@ -5159,7 +5168,7 @@
         "Release": "v0.5.7",
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. The bounded adjacent resolve-copy fixture evidence remains retained. Actual game hits, cross-scene validation and player acceptance remain pending."
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks."
       },
       "source_refs": [
         "out/gpu-profile-20260912/analysis-02/duplicate-resolve-implementation.md"
@@ -5170,7 +5179,7 @@
     {
       "key": "kanto-red-eye-flicker-v056",
       "title": "Investigate Kanto armored-soldier lighting flicker",
-      "body": "<!-- lo-project:kanto-red-eye-flicker-v056 -->\n\n## Accepted scene repair — 2026-09-12\n\nThe user accepted the fifth candidate in the reported encounter: “arrived, no flicker.” The observed process was PID 26188, `LostOdysseyRecomp-taa-material-candidate.exe`, runtime `1789278806155312`, source `0.5.6-hotfix1`, using `Test-TAA-Lighting-5.cmd`, HDR default 0 and materials default 1. The candidate SHA-256 is `F983446111909E353BB34A871CCD15E9B010F4C6B62311A3B4F2D062DA5180BE`.\n\n## Delivered scope and boundary\n\nThis is user acceptance for the reported scene-wide lower-enemy face/body lighting flicker. It does not establish all-scene, all-material or full-game absence of flicker. Local repair branch target: `trail/fix-taa-lighting`; unpublished. Recurrence reopens this work item.\n\n## Sources\n\n- User same-scene acceptance, 2026-09-12\n- `out/taa-bloom-fix/REPORT.md`\n- `out/taa-bloom-fix/body-occluder-audit.md`\n\n## v0.5.7 release preparation\n\nMain candidate `6112c065cc49bf700f8e89760fef2aad1474c3df` prepares this existing work for the authorized v0.5.7 release. PPC identity, main push, tag, package and public Release are pending.\n",
+      "body": "<!-- lo-project:kanto-red-eye-flicker-v056 -->\n\n## Accepted scene repair — 2026-09-12\n\nThe user accepted the fifth candidate in the reported encounter: “arrived, no flicker.” The observed process was PID 26188, `LostOdysseyRecomp-taa-material-candidate.exe`, runtime `1789278806155312`, source `0.5.6-hotfix1`, using `Test-TAA-Lighting-5.cmd`, HDR default 0 and materials default 1. The candidate SHA-256 is `F983446111909E353BB34A871CCD15E9B010F4C6B62311A3B4F2D062DA5180BE`.\n\n## Local repair commit\n\nThe accepted repair is committed as `6112c065cc49bf700f8e89760fef2aad1474c3df` on `trail/fix-taa-lighting`: `fix(gpu): align TAA material layers with scene depth`. It is fast-forwarded into local `main`; `origin/main` remains at `4cd14b7`. It has not been pushed or released.\n\n## Delivered scope and boundary\n\nThis is user acceptance for the reported encounter’s lower-enemy face/body lighting flicker. It does not establish all-scene, all-material or full-game absence of flicker. The repair is implemented and accepted; publication and release remain incomplete. Recurrence reopens this work item.\n\n## Sources\n\n- User same-scene acceptance: “到了，不闪了”.\n- `Test-TAA-Lighting-5.cmd` candidate runtime and observed PID evidence supplied by the repair work.\n- Local branch and local-main commit evidence supplied after the accepted candidate was committed.\n",
       "issue_url": null,
       "fields": {
         "Kind": "Bug",
@@ -5180,7 +5189,7 @@
         "Release": "v0.5.7",
         "Start date": "2026-09-12",
         "Target date": null,
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. The user-accepted fifth candidate remains limited to the reported encounter; it does not establish all-scene/full-game coverage. A recurrence reopens this item."
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks."
       },
       "source_refs": [
         "user-report-2026-09-12",

@@ -58,8 +58,13 @@ if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(FATAL_ERROR "The recompiled code requires clang-cl (uses __int128, weak aliases, builtins)")
 endif()
 # Same spirit as UnleashedRecompLib: no exceptions, no RTTI, warnings off for generated code.
-target_compile_options(${LO_PPC_COMPILE_TARGET} PRIVATE /w /EHs-c- /GR- -fno-strict-aliasing
-    # MMIO stores (eieio-prefixed) are routed to the runtime's command processor.
-    "/FI${CMAKE_SOURCE_DIR}/LostOdysseyRecomp/gpu/ppc_mmio.h")
+if(WIN32)
+    target_compile_options(${LO_PPC_COMPILE_TARGET} PRIVATE /w /EHs-c- /GR- -fno-strict-aliasing
+        # MMIO stores (eieio-prefixed) are routed to the runtime's command processor.
+        "/FI${CMAKE_SOURCE_DIR}/LostOdysseyRecomp/gpu/ppc_mmio.h")
+else()
+    target_compile_options(${LO_PPC_COMPILE_TARGET} PRIVATE -w -fno-exceptions -fno-rtti -fno-strict-aliasing
+        -include "${CMAKE_SOURCE_DIR}/LostOdysseyRecomp/gpu/ppc_mmio.h")
+endif()
 
 include("${CMAKE_SOURCE_DIR}/tools/release/ppc_sync.cmake")

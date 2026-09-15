@@ -38,7 +38,11 @@ struct Config
     uint32_t width = 1280, height = 720;
     int internalResolution = 0; // 0 follows output (up to 4K); 720/1080/1440/2160 select scene height.
     WindowMode windowMode = WindowMode::Windowed;
+#ifdef _WIN32
     GraphicsBackend graphicsBackend = GraphicsBackend::D3D12; // Applied on the next process start.
+#else
+    GraphicsBackend graphicsBackend = GraphicsBackend::Vulkan; // Applied on the next process start.
+#endif
     uint32_t antialiasing = 0; // 0 Off, 1 FXAA, 2 SMAA, 3 experimental camera-based TAA.
     uint32_t frameRate = 30;
     uint32_t scalingQuality = 1; // 0 bilinear, 1 bicubic spatial resampling.

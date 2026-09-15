@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
-$run = 'D:\syncthing\Git\LostOdysseyRecomp\out\perf-ring\run'
-$out = 'D:\syncthing\Git\LostOdysseyRecomp\out\perf-ring'
+$run = Join-Path $PSScriptRoot 'run'
+$out = $PSScriptRoot
 $shots = Join-Path $run 'shots2'
 $logDir = Join-Path $env:TEMP 'lo-city-logs'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -13,7 +13,12 @@ New-Item -ItemType Directory -Force -Path $shots | Out-Null
 Set-Content -Path $inputPath -Value '1 0 0 0 0' -Encoding ascii
 Set-Content -Path $shotRequestPath -Value '0 0' -Encoding ascii
 
-$origSaves = Get-ChildItem 'D:\Games\LostOdysseyRecomp-windows-x64\save' -Recurse -File | ForEach-Object {
+$saveRoot = Join-Path $run 'save'
+$playerSave = 'D:\Mihoyo\LostOdysseyRecomp-windows-x64\save'
+$origSaves = Get-ChildItem $saveRoot -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+    [pscustomobject]@{ Path = $_.FullName; Length = $_.Length; LastWriteTimeUtc = $_.LastWriteTimeUtc.ToString('o') }
+}
+$origPlayerSaves = Get-ChildItem $playerSave -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
     [pscustomobject]@{ Path = $_.FullName; Length = $_.Length; LastWriteTimeUtc = $_.LastWriteTimeUtc.ToString('o') }
 }
 
@@ -171,10 +176,14 @@ finally {
     }
 }
 
-$afterSaves = Get-ChildItem 'D:\Games\LostOdysseyRecomp-windows-x64\save' -Recurse -File | ForEach-Object {
+$afterSaves = Get-ChildItem $saveRoot -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+    [pscustomobject]@{ Path = $_.FullName; Length = $_.Length; LastWriteTimeUtc = $_.LastWriteTimeUtc.ToString('o') }
+}
+$afterPlayerSaves = Get-ChildItem $playerSave -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
     [pscustomobject]@{ Path = $_.FullName; Length = $_.Length; LastWriteTimeUtc = $_.LastWriteTimeUtc.ToString('o') }
 }
 $saveChanged = Compare-Object $origSaves $afterSaves -Property Path, Length, LastWriteTimeUtc
+$playerSavesChanged = Compare-Object $origPlayerSaves $afterPlayerSaves -Property Path, Length, LastWriteTimeUtc
 
 $city = @(); $menu = @(); $batch = @()
 Select-String -Path $logPath -Pattern 'render timing frame=(\d+) draws=(\d+).*draw_ms=([0-9.]+).*vertex_ms=([0-9.]+).*bind_ms=([0-9.]+).*record_ms=([0-9.]+).*fence_wait_ms=([0-9.]+).*rt_acquire_ms=([0-9.]+).*taa_ms=([0-9.]+).*nested_flush_ms=([0-9.]+).*shader_lookup_ms=([0-9.]+).*pipeline_lookup_ms=([0-9.]+).*scene_copy_ms=([0-9.]+).*gpu_queue_batches_elapsed_ms=([0-9.unknown]+).*gpu_batches=(\d+)' | ForEach-Object {
@@ -240,6 +249,7 @@ $summary = [ordered]@{
     phase_end = $phase
     elapsed_s = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
     original_saves_changed = [bool]$saveChanged
+    player_saves_changed = [bool]$playerSavesChanged
     city_frames = $city.Count
     menu_frames = $menu.Count
     city = @{
@@ -270,6 +280,8 @@ $summary = [ordered]@{
         scene_copy_ms = (Avg $city 'scene_copy_ms')
         gpu_batches = (Avg $city 'gpu_batches')
         splits = (Avg $cityBatch 'splits')
+        upload_splits = (Avg $cityBatch 'upload')
+        arena_splits = (Avg $cityBatch 'arena')
         hits = (Avg $cityBatch 'hits')
         misses = (Avg $cityBatch 'misses')
     }
@@ -285,7 +297,7 @@ $summary = [ordered]@{
 $summary | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $out 'drive-summary.json') -Encoding utf8
 Write-Status 'finished' $summary
 Write-Output ($summary | ConvertTo-Json -Depth 5)
-$classifier = 'D:\syncthing\Git\LostOdysseyRecomp\tools\perf\classify-city-timing.ps1'
+$classifier = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'tools\perf\classify-city-timing.ps1'
 if (Test-Path -LiteralPath $classifier) {
     Write-Output '--- classify-city-timing ---'
     & $classifier -LogPath $logPath

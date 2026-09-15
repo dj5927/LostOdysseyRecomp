@@ -140,6 +140,11 @@ CLAUDE.md
 
 /.agent/
 /.agents/
+
+# Local agent state and tool artifacts
+/.omo/
+/node_modules/
+/nul
 /AGENTS.md
 /docs/agents/
 /.opencode/

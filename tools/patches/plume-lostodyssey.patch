@@ -556,6 +556,152 @@ index 2cdcf18..39a4f6e 100644
              return;
          }
  
+diff --git a/plume_log.h b/plume_log.h
+new file mode 100644
+index 0000000..2f83160
+--- /dev/null
++++ b/plume_log.h
+@@ -0,0 +1,128 @@
++// Lightweight backend error reporting; independent of the host application's logger.
++#pragma once
++
++#include <atomic>
++#include <cstdarg>
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <limits>
++
++namespace plume {
++    enum class LogSeverity { Error, Warning };
++#ifdef None
++#pragma push_macro("None")
++#undef None
++#define PLUME_RESTORE_NONE
++#endif
++    enum class LogErrorDomain { None, HResult, VkResult, Win32, SDL };
++#ifdef PLUME_RESTORE_NONE
++#pragma pop_macro("None")
++#undef PLUME_RESTORE_NONE
++#endif
++
++    struct LogRecord {
++        LogSeverity severity;
++        const char *backend;
++        const char *api;
++        LogErrorDomain domain;
++        uint32_t rawCode; // Original 32 bits, including negative HRESULT/VkResult values.
++        const char *detail;
++        uint32_t occurrence; // Per failure call site; gaps indicate suppressed repeats.
++    };
++
++    // Delivery is synchronous. Record strings are borrowed for this call only.
++    // Register before backend creation; callback code must outlive backend threads.
++    // A callback owns delivery completely, including its own last-resort sink.
++    using LogCallback = void (*)(const LogRecord &);
++
++    namespace log_detail {
++        inline std::atomic<LogCallback> callback{nullptr};
++        inline thread_local bool delivering = false;
++    }
++
++    inline void SetLogCallback(LogCallback callback) noexcept {
++        log_detail::callback.store(callback, std::memory_order_release);
++    }
++
++    inline const char *LogErrorDomainName(LogErrorDomain domain) noexcept {
++        switch (domain) {
++        case LogErrorDomain::HResult: return "HRESULT";
++        case LogErrorDomain::VkResult: return "VkResult";
++        case LogErrorDomain::Win32: return "Win32";
++        case LogErrorDomain::SDL: return "SDL";
++        default: return "none";
++        }
++    }
++
++    // The first eight failures and subsequent powers of two retain evidence while
++    // bounding repeated per-frame failures to logarithmic output. Only failures
++    // touch this counter; successful graphics operations do no logging work.
++    struct LogSite {
++        std::atomic<uint32_t> count{0};
++
++        uint32_t Next() noexcept {
++            uint32_t current = count.load(std::memory_order_relaxed);
++            while (current != (std::numeric_limits<uint32_t>::max)()) {
++                if (count.compare_exchange_weak(current, current + 1, std::memory_order_relaxed)) {
++                    const uint32_t next = current + 1;
++                    return (next <= 8 || (next & (next - 1)) == 0) ? next : 0;
++                }
++            }
++            return 0;
++        }
++    };
++
++    inline void LogMessage(LogSite &site, LogSeverity severity, const char *backend,
++        const char *api, LogErrorDomain domain, uint32_t rawCode, const char *format, ...) noexcept {
++        // Do not recursively invoke either the host logger or stderr, including
++        // when a callback changes the registration before reporting another error.
++        if (log_detail::delivering) return;
++        const uint32_t occurrence = site.Next();
++        if (occurrence == 0) return;
++
++        char detail[1024] = {};
++        va_list args;
++        va_start(args, format);
++        const int length = std::vsnprintf(detail, sizeof(detail), format ? format : "", args);
++        va_end(args);
++        if (length < 0) {
++            std::snprintf(detail, sizeof(detail), "%s", "diagnostic formatting failed");
++        }
++        else if (static_cast<size_t>(length) >= sizeof(detail)) {
++            constexpr char suffix[] = " [truncated]";
++            std::memcpy(detail + sizeof(detail) - sizeof(suffix), suffix, sizeof(suffix));
++        }
++        // Keep each event a single record even when a driver provides newlines.
++        for (char *c = detail; *c; ++c) {
++            if (*c == '\r' || *c == '\n') *c = ' ';
++        }
++
++        const LogRecord record{severity, backend ? backend : "unknown", api ? api : "unknown",
++            domain, rawCode, detail, occurrence};
++        const LogCallback callback = log_detail::callback.load(std::memory_order_acquire);
++        log_detail::delivering = true;
++        if (callback) {
++            try { callback(record); }
++            catch (...) { /* A diagnostic callback must not change API failure behavior. */ }
++        }
++        else {
++            std::fprintf(stderr, "plume: severity=%s backend=%s api=%s domain=%s code=0x%08X occurrence=%u %s\n",
++                severity == LogSeverity::Error ? "error" : "warning", record.backend, record.api,
++                LogErrorDomainName(domain), static_cast<unsigned>(rawCode), static_cast<unsigned>(occurrence), detail);
++        }
++        log_detail::delivering = false;
++    }
++}
++
++#define PLUME_LOG_ERROR(backend, api, domain, code, ...) do { \
++    static ::plume::LogSite plumeErrorSite; \
++    ::plume::LogMessage(plumeErrorSite, ::plume::LogSeverity::Error, backend, api, domain, \
++        static_cast<uint32_t>(code), __VA_ARGS__); \
++} while (0)
++
++#define PLUME_LOG_WARNING(backend, api, domain, code, ...) do { \
++    static ::plume::LogSite plumeWarningSite; \
++    ::plume::LogMessage(plumeWarningSite, ::plume::LogSeverity::Warning, backend, api, domain, \
++        static_cast<uint32_t>(code), __VA_ARGS__); \
++} while (0)
+diff --git a/plume_render_interface.h b/plume_render_interface.h
+index 2048557..25e1318 100644
+--- a/plume_render_interface.h
++++ b/plume_render_interface.h
+@@ -95,6 +95,7 @@ namespace plume {
+         virtual bool isVsyncEnabled() const = 0;
+         virtual uint32_t getWidth() const = 0;
+         virtual uint32_t getHeight() const = 0;
++        virtual RenderFormat getFormat() const { return RenderFormat::R8G8B8A8_UNORM; }
+         virtual RenderTexture *getTexture(uint32_t textureIndex) = 0;
+         virtual uint32_t getTextureCount() const = 0;
+         virtual bool acquireTexture(RenderCommandSemaphore *signalSemaphore, uint32_t *textureIndex) = 0;
 diff --git a/plume_render_interface_types.h b/plume_render_interface_types.h
 index 9dcfedf..e35a468 100644
 --- a/plume_render_interface_types.h
@@ -599,7 +745,7 @@ index 9dcfedf..e35a468 100644
          bool geometryShader = false;
  
 diff --git a/plume_vulkan.cpp b/plume_vulkan.cpp
-index f1dd503..8eb358d 100644
+index f1dd503..7d348e0 100644
 --- a/plume_vulkan.cpp
 +++ b/plume_vulkan.cpp
 @@ -9,6 +9,7 @@
@@ -938,16 +1084,75 @@ index f1dd503..8eb358d 100644
  
          // Clamp the requested buffer count between the bounds of the surface capabilities.
          this->desc.textureCount = std::clamp(desc.textureCount, surfaceCapabilities.minImageCount, surfaceCapabilities.maxImageCount);
-@@ -2205,7 +2232,7 @@ namespace plume {
+@@ -2194,18 +2221,36 @@ namespace plume {
+         immediatePresentModeSupported = std::find(presentModes.begin(), presentModes.end(), VK_PRESENT_MODE_IMMEDIATE_KHR) != presentModes.end();
+         mailboxPresentModeSupported = std::find(presentModes.begin(), presentModes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != presentModes.end();
+ 
+-        // Check if the format we requested is part of the supported surface formats.
++        // Prefer the requested format. A single UNDEFINED entry means any format is
++        // allowed. Otherwise fall back to BGRA then RGBA, which covers WSL Dozen.
+         std::vector<VkSurfaceFormatKHR> compatibleSurfaceFormats;
+-        VkFormat requestedFormat = toVk(desc.format);
+-        for (uint32_t i = 0; i < surfaceFormatCount; i++) {
+-            if (surfaceFormats[i].format == requestedFormat) {
+-                compatibleSurfaceFormats.emplace_back(surfaceFormats[i]);
+-                break;
+-            }
++        const VkFormat requestedFormat = toVk(desc.format);
++        const bool anyFormatAllowed = surfaceFormatCount == 1 && surfaceFormats[0].format == VK_FORMAT_UNDEFINED;
++        if (anyFormatAllowed) {
++            compatibleSurfaceFormats.push_back({ requestedFormat, surfaceFormats[0].colorSpace });
++        }
++        else {
++            auto collect = [&](VkFormat format) {
++                for (const VkSurfaceFormatKHR &entry : surfaceFormats) {
++                    if (entry.format == format)
++                        compatibleSurfaceFormats.push_back(entry);
++                }
++            };
++            collect(requestedFormat);
++            if (compatibleSurfaceFormats.empty() && requestedFormat != VK_FORMAT_B8G8R8A8_UNORM)
++                collect(VK_FORMAT_B8G8R8A8_UNORM);
++            if (compatibleSurfaceFormats.empty() && requestedFormat != VK_FORMAT_R8G8B8A8_UNORM)
++                collect(VK_FORMAT_R8G8B8A8_UNORM);
          }
  
          if (compatibleSurfaceFormats.empty()) {
 -            fprintf(stderr, "No compatible surface formats were found.\n");
-+            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0, "No compatible surface formats were found.");
++            PLUME_LOG_ERROR("Vulkan", __func__, LogErrorDomain::None, 0,
++                "No compatible surface formats were found. requested=0x%08X count=%u first=0x%08X,0x%08X,0x%08X,0x%08X",
++                unsigned(requestedFormat), unsigned(surfaceFormatCount),
++                surfaceFormatCount > 0 ? unsigned(surfaceFormats[0].format) : 0u,
++                surfaceFormatCount > 1 ? unsigned(surfaceFormats[1].format) : 0u,
++                surfaceFormatCount > 2 ? unsigned(surfaceFormats[2].format) : 0u,
++                surfaceFormatCount > 3 ? unsigned(surfaceFormats[3].format) : 0u);
              return;
          }
  
-@@ -2232,7 +2259,7 @@ namespace plume {
+@@ -2220,6 +2265,22 @@ namespace plume {
+         if (pickedSurfaceFormat.format == VK_FORMAT_UNDEFINED) {
+             pickedSurfaceFormat = compatibleSurfaceFormats[0];
+         }
++        if (pickedSurfaceFormat.format != requestedFormat) {
++            PLUME_LOG_WARNING("Vulkan", __func__, LogErrorDomain::None, 0,
++                "Swapchain format fallback: requested=0x%08X picked=0x%08X",
++                unsigned(requestedFormat), unsigned(pickedSurfaceFormat.format));
++        }
++        switch (pickedSurfaceFormat.format) {
++        case VK_FORMAT_B8G8R8A8_UNORM:
++            this->desc.format = RenderFormat::B8G8R8A8_UNORM;
++            break;
++        case VK_FORMAT_R8G8B8A8_UNORM:
++            this->desc.format = RenderFormat::R8G8B8A8_UNORM;
++            break;
++        default:
++            this->desc.format = desc.format;
++            break;
++        }
+ 
+         // Sets the required presentation mode.
+         setVsyncEnabled(true);
+@@ -2232,7 +2293,7 @@ namespace plume {
              pickedAlphaFlag = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
          }
          else {
@@ -956,7 +1161,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -2254,6 +2281,9 @@ namespace plume {
+@@ -2254,6 +2315,9 @@ namespace plume {
      }
  
      bool VulkanSwapChain::present(uint32_t textureIndex, RenderCommandSemaphore **waitSemaphores, uint32_t waitSemaphoreCount) {
@@ -966,7 +1171,7 @@ index f1dd503..8eb358d 100644
          thread_local std::vector<VkSemaphore> waitSemaphoresVector;
          waitSemaphoresVector.clear();
          for (uint32_t i = 0; i < waitSemaphoreCount; i++) {
-@@ -2286,6 +2316,7 @@ namespace plume {
+@@ -2286,6 +2350,7 @@ namespace plume {
              res = vkQueuePresentKHR(commandQueue->queue->vk, &presentInfo);
          }
  
@@ -974,7 +1179,7 @@ index f1dd503..8eb358d 100644
  #if defined(__APPLE__)
          // Under MoltenVK, VK_SUBOPTIMAL_KHR does not result in a valid state for rendering. We intentionally
          // only check for this error during present to avoid having to synchronize manually against the semaphore
-@@ -2310,25 +2341,44 @@ namespace plume {
+@@ -2310,25 +2375,44 @@ namespace plume {
      }
  
      bool VulkanSwapChain::resize() {
@@ -1027,7 +1232,7 @@ index f1dd503..8eb358d 100644
  
          createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
          createInfo.surface = surface;
-@@ -2338,7 +2388,8 @@ namespace plume {
+@@ -2338,7 +2422,8 @@ namespace plume {
          createInfo.imageExtent.width = width;
          createInfo.imageExtent.height = height;
          createInfo.imageArrayLayers = 1;
@@ -1037,7 +1242,7 @@ index f1dd503..8eb358d 100644
          createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
          createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
          createInfo.compositeAlpha = pickedAlphaFlag;
-@@ -2348,12 +2399,13 @@ namespace plume {
+@@ -2348,12 +2433,13 @@ namespace plume {
  
          VkResult res = vkCreateSwapchainKHR(commandQueue->device->vk, &createInfo, nullptr, &vk);
          if (res != VK_SUCCESS) {
@@ -1052,7 +1257,7 @@ index f1dd503..8eb358d 100644
  
          // Reset present counter.
          presentCount = 1;
-@@ -2366,7 +2418,7 @@ namespace plume {
+@@ -2366,7 +2452,7 @@ namespace plume {
          vkGetSwapchainImagesKHR(commandQueue->device->vk, vk, &retrievedImageCount, nullptr);
          if (retrievedImageCount < desc.textureCount) {
              releaseSwapChain();
@@ -1061,7 +1266,7 @@ index f1dd503..8eb358d 100644
              return false;
          }
  
-@@ -2376,7 +2428,7 @@ namespace plume {
+@@ -2376,7 +2462,7 @@ namespace plume {
          res = vkGetSwapchainImagesKHR(commandQueue->device->vk, vk, &desc.textureCount, images.data());
          if (res != VK_SUCCESS) {
              releaseSwapChain();
@@ -1070,7 +1275,7 @@ index f1dd503..8eb358d 100644
              return false;
          }
  
-@@ -2403,7 +2455,7 @@ namespace plume {
+@@ -2403,7 +2489,7 @@ namespace plume {
      bool VulkanSwapChain::needsResize() const {
          uint32_t windowWidth, windowHeight;
          getWindowSize(windowWidth, windowHeight);
@@ -1079,7 +1284,18 @@ index f1dd503..8eb358d 100644
      }
  
      void VulkanSwapChain::setVsyncEnabled(bool vsyncEnabled) {
-@@ -2450,7 +2502,7 @@ namespace plume {
+@@ -2430,6 +2516,10 @@ namespace plume {
+         return height;
+     }
+ 
++    RenderFormat VulkanSwapChain::getFormat() const {
++        return desc.format;
++    }
++
+     RenderTexture *VulkanSwapChain::getTexture(uint32_t textureIndex) {
+         return &textures[textureIndex];
+     }
+@@ -2450,7 +2540,7 @@ namespace plume {
          VkRefreshCycleDurationGOOGLE refreshCycle = {};
          VkResult res = vkGetRefreshCycleDurationGOOGLE(commandQueue->device->vk, vk, &refreshCycle);
          if (res != VK_SUCCESS) {
@@ -1088,7 +1304,7 @@ index f1dd503..8eb358d 100644
              return 0;
          }
  
-@@ -2459,10 +2511,7 @@ namespace plume {
+@@ -2459,10 +2549,7 @@ namespace plume {
  
      void VulkanSwapChain::getWindowSize(uint32_t &dstWidth, uint32_t &dstHeight) const {
  #   if defined(_WIN64)
@@ -1100,7 +1316,7 @@ index f1dd503..8eb358d 100644
  #   elif defined(PLUME_SDL_VULKAN_ENABLED)
          SDL_GetWindowSizeInPixels(desc.renderWindow, (int *)(&dstWidth), (int *)(&dstHeight));
  #   elif defined(__ANDROID__)
-@@ -2483,10 +2532,15 @@ namespace plume {
+@@ -2483,10 +2570,15 @@ namespace plume {
      }
  
      bool VulkanSwapChain::acquireTexture(RenderCommandSemaphore *signalSemaphore, uint32_t *textureIndex) {
@@ -1116,7 +1332,7 @@ index f1dd503..8eb358d 100644
          if ((res != VK_SUCCESS) && (res != VK_SUBOPTIMAL_KHR)) {
              return false;
          }
-@@ -2496,6 +2550,7 @@ namespace plume {
+@@ -2496,6 +2588,7 @@ namespace plume {
  
      void VulkanSwapChain::releaseSwapChain() {
          if (vk != VK_NULL_HANDLE) {
@@ -1124,7 +1340,7 @@ index f1dd503..8eb358d 100644
              vkDestroySwapchainKHR(commandQueue->device->vk, vk, nullptr);
              vk = VK_NULL_HANDLE;
          }
-@@ -2627,7 +2682,7 @@ namespace plume {
+@@ -2627,7 +2720,7 @@ namespace plume {
  
          res = vkCreateRenderPass(device->vk, &passInfo, nullptr, &renderPass);
          if (res != VK_SUCCESS) {
@@ -1133,7 +1349,7 @@ index f1dd503..8eb358d 100644
              return;
          }
          
-@@ -2642,7 +2697,7 @@ namespace plume {
+@@ -2642,7 +2735,7 @@ namespace plume {
  
          res = vkCreateFramebuffer(device->vk, &fbInfo, nullptr, &vk);
          if (res != VK_SUCCESS) {
@@ -1142,7 +1358,7 @@ index f1dd503..8eb358d 100644
              return;
          }
      }
-@@ -2692,7 +2747,7 @@ namespace plume {
+@@ -2692,7 +2785,7 @@ namespace plume {
          
          VkResult res = vkCreateQueryPool(device->vk, &createInfo, nullptr, &vk);
          if (res != VK_SUCCESS) {
@@ -1151,7 +1367,7 @@ index f1dd503..8eb358d 100644
              return;
          }
          
-@@ -2706,7 +2761,7 @@ namespace plume {
+@@ -2706,7 +2799,7 @@ namespace plume {
      void VulkanQueryPool::queryResults() {
  	    VkResult res = vkGetQueryPoolResults(device->vk, vk, 0, uint32_t(results.size()), sizeof(uint64_t) * results.size(), results.data(), sizeof(uint64_t), VK_QUERY_RESULT_64_BIT);
          if (res != VK_SUCCESS) {
@@ -1160,7 +1376,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -2765,7 +2820,7 @@ namespace plume {
+@@ -2765,7 +2858,7 @@ namespace plume {
  
          VkResult res = vkCreateCommandPool(queue->device->vk, &poolInfo, nullptr, &commandPool);
          if (res != VK_SUCCESS) {
@@ -1169,7 +1385,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -2777,7 +2832,7 @@ namespace plume {
+@@ -2777,7 +2870,7 @@ namespace plume {
  
          res = vkAllocateCommandBuffers(queue->device->vk, &allocateInfo, &vk);
          if (res != VK_SUCCESS) {
@@ -1178,7 +1394,7 @@ index f1dd503..8eb358d 100644
              return;
          }
      }
-@@ -2794,6 +2849,7 @@ namespace plume {
+@@ -2794,6 +2887,7 @@ namespace plume {
  
      void VulkanCommandList::begin() {
          vkResetCommandBuffer(vk, 0);
@@ -1186,7 +1402,7 @@ index f1dd503..8eb358d 100644
  
          VkCommandBufferBeginInfo beginInfo = {};
          beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-@@ -2801,7 +2857,7 @@ namespace plume {
+@@ -2801,7 +2895,7 @@ namespace plume {
  
          VkResult res = vkBeginCommandBuffer(vk, &beginInfo);
          if (res != VK_SUCCESS) {
@@ -1195,7 +1411,7 @@ index f1dd503..8eb358d 100644
              return;
          }
      }
-@@ -2811,7 +2867,7 @@ namespace plume {
+@@ -2811,7 +2905,7 @@ namespace plume {
  
          VkResult res = vkEndCommandBuffer(vk);
          if (res != VK_SUCCESS) {
@@ -1204,7 +1420,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -2986,6 +3042,11 @@ namespace plume {
+@@ -2986,6 +3080,11 @@ namespace plume {
      void VulkanCommandList::setGraphicsPipelineLayout(const RenderPipelineLayout *pipelineLayout) {
          assert(pipelineLayout != nullptr);
  
@@ -1216,7 +1432,7 @@ index f1dd503..8eb358d 100644
          activeGraphicsPipelineLayout = static_cast<const VulkanPipelineLayout *>(pipelineLayout);
      }
  
-@@ -3097,6 +3158,12 @@ namespace plume {
+@@ -3097,6 +3196,12 @@ namespace plume {
      }
  
      void VulkanCommandList::setFramebuffer(const RenderFramebuffer *framebuffer) {
@@ -1229,7 +1445,7 @@ index f1dd503..8eb358d 100644
          endActiveRenderPass();
  
          if (framebuffer != nullptr) {
-@@ -3229,7 +3296,29 @@ namespace plume {
+@@ -3229,7 +3334,29 @@ namespace plume {
              imageCopy.imageExtent.depth = srcLocation.placedFootprint.depth;
              vkCmdCopyBufferToImage(vk, srcBuffer->vk, dstTexture->vk, toImageLayout(dstTexture->textureLayout), 1, &imageCopy);
          }
@@ -1259,7 +1475,7 @@ index f1dd503..8eb358d 100644
              VkImageCopy imageCopy = {};
              imageCopy.srcSubresource.aspectMask = toAspectFlags(srcTexture->desc.format, srcTexture->desc.flags);
              imageCopy.srcSubresource.baseArrayLayer = srcLocation.subresource.arrayIndex;
-@@ -3494,6 +3583,22 @@ namespace plume {
+@@ -3494,6 +3621,22 @@ namespace plume {
          assert(setIndex < pipelineLayout->descriptorSetLayouts.size());
  
          const VulkanDescriptorSet *interfaceSet = static_cast<const VulkanDescriptorSet *>(descriptorSet);
@@ -1282,7 +1498,7 @@ index f1dd503..8eb358d 100644
          vkCmdBindDescriptorSets(vk, bindPoint, pipelineLayout->vk, setIndex, 1, &interfaceSet->vk, 0, nullptr);
      }
  
-@@ -3509,7 +3614,7 @@ namespace plume {
+@@ -3509,7 +3652,7 @@ namespace plume {
  
          VkResult res = vkCreateFence(device->vk, &fenceInfo, nullptr, &vk);
          if (res != VK_SUCCESS) {
@@ -1291,7 +1507,7 @@ index f1dd503..8eb358d 100644
              return;
          }
      }
-@@ -3532,7 +3637,7 @@ namespace plume {
+@@ -3532,7 +3675,7 @@ namespace plume {
  
          VkResult res = vkCreateSemaphore(device->vk, &semaphoreInfo, nullptr, &vk);
          if (res != VK_SUCCESS) {
@@ -1300,7 +1516,7 @@ index f1dd503..8eb358d 100644
              return;
          }
      }
-@@ -3561,11 +3666,17 @@ namespace plume {
+@@ -3561,11 +3704,17 @@ namespace plume {
      }
  
      std::unique_ptr<RenderCommandList> VulkanCommandQueue::createCommandList() {
@@ -1320,7 +1536,7 @@ index f1dd503..8eb358d 100644
      }
  
      void VulkanCommandQueue::executeCommandLists(const RenderCommandList **commandLists, uint32_t commandListCount, RenderCommandSemaphore **waitSemaphores, uint32_t waitSemaphoreCount, RenderCommandSemaphore **signalSemaphores, uint32_t signalSemaphoreCount, RenderCommandFence *signalFence) {
-@@ -3626,7 +3737,7 @@ namespace plume {
+@@ -3626,7 +3775,7 @@ namespace plume {
          }
  
          if (res != VK_SUCCESS) {
@@ -1329,7 +1545,7 @@ index f1dd503..8eb358d 100644
              return;
          }
      }
-@@ -3637,7 +3748,7 @@ namespace plume {
+@@ -3637,7 +3786,7 @@ namespace plume {
          VulkanCommandFence *interfaceFence = static_cast<VulkanCommandFence *>(fence);
          VkResult res = vkWaitForFences(device->vk, 1, &interfaceFence->vk, VK_TRUE, UINT64_MAX);
          if (res != VK_SUCCESS) {
@@ -1338,7 +1554,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -3670,7 +3781,7 @@ namespace plume {
+@@ -3670,7 +3819,7 @@ namespace plume {
          uint32_t memoryTypeIndex = 0;
          VkResult res = vmaFindMemoryTypeIndex(device->allocator, UINT32_MAX, &memoryInfo, &memoryTypeIndex);
          if (res != VK_SUCCESS) {
@@ -1347,7 +1563,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -3682,7 +3793,7 @@ namespace plume {
+@@ -3682,7 +3831,7 @@ namespace plume {
  
          res = vmaCreatePool(device->allocator, &createInfo, &vk);
          if (res != VK_SUCCESS) {
@@ -1356,7 +1572,7 @@ index f1dd503..8eb358d 100644
              return;
          }
      }
-@@ -3742,7 +3853,7 @@ namespace plume {
+@@ -3742,7 +3891,7 @@ namespace plume {
          uint32_t deviceCount = 0;
          vkEnumeratePhysicalDevices(renderInterface->instance, &deviceCount, nullptr);
          if (deviceCount == 0) {
@@ -1365,7 +1581,7 @@ index f1dd503..8eb358d 100644
              return;
          }
          
-@@ -3787,7 +3898,7 @@ namespace plume {
+@@ -3787,7 +3936,7 @@ namespace plume {
          }
  
          if (physicalDevice == VK_NULL_HANDLE) {
@@ -1374,7 +1590,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -3819,10 +3930,10 @@ namespace plume {
+@@ -3819,10 +3968,10 @@ namespace plume {
          
          if (!missingRequiredExtensions.empty()) {
              for (const std::string &extension : missingRequiredExtensions) {
@@ -1387,7 +1603,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -3839,7 +3950,7 @@ namespace plume {
+@@ -3839,7 +3988,7 @@ namespace plume {
          }
  
          VkPhysicalDeviceScalarBlockLayoutFeatures layoutFeatures = {};
@@ -1396,7 +1612,7 @@ index f1dd503..8eb358d 100644
          if (scalarBlockLayoutFound) {
              layoutFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES;
              layoutFeatures.pNext = featuresChain;
-@@ -3868,7 +3979,7 @@ namespace plume {
+@@ -3868,7 +4017,7 @@ namespace plume {
          }
  
          VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = {};
@@ -1405,7 +1621,7 @@ index f1dd503..8eb358d 100644
          if (bufferDeviceAddressFound) {
              bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
              bufferDeviceAddressFeatures.pNext = featuresChain;
-@@ -3979,7 +4090,7 @@ namespace plume {
+@@ -3979,7 +4128,7 @@ namespace plume {
          vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilyProperties.data());
  
          auto pickFamilyQueue = [&](RenderCommandListType type, VkQueueFlags flags) {
@@ -1414,7 +1630,7 @@ index f1dd503..8eb358d 100644
              uint32_t familySetBits = sizeof(uint32_t) * 8;
              uint32_t familyQueueCount = 0;
              bool familyUsed = false;
-@@ -3987,7 +4098,7 @@ namespace plume {
+@@ -3987,7 +4136,7 @@ namespace plume {
                  const VkQueueFamilyProperties &props = queueFamilyProperties[i];
  
                  // The family queue flags must contain all the flags required by the command list type.
@@ -1423,7 +1639,7 @@ index f1dd503..8eb358d 100644
                      continue;
                  }
  
-@@ -4003,14 +4114,19 @@ namespace plume {
+@@ -4003,14 +4152,19 @@ namespace plume {
                  }
              }
  
@@ -1446,7 +1662,7 @@ index f1dd503..8eb358d 100644
  
          // Create the struct to store the virtual queues.
          queueFamilies.resize(queueFamilyCount);
-@@ -4051,7 +4167,7 @@ namespace plume {
+@@ -4051,7 +4205,7 @@ namespace plume {
  
          VkResult res = vkCreateDevice(physicalDevice, &createInfo, nullptr, &vk);
          if (res != VK_SUCCESS) {
@@ -1455,7 +1671,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -4092,7 +4208,7 @@ namespace plume {
+@@ -4092,7 +4246,7 @@ namespace plume {
  
          res = vmaCreateAllocator(&allocatorInfo, &allocator);
          if (res != VK_SUCCESS) {
@@ -1464,7 +1680,7 @@ index f1dd503..8eb358d 100644
              release();
              return;
          }
-@@ -4120,6 +4236,7 @@ namespace plume {
+@@ -4120,6 +4274,7 @@ namespace plume {
          description.dedicatedVideoMemory = memoryHeapSize;
  
          // Fill capabilities.
@@ -1472,7 +1688,7 @@ index f1dd503..8eb358d 100644
          capabilities.geometryShader = deviceFeatures.features.geometryShader;
          capabilities.raytracing = rayTracingSupported;
          capabilities.raytracingStateUpdate = false;
-@@ -4161,23 +4278,33 @@ namespace plume {
+@@ -4161,23 +4316,33 @@ namespace plume {
      }
  
      std::unique_ptr<RenderDescriptorSet> VulkanDevice::createDescriptorSet(const RenderDescriptorSetDesc &desc) {
@@ -1511,7 +1727,7 @@ index f1dd503..8eb358d 100644
      }
  
      std::unique_ptr<RenderPipeline> VulkanDevice::createRaytracingPipeline(const RenderRaytracingPipelineDesc &desc, const RenderPipeline *previousPipeline) {
-@@ -4189,11 +4316,15 @@ namespace plume {
+@@ -4189,11 +4354,15 @@ namespace plume {
      }
  
      std::unique_ptr<RenderBuffer> VulkanDevice::createBuffer(const RenderBufferDesc &desc) {
@@ -1529,7 +1745,7 @@ index f1dd503..8eb358d 100644
      }
  
      std::unique_ptr<RenderAccelerationStructure> VulkanDevice::createAccelerationStructure(const RenderAccelerationStructureDesc &desc) {
-@@ -4205,15 +4336,21 @@ namespace plume {
+@@ -4205,15 +4374,21 @@ namespace plume {
      }
  
      std::unique_ptr<RenderPipelineLayout> VulkanDevice::createPipelineLayout(const RenderPipelineLayoutDesc &desc) {
@@ -1554,7 +1770,7 @@ index f1dd503..8eb358d 100644
      }
  
      std::unique_ptr<RenderFramebuffer> VulkanDevice::createFramebuffer(const RenderFramebufferDesc &desc) {
-@@ -4365,7 +4502,7 @@ namespace plume {
+@@ -4365,7 +4540,7 @@ namespace plume {
          groupHandles.resize(raytracingPipeline->groupCount * handleSize, 0);
          VkResult res = vkGetRayTracingShaderGroupHandlesKHR(vk, raytracingPipeline->vk, 0, raytracingPipeline->groupCount, groupHandles.size(), groupHandles.data());
          if (res != VK_SUCCESS) {
@@ -1563,7 +1779,7 @@ index f1dd503..8eb358d 100644
              return;
          }
          
-@@ -4444,7 +4581,7 @@ namespace plume {
+@@ -4444,7 +4619,7 @@ namespace plume {
      }
  
      bool VulkanDevice::isValid() const {
@@ -1572,7 +1788,7 @@ index f1dd503..8eb358d 100644
      }
  
      bool VulkanDevice::beginCapture() {
-@@ -4466,7 +4603,7 @@ namespace plume {
+@@ -4466,7 +4641,7 @@ namespace plume {
  #endif
          VkResult res = volkInitialize();
          if (res != VK_SUCCESS) {
@@ -1581,7 +1797,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -4535,10 +4672,10 @@ namespace plume {
+@@ -4535,10 +4710,10 @@ namespace plume {
  
          if (!missingRequiredExtensions.empty()) {
              for (const std::string &extension : missingRequiredExtensions) {
@@ -1594,7 +1810,7 @@ index f1dd503..8eb358d 100644
              return;
          }
  
-@@ -4575,7 +4712,7 @@ namespace plume {
+@@ -4575,7 +4750,7 @@ namespace plume {
          
          res = vkCreateInstance(&createInfo, nullptr, &instance);
          if (res != VK_SUCCESS) {
@@ -1604,7 +1820,7 @@ index f1dd503..8eb358d 100644
          }
  
 diff --git a/plume_vulkan.h b/plume_vulkan.h
-index 0a1edbe..03d11a6 100644
+index 0a1edbe..75404f0 100644
 --- a/plume_vulkan.h
 +++ b/plume_vulkan.h
 @@ -235,6 +235,7 @@ namespace plume {
@@ -1615,7 +1831,15 @@ index 0a1edbe..03d11a6 100644
          VkPresentModeKHR requiredPresentMode = VK_PRESENT_MODE_FIFO_KHR;
          VkCompositeAlphaFlagBitsKHR pickedAlphaFlag = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
          std::vector<VulkanTexture> textures;
-@@ -300,6 +301,7 @@ namespace plume {
+@@ -252,6 +253,7 @@ namespace plume {
+         bool isVsyncEnabled() const override;
+         uint32_t getWidth() const override;
+         uint32_t getHeight() const override;
++        RenderFormat getFormat() const override;
+         RenderTexture *getTexture(uint32_t textureIndex) override;
+         uint32_t getTextureCount() const override;
+         bool acquireTexture(RenderCommandSemaphore *signalSemaphore, uint32_t *textureIndex) override;
+@@ -300,6 +302,7 @@ namespace plume {
          const VulkanFramebuffer *targetFramebuffer = nullptr;
          const VulkanPipelineLayout *activeComputePipelineLayout = nullptr;
          const VulkanPipelineLayout *activeGraphicsPipelineLayout = nullptr;
@@ -1623,128 +1847,3 @@ index 0a1edbe..03d11a6 100644
          const VulkanPipelineLayout *activeRaytracingPipelineLayout = nullptr;
          VkRenderPass activeRenderPass = VK_NULL_HANDLE;
  
-diff --git a/plume_log.h b/plume_log.h
-new file mode 100644
-index 0000000..1c63eb1
---- /dev/null
-+++ b/plume_log.h
-@@ -0,0 +1,119 @@
-+// Lightweight backend error reporting; independent of the host application's logger.
-+#pragma once
-+
-+#include <atomic>
-+#include <cstdarg>
-+#include <cstdint>
-+#include <cstdio>
-+#include <cstring>
-+#include <limits>
-+
-+namespace plume {
-+    enum class LogSeverity { Error, Warning };
-+    enum class LogErrorDomain { None, HResult, VkResult, Win32, SDL };
-+
-+    struct LogRecord {
-+        LogSeverity severity;
-+        const char *backend;
-+        const char *api;
-+        LogErrorDomain domain;
-+        uint32_t rawCode; // Original 32 bits, including negative HRESULT/VkResult values.
-+        const char *detail;
-+        uint32_t occurrence; // Per failure call site; gaps indicate suppressed repeats.
-+    };
-+
-+    // Delivery is synchronous. Record strings are borrowed for this call only.
-+    // Register before backend creation; callback code must outlive backend threads.
-+    // A callback owns delivery completely, including its own last-resort sink.
-+    using LogCallback = void (*)(const LogRecord &);
-+
-+    namespace log_detail {
-+        inline std::atomic<LogCallback> callback{nullptr};
-+        inline thread_local bool delivering = false;
-+    }
-+
-+    inline void SetLogCallback(LogCallback callback) noexcept {
-+        log_detail::callback.store(callback, std::memory_order_release);
-+    }
-+
-+    inline const char *LogErrorDomainName(LogErrorDomain domain) noexcept {
-+        switch (domain) {
-+        case LogErrorDomain::HResult: return "HRESULT";
-+        case LogErrorDomain::VkResult: return "VkResult";
-+        case LogErrorDomain::Win32: return "Win32";
-+        case LogErrorDomain::SDL: return "SDL";
-+        default: return "none";
-+        }
-+    }
-+
-+    // The first eight failures and subsequent powers of two retain evidence while
-+    // bounding repeated per-frame failures to logarithmic output. Only failures
-+    // touch this counter; successful graphics operations do no logging work.
-+    struct LogSite {
-+        std::atomic<uint32_t> count{0};
-+
-+        uint32_t Next() noexcept {
-+            uint32_t current = count.load(std::memory_order_relaxed);
-+            while (current != (std::numeric_limits<uint32_t>::max)()) {
-+                if (count.compare_exchange_weak(current, current + 1, std::memory_order_relaxed)) {
-+                    const uint32_t next = current + 1;
-+                    return (next <= 8 || (next & (next - 1)) == 0) ? next : 0;
-+                }
-+            }
-+            return 0;
-+        }
-+    };
-+
-+    inline void LogMessage(LogSite &site, LogSeverity severity, const char *backend,
-+        const char *api, LogErrorDomain domain, uint32_t rawCode, const char *format, ...) noexcept {
-+        // Do not recursively invoke either the host logger or stderr, including
-+        // when a callback changes the registration before reporting another error.
-+        if (log_detail::delivering) return;
-+        const uint32_t occurrence = site.Next();
-+        if (occurrence == 0) return;
-+
-+        char detail[1024] = {};
-+        va_list args;
-+        va_start(args, format);
-+        const int length = std::vsnprintf(detail, sizeof(detail), format ? format : "", args);
-+        va_end(args);
-+        if (length < 0) {
-+            std::snprintf(detail, sizeof(detail), "%s", "diagnostic formatting failed");
-+        }
-+        else if (static_cast<size_t>(length) >= sizeof(detail)) {
-+            constexpr char suffix[] = " [truncated]";
-+            std::memcpy(detail + sizeof(detail) - sizeof(suffix), suffix, sizeof(suffix));
-+        }
-+        // Keep each event a single record even when a driver provides newlines.
-+        for (char *c = detail; *c; ++c) {
-+            if (*c == '\r' || *c == '\n') *c = ' ';
-+        }
-+
-+        const LogRecord record{severity, backend ? backend : "unknown", api ? api : "unknown",
-+            domain, rawCode, detail, occurrence};
-+        const LogCallback callback = log_detail::callback.load(std::memory_order_acquire);
-+        log_detail::delivering = true;
-+        if (callback) {
-+            try { callback(record); }
-+            catch (...) { /* A diagnostic callback must not change API failure behavior. */ }
-+        }
-+        else {
-+            std::fprintf(stderr, "plume: severity=%s backend=%s api=%s domain=%s code=0x%08X occurrence=%u %s\n",
-+                severity == LogSeverity::Error ? "error" : "warning", record.backend, record.api,
-+                LogErrorDomainName(domain), static_cast<unsigned>(rawCode), static_cast<unsigned>(occurrence), detail);
-+        }
-+        log_detail::delivering = false;
-+    }
-+}
-+
-+#define PLUME_LOG_ERROR(backend, api, domain, code, ...) do { \
-+    static ::plume::LogSite plumeErrorSite; \
-+    ::plume::LogMessage(plumeErrorSite, ::plume::LogSeverity::Error, backend, api, domain, \
-+        static_cast<uint32_t>(code), __VA_ARGS__); \
-+} while (0)
-+
-+#define PLUME_LOG_WARNING(backend, api, domain, code, ...) do { \
-+    static ::plume::LogSite plumeWarningSite; \
-+    ::plume::LogMessage(plumeWarningSite, ::plume::LogSeverity::Warning, backend, api, domain, \
-+        static_cast<uint32_t>(code), __VA_ARGS__); \
-+} while (0)

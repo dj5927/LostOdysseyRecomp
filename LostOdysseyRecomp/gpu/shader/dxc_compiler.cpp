@@ -3,19 +3,31 @@
 #include "binary_cache.h"
 #include "resource_cpx_index_sha256.h"
 #include <os/shader_log.h>
+#include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <span>
+#include <string>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <unknwn.h>
 #include <objidl.h>
 #include <dxcapi.h>
-#include <mutex>
-#include <filesystem>
-#include <algorithm>
-#include <vector>
+#else
+#include <dlfcn.h>
+#include <type_traits>
+#ifndef __EMULATE_UUID
+#define __EMULATE_UUID 1
+#endif
+#include <WinAdapter.h>
+#include <dxcapi.h>
+#endif
 
 namespace xenos
 {
@@ -26,10 +38,16 @@ namespace xenos
         const CLSID kClsidDxcUtils = { 0x6245d6af, 0x66e0, 0x48fd, { 0x80, 0xb4, 0x4d, 0x27, 0x17, 0x96, 0x74, 0x8c } };
 
         DxcCreateInstanceProc g_createInstance = nullptr;
+#ifdef _WIN32
         HMODULE g_module = nullptr;
+#else
+        void* g_module = nullptr;
+        std::filesystem::path g_modulePath;
+#endif
         std::atomic<uint64_t> g_calls{0}, g_succeeded{0}, g_rejected{0}, g_infrastructureFailed{0};
         std::once_flag g_loadOnce;
 
+#ifdef _WIN32
         void LoadDxc()
         {
             HMODULE module = LoadLibraryW(L"dxcompiler.dll");
@@ -70,6 +88,67 @@ namespace xenos
             if (module)
                 g_createInstance = reinterpret_cast<DxcCreateInstanceProc>(GetProcAddress(module, "DxcCreateInstance"));
         }
+#else
+        void LoadDxc()
+        {
+            std::vector<std::filesystem::path> candidates;
+            candidates.push_back("libdxcompiler.so");
+            if (const char* envPath = std::getenv("LO_DXC_PATH"); envPath && *envPath)
+            {
+                candidates.push_back(envPath);
+            }
+            std::error_code ec;
+            const auto cwd = std::filesystem::current_path(ec);
+            if (!ec)
+            {
+                candidates.push_back(cwd / "libdxcompiler.so");
+            }
+            const std::filesystem::path relativeDxc = "tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so";
+            if (std::filesystem::exists(relativeDxc, ec))
+            {
+                candidates.push_back(relativeDxc);
+            }
+
+            void* module = nullptr;
+            std::filesystem::path loadedCandidate;
+            for (const auto& candidate : candidates)
+            {
+                if (candidate.empty())
+                    continue;
+                module = dlopen(candidate.c_str(), RTLD_NOW | RTLD_LOCAL);
+                if (module)
+                {
+                    auto proc = reinterpret_cast<DxcCreateInstanceProc>(dlsym(module, "DxcCreateInstance"));
+                    if (proc)
+                    {
+                        g_module = module;
+                        g_createInstance = proc;
+                        loadedCandidate = candidate;
+                        break;
+                    }
+                    dlclose(module);
+                    module = nullptr;
+                }
+            }
+
+            if (g_module && g_createInstance)
+            {
+                Dl_info info{};
+                if (dladdr(reinterpret_cast<void*>(g_createInstance), &info) && info.dli_fname && info.dli_fname[0] != '\0')
+                {
+                    std::error_code canonEc;
+                    auto p = std::filesystem::canonical(info.dli_fname, canonEc);
+                    g_modulePath = canonEc ? std::filesystem::path(info.dli_fname) : p;
+                }
+                else if (!loadedCandidate.empty())
+                {
+                    std::error_code canonEc;
+                    auto p = std::filesystem::canonical(loadedCandidate, canonEc);
+                    g_modulePath = canonEc ? loadedCandidate : p;
+                }
+            }
+        }
+#endif
 
         template<typename T>
         struct ComPtr
@@ -93,12 +172,6 @@ namespace xenos
         static const std::string identity = []() -> std::string {
             if (!DxcAvailable()) return {};
             try {
-                auto pathOf = [](HMODULE module) {
-                    wchar_t path[32768];
-                    const DWORD size = GetModuleFileNameW(module, path, 32768);
-                    if (!size || size == 32768) throw std::runtime_error("DXC module path unavailable");
-                    return std::filesystem::path(path);
-                };
                 auto hash = [](const std::filesystem::path& path) {
                     std::ifstream in(path, std::ios::binary | std::ios::ate);
                     const auto size = in.tellg();
@@ -106,6 +179,13 @@ namespace xenos
                     std::vector<uint8_t> bytes(static_cast<size_t>(size)); in.seekg(0);
                     if (!in.read(reinterpret_cast<char*>(bytes.data()), size)) throw std::runtime_error("DXC module read incomplete");
                     return resources::Sha256Hex(resources::Sha256(bytes));
+                };
+#ifdef _WIN32
+                auto pathOf = [](HMODULE module) {
+                    wchar_t path[32768];
+                    const DWORD size = GetModuleFileNameW(module, path, 32768);
+                    if (!size || size == 32768) throw std::runtime_error("DXC module path unavailable");
+                    return std::filesystem::path(path);
                 };
                 const auto compiler = pathOf(g_module);
                 // Retain the actual validator module, including an already
@@ -115,6 +195,10 @@ namespace xenos
                 static HMODULE retainedValidator = LoadLibraryW(validatorPath.c_str());
                 if (!retainedValidator) return {};
                 return hash(compiler) + ":" + hash(pathOf(retainedValidator));
+#else
+                if (g_modulePath.empty()) return {};
+                return hash(g_modulePath);
+#endif
             } catch (...) { return {}; }
         }();
         return identity;
@@ -131,7 +215,11 @@ namespace xenos
         if (!DxcAvailable())
         {
             ++g_infrastructureFailed;
+#ifdef _WIN32
             result.errors = "dxcompiler.dll not available";
+#else
+            result.errors = "dxcompiler library not available";
+#endif
             return result;
         }
 
@@ -221,15 +309,6 @@ namespace xenos
         return result;
     }
 }
-#else
-namespace xenos
-{
-    bool DxcAvailable() { return false; }
-    const std::string& DxcIdentity() { static const std::string empty; return empty; }
-    DxcStatistics GetDxcStatistics() { return {}; }
-    static CompiledShader CompileHlslImpl(const std::string&, const char*, const char*, ShaderBinaryFormat, bool) { return {}; }
-}
-#endif
 
 namespace xenos
 {

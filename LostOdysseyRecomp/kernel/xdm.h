@@ -64,6 +64,13 @@
 #define STATUS_INVALID_DEVICE_REQUEST 0xC0000010
 #endif
 
+#ifndef TRUE
+#define TRUE 1
+#endif
+#ifndef FALSE
+#define FALSE 0
+#endif
+
 #ifndef ERROR_SUCCESS
 #define ERROR_SUCCESS              0x0
 #endif
@@ -73,8 +80,26 @@
 #ifndef ERROR_ACCESS_DENIED
 #define ERROR_ACCESS_DENIED        0x5
 #endif
+#ifndef ERROR_INVALID_HANDLE
+#define ERROR_INVALID_HANDLE       0x6
+#endif
 #ifndef ERROR_NO_MORE_FILES
 #define ERROR_NO_MORE_FILES        0x12
+#endif
+#ifndef ERROR_WRITE_FAULT
+#define ERROR_WRITE_FAULT          0x1D
+#endif
+#ifndef ERROR_INVALID_PARAMETER
+#define ERROR_INVALID_PARAMETER    0x57
+#endif
+#ifndef ERROR_INSUFFICIENT_BUFFER
+#define ERROR_INSUFFICIENT_BUFFER  0x7A
+#endif
+#ifndef ERROR_ALREADY_EXISTS
+#define ERROR_ALREADY_EXISTS       0xB7
+#endif
+#ifndef ERROR_FUNCTION_FAILED
+#define ERROR_FUNCTION_FAILED      0x65B
 #endif
 #ifndef ERROR_NOT_SUPPORTED
 #define ERROR_NOT_SUPPORTED        0x32

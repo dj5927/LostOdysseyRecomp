@@ -25,7 +25,15 @@ Config Validate(Config value)
     if (uint32_t(value.windowMode) > 2)
         value.windowMode = WindowMode::Windowed;
     if (!gpu::backend::Known(value.graphicsBackend))
+#ifdef _WIN32
         value.graphicsBackend = GraphicsBackend::D3D12;
+#else
+        value.graphicsBackend = GraphicsBackend::Vulkan;
+#endif
+#ifndef _WIN32
+    if (value.graphicsBackend == GraphicsBackend::D3D12 || value.graphicsBackend == GraphicsBackend::D3D11)
+        value.graphicsBackend = GraphicsBackend::Vulkan;
+#endif
     if (value.width < 640 || value.width > 7680 || value.height < 480 || value.height > 4320)
     {
         value.width = 1280;

@@ -12,6 +12,11 @@ using Microsoft::WRL::ComPtr;
 #elif defined(__linux__)
 #include <unistd.h>
 #include <sys/mman.h>
+#include <strings.h>
+#define _stricmp strcasecmp
+#define _strnicmp strncasecmp
+#define _fseeki64 fseeko
+#define _ftelli64 ftello
 #endif
 
 #include <algorithm>

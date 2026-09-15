@@ -109,6 +109,56 @@ Audio configuration fetches the pinned Xenia FFmpeg source via CMake FetchConten
 
 Release builds do not require a separately installed Vulkan SDK. Windows Vulkan headers, volk and VMA come from the patched plume submodule; the GPU driver supplies `vulkan-1.dll` and its ICD. The runtime requests Vulkan 1.2, buffer-device-address, geometry shaders and Win32 WSI. Use the exact paired DXC v1.8.2407 DLLs copied by CMake and tracked in [DXC provenance](../thirdparty/dxc-licenses/PROVENANCE.json); do not substitute one DLL independently. Building the runtime also builds `LostOdysseyUpdater` in the same output directory, which the package step expects.
 
+## Building on Linux
+
+Building the native Linux ELF works on Linux distributions (such as Ubuntu or Manjaro) or under WSL2.
+
+### Linux host prerequisites
+
+- Clang / Clang++ (LLVM toolchain)
+- Ninja
+- CMake 3.28+
+- Python 3.11+ (needs standard-library `tomllib`)
+- Vulkan loader and Mesa (or another Vulkan ICD compatible with your hardware)
+- Typical C++ build development packages
+- Running `vulkaninfo` is useful for verifying your driver setup, though not strictly required by CMake
+
+SDL2 build dependencies are already vendored in the repository tree.
+
+### Linux PowerPC source generation
+
+Linux compiles generated PowerPC source code directly from `LostOdysseyRecompLib/ppc/`. The Windows prebuilt static library is not used on Linux.
+
+If `LostOdysseyRecompLib/ppc/` is empty or missing, generate the sources from the repository root:
+
+```bash
+# Build XenonRecomp generator tools if not already present
+cmake -B out/tools -S tools/XenonRecomp -G Ninja
+cmake --build out/tools
+
+# Generate PowerPC sources
+python3 -B tools/ppc_codegen.py generate
+```
+
+### Configure and build
+
+Configure and compile using the `linux-clang` preset:
+
+```bash
+cmake --preset linux-clang
+cmake --build --preset linux-clang
+```
+
+The resulting executable is written to:
+
+```bash
+out/build/linux-clang/LostOdysseyRecomp/LostOdysseyRecomp
+```
+
+### DXC shared library on Linux
+
+CMake automatically copies the Linux DXC shared library from `tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so` into the output folder next to the `LostOdysseyRecomp` ELF during build. If you need a custom DXC location, set the `LO_DXC_PATH` environment variable before running.
+
 ## Launch with a consistent working directory
 
 ```powershell
@@ -123,6 +173,10 @@ process working directory, allowing isolated regression runs. Launching without 
 first selects the executable directory, then resolves `game-path.txt` or the adjacent `game`
 folder. A fresh installation opens initial settings before guest startup. `LO_PROFILE_DIR`
 overrides the profile location. Back up saves before testing; use independent save/profile copies.
+
+When launching with `--game`, start from the ELF's directory. Explicit game candidates skip the
+executable-directory `chdir`, so the working directory controls relative saves, profiles, caches
+and logs.
 
 | Setting | Effect |
 |---|---|

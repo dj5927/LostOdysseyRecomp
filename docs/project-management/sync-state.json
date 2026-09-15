@@ -1357,12 +1357,13 @@
     "shader-log-coverage-audit": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56eho",
       "fields": {
+        "Title": "Add independent shader logs and cumulative coverage auditing",
         "Kind": "Infrastructure",
         "Area": "Shader diagnostics",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "In progress",
         "Source key": "shader-log-coverage-audit",
-        "Release": "v0.5.3",
+        "Release": "v0.5.6-hotfix1",
         "Evidence": "v0.5.3 is published Latest from 6fa9adc281c5693ac0af8a47fec815b20c29ff50; CI 34505504344, package verification and four anonymous public-asset checks passed. Compact diagnostics are included in the published client. Private archive schema-4 and Worker schema 1–4 deployment remain recorded. Publication does not establish a visual repair, player acceptance or full updater transaction."
       },
       "title": "Add independent shader logs and cumulative coverage auditing",
@@ -1676,12 +1677,13 @@
       "fields": {
         "Kind": "Feature",
         "Area": "Platforms",
-        "Status": "Todo",
-        "Delivery": "Not started",
-        "Source key": "linux-steamdeck-platform"
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Source key": "linux-steamdeck-platform",
+        "Start date": "2026-09-14"
       },
       "title": "Port and validate Linux and Steam Deck",
-      "body_sha256": "c89fa8db9e015efb4410962eebfb85c09af34cc597bb8a16c95b4fc38912b1cc"
+      "body_sha256": "7f0cb95406b652c973ea2e54dbc6f30acb3e8cadcecd3b150a285f17dfc57981"
     },
     "screen-space-gi-ssr": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56e-0",
@@ -1892,15 +1894,15 @@
     "recompiler-remaining-contracts": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56fO0",
       "fields": {
+        "Title": "Maintain PPC generated-source provenance guard and remaining contracts",
         "Kind": "Research",
         "Area": "Recompiler",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "In progress",
         "Source key": "recompiler-remaining-contracts",
         "Evidence": "Generated-source guard sub-scope: ppc_codegen generate produced 247 C++ units with 843 .u32/zero .u64 selectors and unchanged instruction-stream hashes for 246 units; seven guard fixtures and CMake/LoPpcCodegenCheck dependency checks passed. Historical 3,258/109/843-table-44,523 evidence was reused without rerun. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. Its 44,237,061-byte ZIP SHA-256 is 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218; 50 file hash/CRC/version/clean-provenance and four anonymous 200-download asset checks passed. Remaining PPC contracts, game run, Issue #14 root cause and player acceptance remain open.",
         "Start date": "2026-09-10",
-        "Release": "v0.5.4",
-        "Target date": null
+        "Release": "v0.5.6"
       },
       "title": "Maintain PPC generated-source provenance guard and remaining contracts",
       "body_sha256": "2577fdb1ded0bcf386a72617fed62f59815d21aa49fa2a5c7fa0b77c42efc522"
@@ -2154,6 +2156,7 @@
     "qol-github-binary-updater": {
       "id": "PVTI_lAHOAAsUY84Biy1azg564AU",
       "fields": {
+        "Title": "Add safe GitHub binary update checks",
         "Kind": "Feature",
         "Area": "Updates and packaging",
         "Status": "Awaiting validation",
@@ -2161,11 +2164,10 @@
         "Release": "v0.5.7",
         "Source key": "qol-github-binary-updater",
         "Target date": "2026-09-08",
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. Retained synthetic updater evidence remains separate: no real update transaction, visible prompt interaction or player acceptance is recorded.",
-        "Start date": null
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks."
       },
       "title": "Add safe GitHub binary update checks",
-      "body_sha256": "4c92979ef03b3ef059aa9d1cbe644f8f2d55a9a605e4208c2140720bd19eaa11"
+      "body_sha256": "c53485514ed0a84941edfcc8d725c9fc5665efc77e052c9886ef341f9232bbe9"
     },
     "steady-state-cpu-hotspot-profile": {
       "id": "PVTI_lAHOAAsUY84Biy1azg5_iS4",
@@ -2248,9 +2250,10 @@
     "render-output-dpi-presentation-diagnosis": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6Knuo",
       "fields": {
+        "Title": "Diagnose render output size across desktop DPI transitions",
+        "Status": "Done",
         "Kind": "Bug",
         "Area": "Desktop windowing",
-        "Status": "Awaiting validation",
         "Delivery": "Validated",
         "Evidence": "Source 0.5.6 corrected the failing legacy DPI144 fixture. Final actual D3D12 DPI144 evidence reports an SDL client of 3840x2160, raw output 2560x1440, physical output and swapchain 3840x2160 at 363.065s, and a 3840x2160 normal-ground screenshot. The intermediate 3846x2177 observation is retained as non-final. Vulkan and player acceptance remain pending; release remains pending.",
         "Source key": "render-output-dpi-presentation-diagnosis",
@@ -2274,9 +2277,10 @@
     "intermittent-fullscreen-underscan": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6Ku0U",
       "fields": {
+        "Title": "Diagnose intermittent fullscreen underscan",
         "Kind": "Bug",
         "Area": "Desktop windowing",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Validated",
         "Evidence": "Source 0.5.6 corrected native desktop-window sizing, placement, shortcut and pending-transition cases. The actual D3D12 DPI144 window path produced a 3840x2160 client and swapchain, but background execution forces Windowed mode. Actual fullscreen behavior, intentional aspect-ratio bars versus underscan, Vulkan coverage, player acceptance and release remain pending.",
         "Source key": "intermittent-fullscreen-underscan",
@@ -2332,18 +2336,19 @@
     "assembly-level-performance-analysis-tool": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6bCMw",
       "fields": {
+        "Title": "Build an assembly-level performance analysis tool",
         "Kind": "Infrastructure",
         "Area": "Performance tooling",
         "Status": "Awaiting validation",
         "Delivery": "Released",
         "Release": "v0.5.4",
         "Start date": "2026-09-10",
-        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Actual-game sampling and player acceptance remain pending.",
+        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Actual-game sampling completed on 2026-09-12: PID 41936 ran for 10.0093 seconds with 9,300 wall-clock snapshots, zero failures and 62 threads. No matching PDB was available, so game-function attribution was not attempted. Evidence: out/asm-profiler/live-20260912-pid41936/capture.json and out/live-profile-20260912-2023/report.md. Player acceptance remains pending.",
         "Source key": "assembly-level-performance-analysis-tool",
         "Target date": "2026-09-10"
       },
       "title": "Build an assembly-level performance analysis tool",
-      "body_sha256": "f1331bf308c8b20faac0f59028eb2b4baade896668af26744770c3331e826bb7"
+      "body_sha256": "c68b51d770c1e7ef605cf6cff02ef92e1363c9637e846a57e18f9bc99ce10b06"
     },
     "f1-capture-archive-timeout": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6bP_I",
@@ -2379,60 +2384,65 @@
     "issue14-cage-crash-investigation": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6qSZo",
       "fields": {
+        "Title": "Crash in Cages after Bogimoray boss and Numara soliders",
         "Kind": "Bug",
+        "Status": "Done",
         "Area": "Gameplay progression",
-        "Status": "In Progress",
         "Delivery": "In progress",
         "Start date": "2026-09-12",
+        "Source key": "issue14-cage-crash-investigation",
         "Evidence": "Investigation active. The original attached log is historical source v0.5.0 (LR 829DFDCC, CTR 829DFEF0). A second reporter log is historical source v0.4.2 (LR 823CB53C, CTR 0), with a virtual call at guest 823CB538 matching a call site discussed in docs/notes/issue12-root-cause.md, but without an object-freeing capture. Neither log establishes a current-version reproduction or a shared root cause. The current gc_render_flush.cpp repair exists at 17e3ab7. Local commit 2019cd017ab939d0b728cec340f7835c2082e615 records this task's current work and is integrated with main locally, unpushed and unreleased; no new runtime validation or reporter acceptance is recorded.",
-        "Source key": "issue14-cage-crash-investigation"
+        "Release": "v0.5.6"
       }
     },
     "issue15-save-hang-investigation": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6qSbc",
       "fields": {
+        "Title": "[Bug] Hang after saving.",
         "Kind": "Bug",
         "Area": "Save & Storage",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "Released",
-        "Release": "v0.5.6",
         "Start date": "2026-09-12",
-        "Evidence": "The StageArchive manifest repair is included in published v0.5.6 and package/public-download checks passed. Investigation remains active: the original source-v0.5.4 log retained 60 fps/audio until closure; mixed installs remain unknown because up-to-date compares only version. No helper/game rerun or player acceptance; Issue #15 hang root cause remains unknown.",
-        "Source key": "issue15-save-hang-investigation"
+        "Source key": "issue15-save-hang-investigation",
+        "Evidence": "The associated StageArchive manifest repair is included in published v0.5.6 and its package/public-download checks passed. Investigation remains active: the original source-v0.5.4 log retained 60 fps/audio until closure; same save later loaded and a second save did not hang. Other components/mixed installs remain unknown because up-to-date compares only version. No helper/game rerun or player acceptance; Issue #15 hang root cause remains unknown.",
+        "Release": "v0.5.6"
       }
     },
     "issue16-train-freeze-investigation": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6qSc8",
       "fields": {
+        "Title": "[Bug] train get frozen where king get frozen crash same is Xenia",
         "Kind": "Bug",
+        "Status": "Done",
         "Area": "Gameplay progression",
-        "Status": "Awaiting validation",
         "Delivery": "Released",
-        "Release": "v0.5.6",
         "Start date": "2026-09-12",
-        "Evidence": "The particle compatibility repair is included in published v0.5.6; CI/package/public-download evidence verifies delivery only. Historical bounded local main d50c240d target replay passed on D3D12/local Asian Disc 3 from user09 and was not repeated against the release package. Reporter/player acceptance, Vulkan, other-region and full-game coverage remain pending.",
-        "Source key": "issue16-train-freeze-investigation"
+        "Source key": "issue16-train-freeze-investigation",
+        "Evidence": "The particle compatibility repair is included in published v0.5.6; CI/package/public-download evidence verifies delivery only. Bounded local main d50c240d target replay passed on D3D12/local Asian Disc 3 from user09; it is not repeated against the release package. Reporter/player acceptance, Vulkan, other-region and full-game coverage remain pending.",
+        "Release": "v0.5.6"
       }
     },
     "release-v0-5-6": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6rqyg",
       "fields": {
+        "Title": "Publish v0.5.6 bug-fix release",
+        "Status": "Done",
         "Kind": "Release",
         "Area": "Release Engineering",
-        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.6",
         "Start date": "2026-09-12",
-        "Evidence": "Published v0.5.6 at 2026-09-13T00:05:47Z from source 7124f4b3912df715167acf01f469974045cc3e08. CI 34726533463 (workflow fe37c1a4e3be20ce6bc3e339ecadb187b80329cf) succeeded. Delivery verification passed: 44,255,182-byte ZIP SHA-256 ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9, 50 manifest files and CRC/member hashes; updater SHA-256 d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74. All four public assets passed anonymous HTTP 200, size and hash checks.",
+        "Evidence": "Published v0.5.6 at 2026-09-13T00:05:47Z: public non-prerelease latest release from source 7124f4b3912df715167acf01f469974045cc3e08; CI 34726533463 (workflow fe37c1a4e3be20ce6bc3e339ecadb187b80329cf) succeeded. Delivery verification passed: 44,255,182-byte ZIP SHA-256 ad6616480fa8905936b3b36d202deb2dad356f07670a2e0f1570984016e897d9, 50 manifest files and CRC/member hashes; updater SHA-256 d3356d3fcac410e3ee86c012dc4971ffa4ee507b76f28eebf79e2c575a7eaf74. All four public assets passed anonymous HTTP 200, size and hash checks.",
         "Source key": "release-v0-5-6"
       },
       "title": "Publish v0.5.6 bug-fix release",
-      "body_sha256": "2d7d4058207dfecdc74659948f1c6e6df446acc2c45b908a2a23e16f3181cc8e"
+      "body_sha256": "f8e84db366ac61281e88688910dfd95a86d749c3fc145968683e82f35bcada4f"
     },
     "performance-and-shader-startup": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6qLPE",
       "fields": {
-        "Evidence": "Published v0.5.9 Latest on 2026-09-13T19:50:00Z from d26ee8b021784d7232b5319d816227867f98050d. CI34778434518 succeeded, using matching PPC metadata and the existing library. ZIP44269995bytes SHA256 fd71bf65f92b242f81a350b5b6e97ea7f1991107a2c30e91ece2dd261bac0591; all50 payload hashes and all4 anonymous public asset downloads verified. Vulkan depth-clear and cache/binding optimizations shipped; prior diagnostic7.49638->43.47614FPS is bounded4K/60W evidence, not this clean release benchmark. Binding-only had no overallFPS/CPU gain. TAA unchanged fromv0.5.8; 4K60,1080p60at15W and playeracceptance remain pending. No new runtime tests.",
+        "Evidence": "Cards A-D use published v0.5.11 commit 624729cdb1263b96061b1fa14d4d1c5ba0b50239; ZIP SHA256 5de068c4e77c82feb0bbe7cfcf1dacbca3d44aa94bde064f7f59f5ad6944e132; EXE SHA256 33a460410b7f397187a12ac6984718c1716997936127f94f5dbcb2ef40315283. A: exhausted_resource_class=null. B: 1846 city frames, match 0.1535 ms/42% vertex stage; B1/B2/B3 implement=false. C: bundle 2248 ms; pipeline 21 ms/4 workers/222 recipes; lookup 0.051/0.030 ms; Parallel Prepare implement=false/no third pool. D: affinity 0x3F, 1370 city frames, over_budget 0%, fence_wait 0.0008/0.1336 ms, gpu_queue 0.8162/1.8092 ms, draw_ms 3.805/4.556/13.65 ms, zero splits; default pinning implement=false. Experiments only: no runtime/source-version/release/CPU-performance/player-acceptance change; D not Steam Deck, 15W or 1080p60@15W; target v0.5.9. Sources: cpu-card-a/b/c/d-2026-09-14.md. City-report TODO: portable safe inventory and isolated bundled test save; see bilingual roadmaps.",
         "Kind": "Feature",
         "Area": "Runtime performance",
         "Status": "In Progress",
@@ -2447,49 +2457,50 @@
     "vulkan-ps-loopend-predicate-exit": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6sV44",
       "fields": {
-        "Kind": "Bug",
-        "Area": "Vulkan shader translation",
+        "Title": "Fix Vulkan pixel-shader LoopEnd predicate exit",
         "Status": "Awaiting validation",
         "Delivery": "Validated",
+        "Kind": "Bug",
+        "Area": "Vulkan shader translation",
+        "Source key": "vulkan-ps-loopend-predicate-exit",
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks.",
         "Release": "v0.5.7",
-        "Start date": "2026-09-12",
-        "Target date": null,
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. The bounded LoopEnd fixture evidence remains retained. Complex loops, actual game GPU power/cross-scene validation and player acceptance remain pending.",
-        "Source key": "vulkan-ps-loopend-predicate-exit"
+        "Start date": "2026-09-12"
       },
       "title": "Fix Vulkan pixel-shader LoopEnd predicate exit",
-      "body_sha256": "c4d0e15372da9194507c33afcb8b8e0d6278cf7fba4ff9f5f7b086993c841f6a"
+      "body_sha256": "c763f2e745024fb2dabf134907f95ee50ad582d7ef41ade7255cca1664db65d8"
     },
     "adjacent-resolve-copy-elision": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6sbAY",
       "fields": {
-        "Kind": "Bug",
-        "Area": "Vulkan resolve copies",
+        "Title": "Eliminate redundant adjacent resolve copies",
         "Status": "Awaiting validation",
         "Delivery": "Validated",
+        "Kind": "Bug",
+        "Area": "Vulkan resolve copies",
+        "Source key": "adjacent-resolve-copy-elision",
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks.",
         "Release": "v0.5.7",
-        "Start date": "2026-09-12",
-        "Target date": null,
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. The bounded adjacent resolve-copy fixture evidence remains retained. Actual game hits, cross-scene validation and player acceptance remain pending.",
-        "Source key": "adjacent-resolve-copy-elision"
+        "Start date": "2026-09-12"
       },
       "title": "Eliminate redundant adjacent resolve copies",
-      "body_sha256": "a6742aa94b4e3e164462e842bf58407564079d23ba879a79fab96c4ba50db6f1"
+      "body_sha256": "9c90660c29c69365c1f5cf8c403ba59be56ad4c5f70b5e5017b57cfc851f61c0"
     },
     "kanto-red-eye-flicker-v056": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6sKMY",
       "fields": {
+        "Title": "Investigate Kanto armored-soldier lighting flicker",
         "Kind": "Bug",
         "Area": "TAA and graphics",
         "Status": "Done",
         "Delivery": "Implemented",
         "Start date": "2026-09-12",
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. The user-accepted fifth candidate remains limited to the reported encounter; it does not establish all-scene/full-game coverage. A recurrence reopens this item.",
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks.",
         "Source key": "kanto-red-eye-flicker-v056",
         "Release": "v0.5.7"
       },
       "title": "Investigate Kanto armored-soldier lighting flicker",
-      "body_sha256": "79f16c11432b7f27566873c1a66d1a394a4b54cb9cb5b577283fd55a522444c0"
+      "body_sha256": "0f0a939d4794c11e95bd1c0a579296cc6a14ee55675aa79824bceb1ea1ffe72f"
     },
     "issue-22-renderer-init-report": {
       "id": "PVTI_lAHOAAsUY84Biy1azg6xoME",

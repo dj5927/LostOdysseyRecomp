@@ -8,10 +8,14 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- Add the first playable Linux Vulkan-only, unbundled ELF path. The `linux-clang` CMake preset builds generated PowerPC sources directly, loads `libdxcompiler.so` through the Linux DXC path, uses SDL Vulkan presentation, and supports explicit `--game` candidates for the install root, `disc1` or `default.xex`.
+- The first playable was accepted on a local WSL2 Manjaro path using Mesa Dozen Vulkan-on-D3D12, with a watched window session and clean exit after the user closed it. This is not native-Linux-GPU, whole-game, Steam Deck, package, installer or published-release acceptance; no Linux package is published.
 - Deploy the GitHub Issue triage workflow update at `600b08e` with authorized human `@codex` comment requests, per-comment deduplication, recent human discussion and bounded first-party code retrieval. Nineteen triage/mention checks and seven retrieval checks pass; a real public `@codex` reply remains to be observed.
 
 ### 简体中文
 
+- 增加首个可玩的 Linux Vulkan-only 未打包 ELF 路径。`linux-clang` CMake preset 直接编译生成的 PowerPC 源码，通过 Linux DXC 路径加载 `libdxcompiler.so`，使用 SDL Vulkan presentation，并支持将安装根目录、`disc1` 或 `default.xex` 作为显式 `--game` 候选。
+- 首可玩路径已在本地 WSL2 Manjaro 的 Mesa Dozen Vulkan-on-D3D12 环境中由用户观看窗口并在用户关闭后正常退出。该结果不代表原生 Linux GPU、全游戏、Steam Deck、安装包、安装器或已发布版本验收；目前没有发布 Linux 包。
 - 已在 `600b08e` 部署 GitHub Issue triage workflow 更新，支持授权协作者的 `@codex` 评论请求、按评论去重、最近人类讨论和有界的 first-party 代码检索。19 项 triage/mention 检查及 7 项 retrieval 检查已通过；首次公开 `@codex` 回复仍待观察。
 
 ## v0.5.13 — 2026-09-14 / Published / 已发布

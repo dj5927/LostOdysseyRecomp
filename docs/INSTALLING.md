@@ -96,6 +96,54 @@ Development packages skip automatic update checks and preserve user data, saves,
 The historical v0.4.2 package predates this updater flow. Do not copy a development package over a
 published installation without retaining those folders.
 
+## Running on Linux (first-playable)
+
+This section describes running the native Linux unbundled executable.
+
+There are currently no prebuilt Linux GitHub Releases, installers, AppImage packages, Flatpaks, or Steam Deck packages for this drop. Build the native ELF locally following [BUILDING.md](BUILDING.md).
+
+The verified first-playable path is WSL2 Manjaro using Mesa Dozen's Vulkan-on-D3D12 layer. Native Linux NVIDIA/Mesa ICD paths have not been tested; this result does not establish general Linux GPU compatibility.
+
+### Linux requirements
+
+- The compiled `LostOdysseyRecomp` executable
+- `libdxcompiler.so` located beside the executable (copied automatically by the CMake build)
+- Extracted game disc files (Disc 1 required to boot)
+- Host Vulkan drivers and Mesa (or another compatible Vulkan ICD)
+- Static-linked SDL2 (already built into the binary)
+
+### Graphics backend
+
+Linux runs through Vulkan only. Direct3D 12 is Windows-only and is unavailable on Linux.
+
+### First-run configuration
+
+The interactive GUI folder-picker importer (`InstallGame.exe`) is Windows-only. On Linux, tell the game where your files are located using the `--game` command-line argument, or by creating a `game-path.txt` file containing the folder path right beside the executable.
+
+### Launching the game
+
+Run the executable directly from your terminal. `--game` accepts the install root (a folder containing `disc1`), `disc1` itself, or `default.xex`:
+
+```bash
+./LostOdysseyRecomp --game /path/to/game
+```
+
+Run this command with the ELF directory as the current working directory. When `--game` is
+explicit, the executable does not change to its own directory, so relative `save/`, `profile/`,
+`cache/` and `logs/` paths use the launch CWD.
+
+If you are running in WSL and accessing your existing Windows game dump:
+
+```bash
+./LostOdysseyRecomp --game /mnt/d/Mihoyo/LostOdysseyRecomp-windows-x64/game
+```
+
+You can also place a `game-path.txt` file next to the binary with your game path, or place an extracted disc folder at `game` adjacent to the executable, then launch:
+
+```bash
+./LostOdysseyRecomp
+```
+
 ## From source / CI
 
 See [BUILDING.md](https://github.com/freefrank/LostOdysseyRecomp/blob/main/docs/BUILDING.md)

@@ -44,6 +44,14 @@ static std::filesystem::path ExecutableDirectory()
     wchar_t executable[32768]{};
     if (GetModuleFileNameW(nullptr, executable, 32768))
         return std::filesystem::path(executable).parent_path();
+#elif defined(__linux__)
+    char path[4096]{};
+    const ssize_t n = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (n > 0)
+    {
+        path[n] = '\0';
+        return std::filesystem::path(path).parent_path();
+    }
 #endif
     return std::filesystem::current_path();
 }
@@ -96,7 +104,7 @@ int main(int argc, char* argv[])
         prepareShadersOnly |= strcmp(argv[i],"--prepare-shaders-only")==0;
     }
     const auto executableDirectory = ExecutableDirectory();
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__linux__)
     // Direct launches keep all portable data beside the executable. Explicit
     // --game launches retain their caller's working directory for isolated tests.
     if(!explicitGame) {

@@ -19,6 +19,8 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+Linux first-playable support is currently a source-built Vulkan ELF only; see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides. No Linux package is published.
+
 ## New in v0.5.13
 
 Published Windows x64 package: [v0.5.13](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.13). The ZIP SHA-256 is `a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd`.

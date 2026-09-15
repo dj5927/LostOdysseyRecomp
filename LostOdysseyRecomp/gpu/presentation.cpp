@@ -19,6 +19,7 @@ struct Presentation::Impl
     std::unique_ptr<RenderPipelineLayout> layout;
     std::unique_ptr<RenderShader> vs, ps;
     std::unique_ptr<RenderPipeline> pipeline;
+    std::unique_ptr<RenderPipeline> presentPipeline;
     std::unique_ptr<RenderSampler> sampler;
     struct Pass
     {
@@ -34,6 +35,10 @@ Presentation::Presentation() : impl(std::make_unique<Impl>())
 }
 Presentation::~Presentation() = default;
 bool Presentation::Init(RenderDevice *device)
+{
+    return Init(device, RenderFormat::R8G8B8A8_UNORM);
+}
+bool Presentation::Init(RenderDevice *device, RenderFormat swapchainFormat)
 {
     auto &p = *impl;
     p.initialized = false;
@@ -154,7 +159,9 @@ float4 pixel(float4 position : SV_Position) : SV_Target {
     desc.renderTargetBlend[0] = RenderBlendDesc::Copy();
     desc.cullMode = RenderCullMode::NONE;
     p.pipeline = device->createGraphicsPipeline(desc);
-    p.initialized = bool(p.pipeline) && p.smaa.Init(device, p.vs.get(), p.sampler.get(), p.vulkan);
+    desc.renderTargetFormat[0] = swapchainFormat;
+    p.presentPipeline = device->createGraphicsPipeline(desc);
+    p.initialized = bool(p.pipeline) && bool(p.presentPipeline) && p.smaa.Init(device, p.vs.get(), p.sampler.get(), p.vulkan);
     return p.initialized;
 }
 bool Presentation::ProcessSceneColor(RenderCommandList *commands, RenderTexture *source, RenderTexture *target,
@@ -167,7 +174,7 @@ bool Presentation::ProcessSceneColor(RenderCommandList *commands, RenderTexture 
         return false;
     // Reuse the tested source-size AA passes, including SMAA's padded crop.
     Draw(commands, source, target, width, height, width, height,
-         PresentationOptions{antialiasing, ScalingFilter::Bilinear});
+         PresentationOptions{antialiasing, ScalingFilter::Bilinear}, false);
     commands->barriers(RenderBarrierStage::GRAPHICS, RenderTextureBarrier(source, RenderTextureLayout::SHADER_READ));
     commands->barriers(RenderBarrierStage::GRAPHICS, RenderTextureBarrier(target, RenderTextureLayout::SHADER_READ));
     return true;
@@ -188,7 +195,7 @@ void Presentation::Draw(RenderCommandList *commands, RenderTexture *source, Rend
     Draw(commands, source, target, sw, sh, ow, oh, PresentationOptions{antialias, ScalingFilter::Bilinear});
 }
 void Presentation::Draw(RenderCommandList *commands, RenderTexture *source, RenderTexture *target, uint32_t sw,
-                        uint32_t sh, uint32_t ow, uint32_t oh, const PresentationOptions &options)
+                         uint32_t sh, uint32_t ow, uint32_t oh, const PresentationOptions &options, bool toSwapchain)
 {
     auto &p = *impl;
     if (!sw || !sh || !ow || !oh) return;
@@ -201,7 +208,8 @@ void Presentation::Draw(RenderCommandList *commands, RenderTexture *source, Rend
     const float y = scale == 1.0f ? std::floor((oh-height)*0.5f) : (oh-height)*0.5f;
     size_t passIndex=0;
     auto render=[&](RenderTexture *input,RenderTexture *output,uint32_t iw,uint32_t ih,
-                    uint32_t tw,uint32_t th,float ox,float oy,float ew,float eh,uint32_t aa,uint32_t filter) {
+                    uint32_t tw,uint32_t th,float ox,float oy,float ew,float eh,uint32_t aa,uint32_t filter,
+                    RenderPipeline *pipe) {
         if(passIndex==p.passes.size()) p.passes.emplace_back();
         auto &pass=p.passes[passIndex++];
         if(!pass.descriptors) {
@@ -228,7 +236,7 @@ void Presentation::Draw(RenderCommandList *commands, RenderTexture *source, Rend
         RenderViewport viewport(ox,oy,ew,eh);RenderRect scissor(0,0,tw,th);
         commands->setViewports(&viewport,1);commands->setScissors(&scissor,1);
         struct { float x,y,w,h,sw,sh;uint32_t aa,filter; } constants{ox,oy,ew,eh,float(iw),float(ih),aa,filter};
-        commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(p.pipeline.get());
+        commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(pipe);
         commands->setGraphicsPushConstants(0,&constants);commands->setGraphicsDescriptorSet(pass.descriptors.get(),0);
         commands->drawInstanced(3,1,0,0);
         return output;
@@ -237,7 +245,7 @@ void Presentation::Draw(RenderCommandList *commands, RenderTexture *source, Rend
     if(options.antialiasing==Antialiasing::SMAA)
         source=p.smaa.Draw(commands,source,sw,sh,p.layout.get(),p.pipeline.get());
     else if(options.antialiasing==Antialiasing::FXAA)
-        source=render(source,nullptr,sw,sh,sw,sh,0,0,float(sw),float(sh),1,0);
+        source=render(source,nullptr,sw,sh,sw,sh,0,0,float(sw),float(sh),1,0,p.pipeline.get());
     // Large reductions use full coverage at each stage. No tap count truncation,
     // and no artificial reduced input presented as a game rendering speedup.
     const uint32_t desiredW=std::max(1u,uint32_t(std::ceil(width)));
@@ -246,10 +254,11 @@ void Presentation::Draw(RenderCommandList *commands, RenderTexture *source, Rend
         uint32_t nw=std::min(sw,std::max(desiredW,(sw+3)/4));
         uint32_t nh=std::min(sh,std::max(desiredH,(sh+3)/4));
         if(nw==sw && nh==sh) break;
-        source=render(source,nullptr,sw,sh,nw,nh,0,0,float(nw),float(nh),0,0);
+        source=render(source,nullptr,sw,sh,nw,nh,0,0,float(nw),float(nh),0,0,p.pipeline.get());
         sw=nw;sh=nh;
     }
-    render(source,target,sw,sh,ow,oh,x,y,width,height,0,uint32_t(options.scalingFilter));
+    render(source,target,sw,sh,ow,oh,x,y,width,height,0,uint32_t(options.scalingFilter),
+           toSwapchain ? p.presentPipeline.get() : p.pipeline.get());
     commands->barriers(RenderBarrierStage::COPY,RenderTextureBarrier(original,RenderTextureLayout::COPY_SOURCE));
 }
 
@@ -263,6 +272,10 @@ struct Presentation::Impl
 Presentation::Presentation() = default;
 Presentation::~Presentation() = default;
 bool Presentation::Init(plume::RenderDevice *)
+{
+    return false;
+}
+bool Presentation::Init(plume::RenderDevice *, plume::RenderFormat)
 {
     return false;
 }
@@ -284,7 +297,7 @@ void Presentation::Draw(plume::RenderCommandList *, plume::RenderTexture *, plum
 {
 }
 void Presentation::Draw(plume::RenderCommandList *, plume::RenderTexture *, plume::RenderTexture *, uint32_t, uint32_t,
-                        uint32_t, uint32_t, const PresentationOptions &)
+                        uint32_t, uint32_t, const PresentationOptions &, bool)
 {
 }
 } // namespace gpu

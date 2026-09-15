@@ -12,6 +12,7 @@
 | [Issue #7：议会崩溃、原生保存／读档与日志诊断](issue7-cutscene-crash.md) |
 | [PowerPC 位宽／控制流审查与九类语义修复](recompiler-width-audit.md) |
 | [Switch 评估与 v0.5.0 PC Vulkan／DX11 交接（2026-09-07；后端规划待实施、待验收，PC Vulkan 后再对齐 Switch）](switch-vulkan-handoff.md) |
+| [Linux／Steam Deck 首可玩评估与当前状态（2026-09-13—14；WSL 首可玩已验证，原生 GPU／Steam Deck 未验证）](linux-port-evaluation-2026-09-13.md) |
 | [v0.5.0 QOL 需求与未来验收标准（仅规划，12 项待完成／待验证）](v0.5.0-qol-requirements.md) |
 | [v0.4.0 开发历史与验证边界](v0.4.0-development.md) |
 | [v0.4.0 后续实现、正式包与验收范围](handoff-v0.4.0-followup.md) |
@@ -54,6 +55,12 @@
 | [攻略路线与后台推进测试（2026-09-04）](walkthrough-testing.md) |
 | [Xenia 实机画面对照（2026-09-04）](xenia-render-comparison.md) |
 | [性能分析完整报告（2026-09-11；诊断，未改运行时）](perf-complete-analysis.md) |
+| [CPU 重编译深度诊断（2026-09-13；历史诊断，未改运行时）](cpu-recomp-deep-2026-09-13.md) |
+| [CPU 性能优化指南：3C6T 预算、可行并行与反模式（2026-09-14；指南，未实施运行时；Card A/B/C/D 已测）](cpu-performance-optimization-guide.md) |
+| [Card A city measurement（2026-09-14；published v0.5.11，无耗尽资源）](cpu-card-a-city-2026-09-14.md) |
+| [Card B city measurement（2026-09-14；published v0.5.11，B1/B2/B3 不实施）](cpu-card-b-city-2026-09-14.md) |
+| [Card C prepare gate（2026-09-14；published v0.5.11，不实施 Parallel Prepare）](cpu-card-c-prepare-gate-2026-09-14.md) |
+| [Card D 3C6T city measurement（2026-09-14；published v0.5.11，默认不钉核）](cpu-card-d-3c6t-city-2026-09-14.md) |
 | [GPU 环缓冲实测对比（2026-09-11；user01 城市，非验收）](perf-gpu-ring-compare.md) |
 | [Vulkan depth-clear performance (2026-09-13; bounded 4K comparison)](vulkan-depth-clear-performance-2026-09-13.md) |
 | [4K Vulkan shadow loop GPU 审查（2026-09-12；实施、测试与实景边界）](gpu-shadow-loop-audit-2026-09-12.md) |

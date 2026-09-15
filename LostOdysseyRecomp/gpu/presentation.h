@@ -6,6 +6,7 @@ namespace plume
 struct RenderDevice;
 struct RenderCommandList;
 struct RenderTexture;
+enum class RenderFormat;
 } // namespace plume
 namespace gpu
 {
@@ -26,6 +27,7 @@ class Presentation
     Presentation();
     ~Presentation();
     bool Init(plume::RenderDevice *device);
+    bool Init(plume::RenderDevice *device, plume::RenderFormat swapchainFormat);
     // Process an opaque, display-encoded pre-UI scene at its actual resolution.
     // Source: sampleable RGBA8 UNORM, at least width x height (top-left crop).
     // Target: distinct, caller-owned RGBA8 UNORM render target, exactly width x
@@ -47,7 +49,7 @@ class Presentation
                         plume::RenderTexture *target, uint32_t sourceWidth, uint32_t sourceHeight,
                         uint32_t outputWidth, uint32_t outputHeight, ScalingFilter scalingFilter);
     void Draw(plume::RenderCommandList *, plume::RenderTexture *, plume::RenderTexture *,
-              uint32_t, uint32_t, uint32_t, uint32_t, const PresentationOptions &);
+              uint32_t, uint32_t, uint32_t, uint32_t, const PresentationOptions &, bool toSwapchain = true);
     void Draw(plume::RenderCommandList *, plume::RenderTexture *, plume::RenderTexture *,
               uint32_t, uint32_t, uint32_t, uint32_t, Antialiasing);
     void Draw(plume::RenderCommandList *commands, plume::RenderTexture *source, plume::RenderTexture *target,

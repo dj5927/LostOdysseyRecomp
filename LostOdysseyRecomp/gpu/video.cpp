@@ -1,7 +1,7 @@
 #include <version.h>
 #include <stdafx.h>
 #include "video.h"
-#if defined(LO_GPU_PLUME) && defined(_WIN32)
+#if defined(LO_GPU_PLUME)
 #include "backend_device.h"
 #endif
 #include "renderer.h"
@@ -38,8 +38,12 @@
 namespace plume
 {
     // Defined in plume_d3d12.cpp / plume_vulkan.cpp but not exported by a header.
+#ifdef _WIN32
     std::unique_ptr<RenderInterface> CreateD3D12Interface();
     std::unique_ptr<RenderInterface> CreateVulkanInterface();
+#else
+    std::unique_ptr<RenderInterface> CreateVulkanInterface(RenderWindow sdlWindow);
+#endif
 }
 #endif
 
@@ -377,8 +381,12 @@ namespace gpu::video
             // but must never show a window or take focus from the desktop user.
             const bool background = getenv("LO_BACKGROUND") != nullptr;
             const auto config=settings::GetConfig();
+            uint32_t flags = SDL_WINDOW_RESIZABLE | (background ? SDL_WINDOW_HIDDEN : SDL_WINDOW_SHOWN);
+#ifndef _WIN32
+            flags |= SDL_WINDOW_VULKAN;
+#endif
             g_window = SDL_CreateWindow(lo_version::WindowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                config.width, config.height, SDL_WINDOW_RESIZABLE | (background ? SDL_WINDOW_HIDDEN : SDL_WINDOW_SHOWN));
+                config.width, config.height, flags);
             if (!g_window)
             {
                 LOG_WARNING("video: window creation failed: {}", SDL_GetError());
@@ -447,13 +455,17 @@ namespace gpu::video
         if (!createWindow()) { Shutdown(); g_initAttempted = true; return false; }
 #endif
 
-#if defined(LO_GPU_PLUME) && defined(_WIN32)
+#if defined(LO_GPU_PLUME)
         diagnostics::InstallPlumeLog();
         const auto selection = backend::Select(*requested, [](backend::Backend candidate) -> std::string {
             g_vulkan = candidate == backend::Backend::Vulkan;
             g_initializing = true;
             LOG_INFO("video: trying {}", backend::Name(candidate));
+#ifdef _WIN32
             g_interface = g_vulkan ? plume::CreateVulkanInterface() : plume::CreateD3D12Interface();
+#else
+            g_interface = plume::CreateVulkanInterface(g_window);
+#endif
             if (!g_interface) return "API/loader initialization failed";
             g_device = g_interface->createDevice();
             if (g_device) {
@@ -470,14 +482,18 @@ namespace gpu::video
             g_acquireSemaphore = g_device->createCommandSemaphore();
             g_releaseSemaphore = g_device->createCommandSemaphore();
             if (!g_commandList || !g_fence || !g_acquireSemaphore || !g_releaseSemaphore) return "command/synchronization initialization failed";
+#ifdef _WIN32
             g_swapChain = g_queue->createSwapChain(plume::RenderSwapChainDesc(g_nativeWindow, kSwapChainFormat, kSwapChainBuffers));
+#else
+            g_swapChain = g_queue->createSwapChain(plume::RenderSwapChainDesc(g_window, kSwapChainFormat, kSwapChainBuffers));
+#endif
             if (!g_swapChain || g_swapChain->isEmpty()) return "window surface/swapchain initialization failed";
             LogOutputPixels("created");
             g_uploadCapacity = uint64_t(kMaxWidth) * kMaxHeight * 4;
             g_uploadBuffer = g_device->createBuffer(plume::RenderBufferDesc::UploadBuffer(g_uploadCapacity));
             if (!g_uploadBuffer) return "presentation upload allocation failed";
             g_presentation = std::make_unique<Presentation>();
-            if (!g_presentation->Init(g_device.get())) return "presentation shader/pipeline initialization failed";
+            if (!g_presentation->Init(g_device.get(), g_swapChain->getFormat())) return "presentation shader/pipeline initialization failed";
             if (!getenv("LO_NO_RENDERER") && !renderer::Init()) return "renderer initialization failed";
             return {};
         }, ResetGpu);
@@ -581,11 +597,15 @@ namespace gpu::video
             return;
         if (settings::restart::Requested()) {
             renderer::WaitDebugCaptureArchive();
+#ifdef _WIN32
             if (settings::restart::LaunchWaitingChild()) {
                 os::shaderlog::CloseForExit();
                 fflush(nullptr);
                 std::_Exit(0);
             }
+#else
+            settings::restart::ReportLaunchFailure();
+#endif
         }
         auto config=settings::GetConfig();
         auto& state = g_windowDisplay;
