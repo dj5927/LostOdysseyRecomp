@@ -58,6 +58,8 @@ D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定�
 
    **Card D 3C6T 城市实验（已发布 v0.5.11）：**Hidden 1280×720 D3D12 AA3 60-cap 城市窗口使用进程亲和性 `0x3F`（3 个物理核心／6 个硬件线程），取得 1,370 个城市帧，超预算 0%，`fence_wait_ms` 均值 0.0008／最大 0.1336，GPU queue 均值 0.8162／最大 1.8092，`draw_ms` 均值 3.805／p95 4.556／最大 13.65，descriptor/upload/arena split 为零。默认钉核 `implement=false`；这只是实验，不是 Steam Deck、15 W、1080p60@15W 或玩家验收。见 [Card D 证据](notes/cpu-card-d-3c6t-city-2026-09-14.md)。
 
+   **R3 CPU 等待路径现代化检查点（未发布的 `deck` 分支）：**实现 `LostOdysseyRecomp/notified_wait.h` 条件变量谓词／截止期等待辅助；`kernel/imports.cpp` 中 Event、Semaphore、Mutant 的有限等待从 200 µs 轮询转为条件变量等待；`gpu/command_processor.{h,cpp}` 增加写指针更新与关闭通知，以 500 µs 有界等待替代原 200 次 yield 循环并保留事件泵送。直接 fixture `LoNotifiedWaitTest` 通过（预通知、提前唤醒、截止期、CP 写指针唤醒）；既有 `LoPollWaitTest` 通过无回归；Windows 完整构建、diff check 及 Linux 原生构建／codegen 通过。Radeon 8060S 原生 Vulkan 在 15 W STAPM / 25 W Fast / 20 W Slow 下创建／调整 1280×720，稳定运行 90 秒无报错；60 W 启动 shader 准备完成 28,484 条（28,482 就绪，2 确定性失败）。前期稳定窗口 58.46–58.58 FPS，后期复杂场景 37–40 FPS（**不宣称锁定 60 FPS**）。无玩家视觉验收，未提交、推送或发布。详见[指南](notes/cpu-performance-optimization-guide.md)与[状态记录](STATUS.md)。
+
 
 - [~] **v0.5.8 TAA 与 CPU 纳入：**[v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8) 已于 2026-09-13T15:11:11Z 从 6e6f11cf 公开发布；[Release CI 34764115203](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34764115203) 通过。干净 source-0.5.8 包已通过 ZIP CRC、全部 50 个 payload hash，以及四个公开资产的匿名核验（bytes、SHA、sidecar 和 API digest）。其中包含 TAA cde8b50 解决及 SIMD／LO_QUERY_TRACE presence cache 修复。TAA 原场景视觉验收和更广的性能／shader 启动调查仍待完成；历史 v0.5.6 有界城市发布证据及既有 40 W 窗口均保留其原始身份。
 
