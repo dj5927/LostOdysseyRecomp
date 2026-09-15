@@ -22,6 +22,14 @@ lo_add_header_test(LoParticleMaterialCompatTest ${CMAKE_SOURCE_DIR}/tools/tests/
 lo_add_header_test(LoRenderBatchPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/render_batch_policy_test.cpp)
 lo_add_header_test(LoTextureDescriptorCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_descriptor_cache_test.cpp)
 lo_add_header_test(LoTextureKeyTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_key_test.cpp)
+lo_add_header_test(LoImportGameTest ${CMAKE_SOURCE_DIR}/tools/tests/import_game_test.cpp)
+target_compile_definitions(LoImportGameTest PRIVATE LO_IMPORT_TESTING)
+target_sources(LoImportGameTest PRIVATE
+    ${LO_RUNTIME_ROOT}/install/import_game.cpp
+    ${LO_RUNTIME_ROOT}/install/import_image.cpp)
+if(WIN32)
+    target_link_libraries(LoImportGameTest PRIVATE bcrypt)
+endif()
 lo_add_header_test(LoCapturedShaderTest ${CMAKE_SOURCE_DIR}/tools/tests/captured_shader_test.cpp)
 lo_add_header_test(LoVertexCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/vertex_cache_test.cpp)
 lo_add_header_test(LoResolveCopyPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/resolve_copy_policy_test.cpp)
