@@ -28,6 +28,7 @@
 #include "settings/restart.h"
 #include "updater/update.h"
 #include "version.h"
+#include "install/host.h"
 
 #ifdef _WIN32
 #include <timeapi.h>
@@ -90,7 +91,7 @@ int main(int argc, char* argv[])
     argc = wideArgc;
     argv = argumentPointers.data();
 #endif
-    bool explicitGame=false, requestedSetup=false, setupOnly=false, prepareShadersOnly=false;
+    bool explicitGame=false, requestedSetup=false, setupOnly=false, prepareShadersOnly=false, requestedInstall=false;
     std::optional<std::filesystem::path> explicitGamePath;
     for(int i=1;i<argc;++i) {
         if (strcmp(argv[i], "--game") == 0)
@@ -102,6 +103,7 @@ int main(int argc, char* argv[])
         requestedSetup |= strcmp(argv[i],"--setup")==0 || strcmp(argv[i],"--setup-only")==0;
         setupOnly |= strcmp(argv[i],"--setup-only")==0;
         prepareShadersOnly |= strcmp(argv[i],"--prepare-shaders-only")==0;
+        requestedInstall |= strcmp(argv[i],"--install")==0;
     }
     const auto executableDirectory = ExecutableDirectory();
 #if defined(_WIN32) || defined(__linux__)
@@ -170,18 +172,26 @@ int main(int argc, char* argv[])
     auto gameRoot = gameResolution.root;
     if (gameResolution.configuredPathRejected)
         LOG_WARNING("game-path.txt did not identify a default.xex; retaining the configured path for installer/error handling");
-#ifdef _WIN32
-    if(!explicitGame && !std::filesystem::exists(gameRoot/"default.xex") && std::filesystem::exists("InstallGame.exe")) {
-        const auto installer=std::filesystem::absolute("InstallGame.exe").wstring();
-        SHELLEXECUTEINFOW launch{sizeof(launch)};
-        launch.fMask=SEE_MASK_NOCLOSEPROCESS; launch.lpFile=installer.c_str(); launch.nShow=SW_SHOWNORMAL;
-        launch.lpParameters=L"--return-to-game";
-        if(!ShellExecuteExW(&launch)) return 1;
-        if(launch.hProcess) { WaitForSingleObject(launch.hProcess,INFINITE); CloseHandle(launch.hProcess); }
-        gameRoot=FindGameRoot(executableDirectory, explicitGamePath).root;
-        if(!std::filesystem::exists(gameRoot/"default.xex")) return 0;
+
+    if (requestedInstall)
+    {
+        const auto result = install::RunHost(executableDirectory, &gameRoot, true);
+        return (result == install::HostResult::Installed || result == install::HostResult::AlreadyPresent) ? 0 : 1;
     }
-#endif
+
+    if (!explicitGame && !std::filesystem::exists(gameRoot / "default.xex"))
+    {
+        if (getenv("LO_HEADLESS") || getenv("LO_BACKGROUND"))
+        {
+            LOG_ERROR("missing default.xex in game root: headless or background environment prevents opening installer UI");
+            return 1;
+        }
+        const auto result = install::RunHost(executableDirectory, &gameRoot);
+        if (result != install::HostResult::Installed && result != install::HostResult::AlreadyPresent)
+            return result == install::HostResult::Cancelled ? 0 : 1;
+        if (!std::filesystem::exists(gameRoot / "default.xex"))
+            return 1;
+    }
     settings::ConfigureGameLanguages(gameRoot / "default.xex");
 #ifdef _WIN32
     // Preserve edition-aware lazy settings validation before consulting the
