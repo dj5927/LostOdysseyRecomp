@@ -14,6 +14,7 @@
 #include <os/shader_log.h>
 #include <chrono>
 #include <kernel/io/file_system.h>
+#include <notified_wait.h>
 #include <set>
 #include <mutex>
 #include <fstream>
@@ -255,8 +256,11 @@ namespace gpu
 
     void CommandProcessor::Shutdown()
     {
-        m_running = false;
-        m_writePtrIndex.notify_all();
+        {
+            std::lock_guard lock(m_writePtrMutex);
+            m_running = false;
+        }
+        m_writePtrChanged.notify_all();
         m_interruptSignal++;
         m_interruptSignal.notify_all();
         for (auto* t : { &m_worker, &m_vsync, &m_interruptThread })
@@ -290,8 +294,11 @@ namespace gpu
         static const bool traceIb = getenv("LO_TRACE_IB") != nullptr;
         if (traceIb)
             LOG_INFO("swap#{} WPTR <- {:#x} (rd {:#x})", g_swapCount.load(), dwordIndex, m_readPtrIndex);
-        m_writePtrIndex = dwordIndex;
-        m_writePtrIndex.notify_all();
+        {
+            std::lock_guard lock(m_writePtrMutex);
+            m_writePtrIndex = dwordIndex;
+        }
+        m_writePtrChanged.notify_one();
     }
 
     void CommandProcessor::WriteRegister(uint32_t index, uint32_t value)
@@ -393,7 +400,6 @@ namespace gpu
 
     void CommandProcessor::WorkerMain()
     {
-        uint32_t idle = 0;
         const bool timingEnabled = frame_timing::Enabled();
         auto idleStart = std::chrono::steady_clock::time_point{};
         bool timingIdle = false;
@@ -424,16 +430,16 @@ namespace gpu
                     idleStart = std::chrono::steady_clock::now();
                     timingIdle = true;
                 }
-                if (++idle > 200)
                 {
-                    video::PumpEvents();
-                    std::this_thread::sleep_for(std::chrono::microseconds(500));
+                    std::unique_lock lock(m_writePtrMutex);
+                    notified_wait::For(m_writePtrChanged, lock, std::chrono::microseconds(500), [&] {
+                        return !m_running || m_writePtrIndex.load() != writePtr;
+                    });
                 }
-                else
-                    std::this_thread::yield();
+                if (m_running)
+                    video::PumpEvents();
                 continue;
             }
-            idle = 0;
             if (timingIdle)
             {
                 frame_timing::CpIdle(std::chrono::duration<double, std::milli>(

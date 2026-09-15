@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -96,6 +98,8 @@ namespace gpu
         uint32_t m_readPtrIndex = 0;
         uint32_t m_readPtrWritebackPhysical = 0;
         std::atomic<uint32_t> m_writePtrIndex{ 0xBAADF00D };
+        std::mutex m_writePtrMutex;
+        std::condition_variable m_writePtrChanged;
         std::atomic<uint32_t> m_counter{ 0 };
         std::atomic<bool> m_running{ false };
 

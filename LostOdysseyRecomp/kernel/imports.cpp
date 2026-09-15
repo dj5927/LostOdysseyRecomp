@@ -7,6 +7,7 @@
 #include <cpu/ppc_context.h>
 #include <cpu/guest_thread.h>
 #include <cpu/poll_wait.h>
+#include <notified_wait.h>
 #include "function.h"
 #include "xbox.h"
 #include "heap.h"
@@ -170,61 +171,43 @@ static bool DeliverUserApcs()
 struct Event final : KernelObject, HostObject<XKEVENT>
 {
     bool manualReset;
-    std::atomic<bool> signaled;
+    bool signaled;
+    std::mutex mutex;
+    std::condition_variable changed;
 
     Event(XKEVENT* header) : manualReset(!header->Type), signaled(!!header->SignalState) {}
     Event(bool manualReset, bool initialState) : manualReset(manualReset), signaled(initialState) {}
 
     uint32_t Wait(uint32_t timeout) override
     {
-        if (timeout == 0)
-        {
-            if (manualReset)
-                return signaled ? STATUS_SUCCESS : STATUS_TIMEOUT;
-
-            bool expected = true;
-            return signaled.compare_exchange_strong(expected, false) ? STATUS_SUCCESS : STATUS_TIMEOUT;
-        }
-
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
-        while (true)
-        {
-            if (manualReset)
-            {
-                if (signaled)
-                    return STATUS_SUCCESS;
-            }
-            else
-            {
-                bool expected = true;
-                if (signaled.compare_exchange_weak(expected, false))
-                    return STATUS_SUCCESS;
-            }
-
-            if (timeout == INFINITE)
-            {
-                signaled.wait(false);
-            }
-            else
-            {
-                if (std::chrono::steady_clock::now() >= deadline)
-                    return STATUS_TIMEOUT;
-                std::this_thread::sleep_for(std::chrono::microseconds(200));
-            }
-        }
+        std::unique_lock lock(mutex);
+        if (!notified_wait::Until(changed, lock, timeout, [&] { return signaled; }))
+            return STATUS_TIMEOUT;
+        if (!manualReset) signaled = false;
+        return STATUS_SUCCESS;
     }
 
     bool Set()
     {
-        signaled = true;
-        signaled.notify_all();
+        {
+            std::lock_guard lock(mutex);
+            signaled = true;
+        }
+        changed.notify_all();
         return TRUE;
     }
 
     bool Reset()
     {
+        std::lock_guard lock(mutex);
         signaled = false;
         return TRUE;
+    }
+
+    bool IsSignaled()
+    {
+        std::lock_guard lock(mutex);
+        return signaled;
     }
 };
 
@@ -232,56 +215,42 @@ static std::atomic<uint32_t> g_keSetEventGeneration;
 
 struct Semaphore final : KernelObject, HostObject<XKSEMAPHORE>
 {
-    std::atomic<uint32_t> count;
+    uint32_t count;
     uint32_t maximumCount;
+    std::mutex mutex;
+    std::condition_variable changed;
 
     Semaphore(XKSEMAPHORE* semaphore) : count(semaphore->Header.SignalState), maximumCount(semaphore->Limit) {}
     Semaphore(uint32_t count, uint32_t maximumCount) : count(count), maximumCount(maximumCount) {}
 
     uint32_t Wait(uint32_t timeout) override
     {
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
-        while (true)
-        {
-            uint32_t current = count.load();
-            if (current != 0)
-            {
-                if (count.compare_exchange_weak(current, current - 1))
-                    return STATUS_SUCCESS;
-                continue;
-            }
-
-            if (timeout == 0)
-                return STATUS_TIMEOUT;
-
-            if (timeout == INFINITE)
-            {
-                count.wait(0);
-            }
-            else
-            {
-                if (std::chrono::steady_clock::now() >= deadline)
-                    return STATUS_TIMEOUT;
-                std::this_thread::sleep_for(std::chrono::microseconds(200));
-            }
-        }
+        std::unique_lock lock(mutex);
+        if (!notified_wait::Until(changed, lock, timeout, [&] { return count != 0; }))
+            return STATUS_TIMEOUT;
+        --count;
+        return STATUS_SUCCESS;
     }
 
     void Release(uint32_t releaseCount, uint32_t* previousCount)
     {
-        if (previousCount != nullptr)
-            *previousCount = count;
-
-        count += releaseCount;
-        count.notify_all();
+        {
+            std::lock_guard lock(mutex);
+            if (previousCount != nullptr)
+                *previousCount = count;
+            count += releaseCount;
+        }
+        changed.notify_all();
     }
 };
 
 // Mutant (NtCreateMutant): recursive, owner tracked by guest thread block.
 struct Mutant final : KernelObject, HostObject<XDISPATCHER_HEADER>
 {
-    std::atomic<uint32_t> owner{ 0 };
+    uint32_t owner = 0;
     uint32_t recursion = 0;
+    std::mutex mutex;
+    std::condition_variable changed;
 
     Mutant(XDISPATCHER_HEADER*) {}
     Mutant(bool initialOwner)
@@ -295,36 +264,29 @@ struct Mutant final : KernelObject, HostObject<XDISPATCHER_HEADER>
 
     uint32_t Wait(uint32_t timeout) override
     {
-        uint32_t self = g_ppcContext->r13.u32;
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
-        while (true)
-        {
-            uint32_t expected = 0;
-            if (owner.compare_exchange_weak(expected, self) || expected == self)
-            {
-                recursion++;
-                return STATUS_SUCCESS;
-            }
-
-            if (timeout == 0)
-                return STATUS_TIMEOUT;
-            if (timeout == INFINITE)
-                owner.wait(expected);
-            else
-            {
-                if (std::chrono::steady_clock::now() >= deadline)
-                    return STATUS_TIMEOUT;
-                std::this_thread::sleep_for(std::chrono::microseconds(200));
-            }
-        }
+        const uint32_t self = g_ppcContext->r13.u32;
+        std::unique_lock lock(mutex);
+        if (!notified_wait::Until(changed, lock, timeout, [&] { return owner == 0 || owner == self; }))
+            return STATUS_TIMEOUT;
+        owner = self;
+        ++recursion;
+        return STATUS_SUCCESS;
     }
 
     void Release()
     {
-        if (--recursion == 0)
+        bool released = false;
         {
-            owner.store(0);
-            owner.notify_all();
+            std::lock_guard lock(mutex);
+            if (--recursion == 0)
+            {
+                owner = 0;
+                released = true;
+            }
+        }
+        if (released)
+        {
+            changed.notify_all();
         }
     }
 };
@@ -392,7 +354,7 @@ static uint32_t NtSetEvent(uint32_t handle, be<uint32_t>* previousState)
         return STATUS_INVALID_HANDLE;
     auto* ev = static_cast<Event*>(GetKernelObject(handle));
     if (previousState)
-        *previousState = ev->signaled ? 1 : 0;
+        *previousState = ev->IsSignaled() ? 1 : 0;
     ev->Set();
     ++g_keSetEventGeneration;
     g_keSetEventGeneration.notify_all();
@@ -405,7 +367,7 @@ static uint32_t NtPulseEvent(uint32_t handle, be<uint32_t>* previousState)
         return STATUS_INVALID_HANDLE;
     auto* ev = static_cast<Event*>(GetKernelObject(handle));
     if (previousState)
-        *previousState = ev->signaled ? 1 : 0;
+        *previousState = ev->IsSignaled() ? 1 : 0;
     ev->Set();
     ++g_keSetEventGeneration;
     g_keSetEventGeneration.notify_all();
