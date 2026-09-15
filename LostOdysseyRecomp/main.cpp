@@ -27,6 +27,7 @@
 #include "settings/game_path.h"
 #include "settings/restart.h"
 #include "updater/update.h"
+#include "updater/apply_mode.h"
 #include "version.h"
 #include "install/host.h"
 
@@ -68,7 +69,9 @@ void InstallPhysicalWatchpoint();
 
 int main(int argc, char* argv[])
 {
+    std::filesystem::path failedUpdateOperation;
 #ifdef _WIN32
+    if (const auto applyResult = updater::TryRunApplyMode()) return *applyResult;
     // A restart child must park before touching logs, settings, profiles,
     // saves, caches, or guest state. Invalid handshake arguments fail closed.
     if (settings::restart::WaitForParentIfRestartChild() == settings::restart::ChildHandshake::Invalid)
@@ -113,6 +116,30 @@ int main(int argc, char* argv[])
         std::filesystem::current_path(executableDirectory);
     }
 #endif
+#ifdef _WIN32
+    const auto startupPreferences = updater::ReadStartupPreferences(std::filesystem::current_path() / "settings.ini");
+    updater::StartupOptions updateOptions;
+    updateOptions.currentVersion = lo_version::Source;
+    updateOptions.installRoot = executableDirectory;
+    updateOptions.executable = updater::CurrentExecutablePath();
+    updateOptions.launchArguments = updater::CurrentLaunchArguments();
+    updateOptions.automaticUpdates = startupPreferences.automaticUpdates;
+    updateOptions.uiLanguage = startupPreferences.uiLanguage;
+    const auto updateResult = updater::PrepareAtStartup(updateOptions);
+    if (updateResult.status == updater::StartupStatus::Ready && updateResult.update)
+    {
+        const auto &prepared = *updateResult.update;
+        if (settings::restart::LaunchWaitingProcess(prepared.runnerPath.wstring(),
+                                                     updater::ApplyHelperArguments(prepared.planPath)))
+            return 0;
+        fprintf(stderr, "update runner failed its restart handshake; preserving staged update at %s\n",
+                FileSystem::PathUtf8(prepared.operationRoot).c_str());
+        failedUpdateOperation = prepared.operationRoot;
+        std::ofstream diagnostic(prepared.operationRoot / "handoff-failure.txt", std::ios::trunc);
+        diagnostic << "The staged update runner did not complete the restart handshake.\n"
+                   << "Staged files were preserved for inspection.\n";
+    }
+#endif
     // Keep each run separately, including launches without a terminal. Tests
     // can select a path or disable the duplicate sink with LO_LOG_FILE=0.
     const char* logOverride = getenv("LO_LOG_FILE");
@@ -135,6 +162,9 @@ int main(int argc, char* argv[])
         else LOG_WARNING("could not open log file: {}", FileSystem::PathUtf8(logPath));
     }
     InstallCrashHandler();
+    if (!failedUpdateOperation.empty())
+        LOG_WARNING("update runner failed its restart handshake; staged update preserved at {}",
+                    FileSystem::PathUtf8(failedUpdateOperation));
 #ifdef _WIN32
     timeBeginPeriod(1);
 #endif
@@ -193,29 +223,6 @@ int main(int argc, char* argv[])
             return 1;
     }
     settings::ConfigureGameLanguages(gameRoot / "default.xex");
-#ifdef _WIN32
-    // Preserve edition-aware lazy settings validation before consulting the
-    // persisted updater opt-out. A ready helper takes over before first-run,
-    // profile, cache, or guest initialization; every other result fails open.
-    const auto startupConfig = settings::GetConfig();
-    updater::StartupOptions updateOptions;
-    updateOptions.currentVersion = lo_version::Source;
-    updateOptions.installRoot = executableDirectory;
-    updateOptions.executable = updater::CurrentExecutablePath();
-    updateOptions.launchArguments = updater::CurrentLaunchArguments();
-    updateOptions.automaticUpdates = startupConfig.automaticUpdates;
-    updateOptions.uiLanguage = startupConfig.uiLanguage;
-    const auto updateResult = updater::PrepareAtStartup(updateOptions);
-    LOG_INFO("update check: {} ({})", updater::StatusName(updateResult.status), updateResult.detail);
-    if (updateResult.status == updater::StartupStatus::Ready && updateResult.update)
-    {
-        const auto &prepared = *updateResult.update;
-        if (settings::restart::LaunchWaitingProcess(prepared.runnerPath.wstring(),
-                                                    updater::ApplyHelperArguments(prepared.planPath)))
-            return 0;
-        LOG_WARNING("update helper did not complete its readiness handshake; continuing current version");
-    }
-#endif
     gpu::taa_collection::Initialize();
     struct CollectionShutdown
     {

@@ -223,6 +223,46 @@ std::optional<Release> ParseGitHubRelease(std::string_view text, std::string &er
         }
         Release result;
         result.tag = data["tag_name"].get<std::string>();
+        const auto body = data.value("body", "");
+        const auto section = [&body](std::string_view heading) {
+            size_t start = std::string::npos;
+            for (size_t line = 0; line < body.size(); )
+            {
+                const auto end = body.find('\n', line);
+                const auto length = end == std::string::npos ? body.size() - line : end - line;
+                if (length >= heading.size() && body.compare(line, heading.size(), heading) == 0 &&
+                    (length == heading.size() || body[line + heading.size()] == '\r' || body[line + heading.size()] == ' '))
+                {
+                    start = line;
+                    break;
+                }
+                if (end == std::string::npos) break;
+                line = end + 1;
+            }
+            if (start == std::string::npos) return std::string{};
+            const auto content = start + heading.size();
+            auto end = body.size();
+            for (size_t line = body.find('\n', content); line != std::string::npos;
+                 line = body.find('\n', line + 1))
+            {
+                const auto next = line + 1;
+                if (next < body.size() && body[next] == '#')
+                {
+                    const auto marker = body.find_first_not_of('#', next);
+                    const auto level = marker - next;
+                    if (level > 0 && level <= 3 && marker != std::string::npos && body[marker] == ' ')
+                    {
+                        end = next;
+                        break;
+                    }
+                }
+            }
+            return body.substr(content, end - content);
+        };
+        result.changelogEnglish = section("### English");
+        result.changelogChinese = section("### 简体中文");
+        if (result.changelogEnglish.empty() && result.changelogChinese.empty())
+            result.changelogEnglish = body;
         if (!ParseVersion(result.tag)) { error = "GitHub release tag is not a supported version"; return std::nullopt; }
         for (const auto &asset : data["assets"])
         {
@@ -249,6 +289,33 @@ std::optional<Release> ParseGitHubRelease(std::string_view text, std::string &er
     }
 }
 
+std::string_view ReleaseChangelog(const Release &release, uint32_t uiLanguage)
+{
+    if (uiLanguage == 4 && !release.changelogChinese.empty()) return release.changelogChinese;
+    if (!release.changelogEnglish.empty()) return release.changelogEnglish;
+    return release.changelogChinese;
+}
+
+StartupPreferences ReadStartupPreferences(const std::filesystem::path &settingsPath)
+{
+    StartupPreferences result;
+    std::ifstream input(settingsPath);
+    std::string line;
+    while (std::getline(input, line))
+    {
+        const auto equal = line.find('=');
+        if (equal == std::string::npos) continue;
+        uint32_t value = 0;
+        const auto digits = line.substr(equal + 1);
+        const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), value);
+        if (parsed.ec != std::errc{} || parsed.ptr != digits.data() + digits.size()) continue;
+        const auto key = line.substr(0, equal);
+        if (key == "ui_language") result.uiLanguage = value;
+        else if (key == "automatic_updates" && value <= 1) result.automaticUpdates = value == 1;
+    }
+    return result;
+}
+
 std::optional<ReleaseAsset> SelectAsset(const Release &release, std::string_view platform,
                                         std::string_view architecture, std::string &error)
 {
@@ -271,13 +338,14 @@ std::optional<ReleaseAsset> SelectAsset(const Release &release, std::string_view
 }
 
 bool WriteApplyPlan(const StagedUpdate &update, const std::filesystem::path &executable,
-                    const std::vector<std::wstring> &launchArguments, std::string &error)
+                    const std::vector<std::wstring> &launchArguments, std::string &error,
+                    bool launchAfterApply)
 {
     try
     {
         json data{{"schema", 1}, {"version", update.version}, {"install_root", PathUtf8(update.installRoot)},
                   {"stage_root", PathUtf8(update.stageRoot)}, {"executable", PathUtf8(executable)},
-                  {"launch_arguments", json::array()}, {"files", json::object()}};
+                  {"launch_arguments", json::array()}, {"launch_after_apply", launchAfterApply}, {"files", json::object()}};
         for (const auto &argument : launchArguments)
         {
             const auto utf8 = std::filesystem::path(argument).u8string();
@@ -318,6 +386,7 @@ std::optional<ApplyPlan> ReadApplyPlan(const std::filesystem::path &path, std::s
         result.installRoot = PathFromUtf8(data["install_root"].get<std::string>());
         result.stageRoot = PathFromUtf8(data["stage_root"].get<std::string>());
         result.executable = PathFromUtf8(data["executable"].get<std::string>());
+        result.launchAfterApply = data.value("launch_after_apply", false);
         for (const auto &argument : data["launch_arguments"])
         {
             if (!argument.is_string()) { error = "apply plan argument is not a string"; return std::nullopt; }

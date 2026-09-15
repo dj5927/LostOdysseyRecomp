@@ -165,6 +165,99 @@ bool Download(std::string_view url, const std::filesystem::path &destination, ui
     if (!output || total != expectedSize) { error = "update download size mismatch"; return false; }
     return true;
 }
+
+std::wstring WideUtf8(std::string_view text)
+{
+    if (text.empty()) return {};
+    const int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), int(text.size()), nullptr, 0);
+    if (!length) return L"(release notes unavailable)";
+    std::wstring result(size_t(length), L'\0');
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), int(text.size()), result.data(), length);
+    return result;
+}
+
+struct ConsentState
+{
+    bool accepted = false;
+    bool closed = false;
+};
+
+LRESULT CALLBACK ConsentWindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    auto *state = reinterpret_cast<ConsentState *>(GetWindowLongPtrW(window, GWLP_USERDATA));
+    if (message == WM_NCCREATE)
+    {
+        state = static_cast<ConsentState *>(reinterpret_cast<CREATESTRUCTW *>(lparam)->lpCreateParams);
+        SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state));
+    }
+    if (message == WM_COMMAND && LOWORD(wparam) == IDYES)
+    {
+        state->accepted = true;
+        state->closed = true;
+        DestroyWindow(window);
+        return 0;
+    }
+    if (message == WM_COMMAND && LOWORD(wparam) == IDNO)
+    {
+        state->closed = true;
+        DestroyWindow(window);
+        return 0;
+    }
+    if (message == WM_CLOSE)
+    {
+        state->closed = true;
+        DestroyWindow(window);
+        return 0;
+    }
+    return DefWindowProcW(window, message, wparam, lparam);
+}
+
+bool ShowConsent(std::wstring_view title, std::wstring_view text)
+{
+    const auto instance = GetModuleHandleW(nullptr);
+    static const wchar_t className[] = L"LostOdysseyUpdateConsent";
+    static bool registered = false;
+    if (!registered)
+    {
+        WNDCLASSW klass{};
+        klass.hInstance = instance;
+        klass.lpfnWndProc = ConsentWindowProc;
+        klass.lpszClassName = className;
+        klass.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
+        if (!RegisterClassW(&klass) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return false;
+        registered = true;
+    }
+    ConsentState state;
+    HWND window = CreateWindowExW(WS_EX_DLGMODALFRAME, className, std::wstring(title).c_str(),
+                                  WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                                  CW_USEDEFAULT, CW_USEDEFAULT, 620, 460, nullptr, nullptr, instance, &state);
+    if (!window) return false;
+    HWND notes = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", std::wstring(text).c_str(),
+                                 WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
+                                 16, 16, 572, 340, window, nullptr, instance, nullptr);
+    CreateWindowW(L"BUTTON", L"Install", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+                  376, 378, 100, 32, window, reinterpret_cast<HMENU>(IDYES), instance, nullptr);
+    CreateWindowW(L"BUTTON", L"Later", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                  488, 378, 100, 32, window, reinterpret_cast<HMENU>(IDNO), instance, nullptr);
+    SendMessageW(notes, EM_SETSEL, 0, 0);
+    ShowWindow(window, SW_SHOW);
+    UpdateWindow(window);
+    MSG message{};
+    while (!state.closed && GetMessageW(&message, nullptr, 0, 0) > 0)
+    {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+    }
+    return state.accepted;
+}
+
+bool ConfirmUpdate(const Release &release, const StartupOptions &options)
+{
+    const auto changelog = ReleaseChangelog(release, options.uiLanguage);
+    if (options.confirmUpdate) return options.confirmUpdate(release.tag, changelog, options.uiLanguage);
+    const auto message = WideUtf8(changelog);
+    return ShowConsent(L"Lost Odyssey " + WideUtf8(release.tag) + L" update", message);
+}
 #endif
 
 } // namespace
@@ -219,6 +312,12 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
         result.detail = error;
         return result;
     }
+    if (!ConfirmUpdate(*release, options))
+    {
+        result.status = StartupStatus::Cancelled;
+        result.detail = "user declined update";
+        return result;
+    }
     const auto operationName = "operation-" + std::to_string(GetCurrentProcessId()) + "-" + std::to_string(GetTickCount64());
     const auto operationRoot = std::filesystem::absolute(options.installRoot / ".update" / operationName);
     std::error_code filesystemError;
@@ -258,18 +357,19 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
         return result;
     }
     update.installRoot = std::filesystem::absolute(options.installRoot);
-    // Keep this updater's completion policy when installing an older release package.
-    const auto stagedHelper = options.installRoot / "LostOdysseyUpdater.exe";
-    if (!std::filesystem::is_regular_file(stagedHelper) ||
-        !std::filesystem::copy_file(stagedHelper, update.runnerPath, std::filesystem::copy_options::overwrite_existing,
-                                    filesystemError))
+    // Run the update from a private copy of the main binary so the target EXE
+    // is never the image performing its own replacement.
+    const auto stagedMain = options.installRoot / "LostOdysseyRecomp.exe";
+    if (!std::filesystem::is_regular_file(stagedMain) ||
+        !std::filesystem::copy_file(stagedMain, update.runnerPath, std::filesystem::copy_options::overwrite_existing,
+                                     filesystemError))
     {
         std::filesystem::remove_all(operationRoot, filesystemError);
         result.status = StartupStatus::IntegrityFailed;
-        result.detail = "installation folder does not contain a usable updater";
+        result.detail = "installation folder does not contain the main executable";
         return result;
     }
-    if (!WriteApplyPlan(update, std::filesystem::absolute(options.executable), options.launchArguments, error))
+    if (!WriteApplyPlan(update, std::filesystem::absolute(options.executable), options.launchArguments, error, true))
     {
         std::filesystem::remove_all(operationRoot, filesystemError);
         result.status = StartupStatus::IntegrityFailed;
