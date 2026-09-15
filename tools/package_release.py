@@ -1,18 +1,15 @@
 """Build a portable Windows release using an explicit runtime payload allowlist."""
 import argparse
 import hashlib
-import importlib.metadata
 import json
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
 from build_provenance import (source_state, read_stamp, validate_formal, validate_staged_binaries,
                               normalize_release_version, valid_source_version)
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTALLER_ICON = ROOT / 'assets/lost-odyssey-recomp.ico'
 DXC_LICENSES = ROOT / 'thirdparty/dxc-licenses'
 
 
@@ -38,17 +35,6 @@ def validated_dxc_payload(runtime_directory):
     return provenance
 
 
-def pyinstaller_license_payload():
-    # Wheels put COPYING.txt in dist-info/licenses, not in the Python module.
-    distribution = importlib.metadata.distribution('pyinstaller')
-    files = {f'PyInstaller-{Path(str(file)).name}': Path(distribution.locate_file(file))
-             for file in distribution.files or ()
-             if Path(str(file)).name.lower().startswith(('copying', 'license'))}
-    if not files or any(not file.is_file() for file in files.values()):
-        raise SystemExit('Missing installed PyInstaller license files.')
-    return files
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build', type=Path, default=ROOT / 'out/build/release')
@@ -62,11 +48,8 @@ def main():
             raise SystemExit(str(error))
     build, output = args.build.resolve(), args.output.resolve()
     runtime = build / 'LostOdysseyRecomp/LostOdysseyRecomp.exe'
-    updater = build / 'LostOdysseyRecomp/LostOdysseyUpdater.exe'
     if not runtime.is_file():
         raise SystemExit('Build the Release runtime with tools/build_release.bat first.')
-    if not updater.is_file():
-        raise SystemExit('Build the LostOdysseyUpdater release helper before packaging.')
     version_stamp = runtime.parent / 'source-version.txt'
     if not version_stamp.is_file():
         raise SystemExit('Build the runtime to produce its linked source-version.txt before packaging.')
@@ -77,9 +60,7 @@ def main():
     dxc = validated_dxc_payload(runtime.parent)
     state = source_state(ROOT)
     try:
-        stamps = [read_stamp(binary, source_version) for binary in (runtime, updater)]
-        if len({stamp['source']['identity'] for stamp in stamps}) != 1:
-            raise ValueError('Runtime and updater were not built from the same captured source state.')
+        stamps = [read_stamp(runtime, source_version)]
         normalized_version = validate_formal(ROOT, args.version, source_version, state, stamps)
     except (ValueError, subprocess.CalledProcessError) as error:
         raise SystemExit(f'Release provenance check failed: {error}')
@@ -95,14 +76,8 @@ def main():
         work = Path(temporary)
         package = work / name
         package.mkdir()
-        subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile',
-                        '--windowed', '--name', 'InstallGame', '--icon', str(INSTALLER_ICON),
-                        '--add-data', str(INSTALLER_ICON) + ';.', '--distpath', str(package),
-                        '--workpath', str(work / 'freeze'), '--specpath', str(work),
-                        str(ROOT / 'tools/installer/installer.py')], cwd=ROOT, check=True)
         shutil.copy2(runtime, package / runtime.name)
-        shutil.copy2(updater, package / updater.name)
-        validate_staged_binaries([package / runtime.name, package / updater.name], stamps)
+        validate_staged_binaries([package / runtime.name], stamps)
         shutil.copy2(ROOT / 'docs/INSTALLING.md', package / 'README.md')
         licenses = package / 'licenses'
         licenses.mkdir()
@@ -110,6 +85,9 @@ def main():
         shutil.copy2(ROOT / 'thirdparty/miniz-UNLICENSE.txt', licenses / 'miniz-UNLICENSE.txt')
         shutil.copy2(ROOT / 'thirdparty/nlohmann-json-LICENSE.txt', licenses / 'nlohmann-json-LICENSE.txt')
         shutil.copy2(ROOT / 'thirdparty/lzokay/LICENSE', licenses / 'lzokay-LICENSE.txt')
+        shutil.copy2(ROOT / 'LostOdysseyRecomp/install/FONT-PROVENANCE.md', licenses / 'FONT-PROVENANCE.md')
+        shutil.copy2(ROOT / 'thirdparty/SDL/test/unifont-13.0.06-license.txt',
+                     licenses / 'Unifont-OFL-1.1.txt')
         for dll in ('dxcompiler.dll', 'dxil.dll'):
             shutil.copy2(runtime.parent / dll, package / dll)
         shutil.copytree(DXC_LICENSES, licenses / 'DXC')
@@ -127,13 +105,6 @@ def main():
                     found.append(file)
             if not found:
                 raise SystemExit(f'Missing dependency license files: {directory.name}')
-        # Python and Tk are embedded in the one-file importer.
-        for file in Path(sys.base_prefix).glob('LICENSE*'):
-            shutil.copy2(file, licenses / ('Python-' + file.name))
-        for license_name, file in pyinstaller_license_payload().items():
-            shutil.copy2(file, licenses / license_name)
-        for file in (Path(sys.base_prefix) / 'tcl').glob('*/license*'):
-            shutil.copy2(file, licenses / ('TclTk-' + file.parent.name + '-' + file.name))
         # Fail packaging if a runtime dependency would require the developer's PATH.
         import pefile
         import os
