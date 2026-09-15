@@ -2700,11 +2700,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Runtime validation",
-        "Status": "Awaiting validation",
-        "Delivery": "Awaiting validation",
+        "Status": "Done",
+        "Delivery": "Validated",
         "Release": null,
         "Start date": null,
-        "Target date": null
+        "Target date": "2026-09-15",
+        "Evidence": "Lead closed remaining original-reporter wait on 2026-09-15. Local Council/save/reload evidence and closed Issue #7 are retained. Recurrence reopens the repair item."
       },
       "source_refs": [
         "docs/notes/issue7-cutscene-crash.md",
@@ -2768,11 +2769,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "TAA",
-        "Status": "Awaiting validation",
-        "Delivery": "Awaiting validation",
+        "Status": "Done",
+        "Delivery": "Validated",
         "Release": null,
         "Start date": null,
-        "Target date": null
+        "Target date": "2026-09-15",
+        "Evidence": "Lead closed remaining player-acceptance wait on 2026-09-15. Bounded Map3/32-phase TAA terrain evidence is retained. Recurrence or a new scene report is a separate item."
       },
       "source_refs": [
         "docs/STATUS.md#open-issues",
@@ -2789,12 +2791,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "TAA",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Validated",
         "Release": null,
         "Start date": null,
-        "Target date": null,
-        "Evidence": "Accepted bounded c7 repair: candidate SHA256 1c9911a3ad6dc91acc5ac1a2cffd7503031b12a81b82b19dd526ce28345ca87a classifies four capture 2813–2815 VS paths (48 draws/frame) while retaining exact matrix, viewport and depth guards. In the same D-drive slot 02 Ghost Town — City of Ruins scene, six presented frames spanning about 11.37 seconds showed no flicker; the user accepts this scoped repair as successful. The sample is not continuous video; broader scene regression remains pending. Release evidence is unchanged."
+        "Target date": "2026-09-15",
+        "Evidence": "Accepted bounded c7 repair: candidate SHA256 1c9911a3ad6dc91acc5ac1a2cffd7503031b12a81b82b19dd526ce28345ca87a classifies four capture 2813–2815 VS paths (48 draws/frame) while retaining exact matrix, viewport and depth guards. In the same D-drive slot 02 Ghost Town — City of Ruins scene, six presented frames spanning about 11.37 seconds showed no flicker; the user accepts this scoped repair as successful. The sample is not continuous video; broader scene regression remains pending. Release evidence is unchanged. Lead closed remaining acceptance wait on 2026-09-15. Bounded c7 Ghost Town acceptance is retained. Broader scene regression remains separate."
       },
       "source_refs": [
         "docs/notes/taa-coverage-audit.md",
@@ -4585,12 +4587,12 @@
       "fields": {
         "Kind": "Feature",
         "Area": "Updates and packaging",
-        "Status": "Awaiting validation",
-        "Delivery": "Implemented",
+        "Status": "Done",
+        "Delivery": "Released",
         "Release": "v0.5.7",
         "Start date": null,
-        "Target date": "2026-09-08",
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks."
+        "Target date": "2026-09-15",
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. Lead closed remaining updater acceptance wait on 2026-09-15. Published v0.5.7 includes the GitHub binary updater with package verification, rollback and preserved user data. Real network update-transaction coverage remains a separate regression item."
       },
       "source_refs": [
         "docs/notes/v0.5.0-qol-requirements.md",
@@ -4820,12 +4822,12 @@
       "fields": {
         "Kind": "Research",
         "Area": "Runtime performance",
-        "Status": "Awaiting validation",
-        "Delivery": "Implemented",
+        "Status": "Done",
+        "Delivery": "Released",
         "Release": "v0.5.4",
         "Start date": null,
-        "Target date": null,
-        "Evidence": "Implemented: seven VS paths and the exact 99c2/67b10 PS pair for the new captures. CPU contract checks passed (500,868 retained plus 299,256 additional); they do not establish scene or player behavior. Final source-0.5.4 build exited 0: 83,400,192 B, SHA256 504f08ac86b83edf5bddc10ed66c19aa19f0e7a2d03a3f991dd1c9e4c8cc4f30, staged under out/releases/LostOdysseyRecomp-v0.5.4-taa-new-scenes-local. Local commit e2e93bc records this TAA mapping/reconstruction, fixtures, offline audit and notes. The separately named game-directory copy did not replace v0.5.3; no launch or player acceptance. FPS renderer work remains unstaged except the shared-pair line. Push, tag and release are pending; 8d977/02d8 remain unimplemented and nine-path acceptance is retained."
+        "Target date": "2026-09-15",
+        "Evidence": "Implemented: seven VS paths and the exact 99c2/67b10 PS pair for the new captures. CPU contract checks passed (500,868 retained plus 299,256 additional); they do not establish scene or player behavior. Final source-0.5.4 build exited 0: 83,400,192 B, SHA256 504f08ac86b83edf5bddc10ed66c19aa19f0e7a2d03a3f991dd1c9e4c8cc4f30, staged under out/releases/LostOdysseyRecomp-v0.5.4-taa-new-scenes-local. Local commit e2e93bc records this TAA mapping/reconstruction, fixtures, offline audit and notes. The separately named game-directory copy did not replace v0.5.3; no launch or player acceptance. FPS renderer work remains unstaged except the shared-pair line. Push, tag and release are pending; 8d977/02d8 remain unimplemented and nine-path acceptance is retained. Lead closed remaining diagnosis acceptance wait on 2026-09-15. Bounded 4K capture/timing diagnosis shipped; later 4K performance work is tracked separately. v0.5.4 published."
       },
       "source_refs": [
         "out/v0.5.0/reddit-launch/run-user-observe-01/runtime.log",
@@ -4844,12 +4846,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "TAA and shadows",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.8",
         "Start date": null,
-        "Target date": null,
-        "Evidence": "v0.5.8 was publicly published 2026-09-13T15:11:11Z from 6e6f11cf56ef69082f5be5b049e5d48d58154415; Release CI 34764115203 passed. The clean source-0.5.8 runtime SHA-256 is 89f1ec23c3d6a7c16b9f7fc8f66e38a3059cc90132cf80f071eb671322ac106d; ZIP CRC, all 50 manifest payload hashes and four anonymous public asset bytes/SHA/sidecars/API digests passed. It includes cde8b50, retaining the published three paths with the local seven-path repair. The reported scene still lacks visual/player acceptance; the F1 capture and unreviewed static candidates are not defects."
+        "Target date": "2026-09-15",
+        "Evidence": "v0.5.8 was publicly published 2026-09-13T15:11:11Z from 6e6f11cf56ef69082f5be5b049e5d48d58154415; Release CI 34764115203 passed. The clean source-0.5.8 runtime SHA-256 is 89f1ec23c3d6a7c16b9f7fc8f66e38a3059cc90132cf80f071eb671322ac106d; ZIP CRC, all 50 manifest payload hashes and four anonymous public asset bytes/SHA/sidecars/API digests passed. It includes cde8b50, retaining the published three paths with the local seven-path repair. The reported scene still lacks visual/player acceptance; the F1 capture and unreviewed static candidates are not defects. Lead closed remaining scene-acceptance wait on 2026-09-15. v0.5.8 published the included TAA path repair. Broader scene/full-game TAA coverage remains separate."
       },
       "source_refs": [
         "shader-log-coverage-audit",
@@ -4891,12 +4893,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Diagnostics",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.4",
         "Start date": "2026-09-10",
-        "Target date": null,
-        "Evidence": "The archive wait is 60000 to 180000 ms with existing cleanup and Optimal compression retained. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. No timeout recovery test, game run or player acceptance is recorded."
+        "Target date": "2026-09-15",
+        "Evidence": "The archive wait is 60000 to 180000 ms with existing cleanup and Optimal compression retained. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. No timeout recovery test, game run or player acceptance is recorded. Lead closed remaining timeout-recovery wait on 2026-09-15. Archive wait is 180s and shipped in published v0.5.4."
       },
       "source_refs": [
         "D:/Games/LostOdysseyRecomp-windows-x64-v0.5.3/logs/runtime-1789085721772554.log",
@@ -4947,12 +4949,12 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Performance tooling",
-        "Status": "Awaiting validation",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.4",
         "Start date": "2026-09-10",
-        "Target date": "2026-09-10",
-        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Actual-game sampling completed on 2026-09-12: PID 41936 ran for 10.0093 seconds with 9,300 wall-clock snapshots, zero failures and 62 threads. No matching PDB was available, so game-function attribution was not attempted. Evidence: out/asm-profiler/live-20260912-pid41936/capture.json and out/live-profile-20260912-2023/report.md. Player acceptance remains pending."
+        "Target date": "2026-09-15",
+        "Evidence": "Seven focused report cases, MSVC Release build and a synthetic 2-second collection passed; the tool is wall-clock RIP sampling, not cycles, and does not support GPU instruction profiling. v0.5.4 was publicly released 2026-09-11T01:36:30Z from 2ad94d418bb0478417ab9589109f1f685ed92eb3; CI 34550200618 passed. ZIP SHA-256 104ced8b60c16cd1b9013543a3940c9ed8d7cf904c3d05a6a8ef8d591f51d218, package provenance/50 file hash+CRC checks and four anonymous 200-download asset checks passed. Actual-game sampling completed on 2026-09-12: PID 41936 ran for 10.0093 seconds with 9,300 wall-clock snapshots, zero failures and 62 threads. No matching PDB was available, so game-function attribution was not attempted. Evidence: out/asm-profiler/live-20260912-pid41936/capture.json and out/live-profile-20260912-2023/report.md. Player acceptance remains pending. Lead closed remaining tool-acceptance wait on 2026-09-15. External Win64 sampler shipped with v0.5.4; live captures exist. GPU instruction profiling remains out of scope."
       },
       "source_refs": [
         "User requirement and implementation evidence recorded on 2026-09-10"
@@ -5141,12 +5143,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Vulkan shader translation",
-        "Status": "Awaiting validation",
-        "Delivery": "Validated",
+        "Status": "Done",
+        "Delivery": "Released",
         "Release": "v0.5.7",
         "Start date": "2026-09-12",
-        "Target date": null,
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks."
+        "Target date": "2026-09-15",
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. Lead closed remaining game-GPU acceptance wait on 2026-09-15. LoopEnd predicate-exit repair shipped in published v0.5.7. Complex-loop/cross-scene coverage remains separate."
       },
       "source_refs": [
         "out/gpu-profile-20260912/ab-01/ab-counters.json",
@@ -5163,12 +5165,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Vulkan resolve copies",
-        "Status": "Awaiting validation",
-        "Delivery": "Validated",
+        "Status": "Done",
+        "Delivery": "Released",
         "Release": "v0.5.7",
         "Start date": "2026-09-12",
-        "Target date": null,
-        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks."
+        "Target date": "2026-09-15",
+        "Evidence": "Published v0.5.7 Latest at https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.7 (2026-09-13T06:51:32Z), source/tag 954d0e17dbe63e49189873db3949ebf5df2462aa; CI 34743383193 succeeded (https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34743383193). PPC key 3260d975104d2cdf612e5858a7712a23f7264a8c4ebb857adf962b8c16c842eb reused the equivalence-reviewed v0.5.6 original library without PPC code changes; CI consumed the matching identity. Public ZIP 44262080 bytes SHA-256 618a96aef78ac79f566d78bed48159e65b6275f1d02f741ed66eeb1c2856a5a7; all 50 manifest payload hashes and ZIP, standalone updater and two sidecars passed anonymous HTTP 200 size/hash checks. Lead closed remaining in-game hit wait on 2026-09-15. Adjacent resolve-copy elision shipped in published v0.5.7. Cross-scene hit coverage remains separate."
       },
       "source_refs": [
         "out/gpu-profile-20260912/analysis-02/duplicate-resolve-implementation.md"
@@ -5253,7 +5255,7 @@
     {
       "key": "issue-27-spanish-fmv-subtitles",
       "title": "[Bug] Missing subtitles during FMVs/cutscenes in PAL Spanish version",
-      "body": "<!-- lo-project:issue-27-spanish-fmv-subtitles -->\n\nIssue #27 is OPEN. USA/Europe Spanish (GameLanguage ID 5) displayed menus and in-game dialogue but omitted FMV/cutscene subtitles.\n\n## Implementation and local acceptance\n\nSource/tag `36e574b` includes the source-0.5.12 repair: host hook `sub_82481BE8` returns original table `0x832455F0` suffixes for GameLanguage IDs 1–9 when the cutscene registry `0x8336A5F0` is queried with `r4 == 0` or the active language. The former bypass applied only to Simplified Chinese (ID 9).\n\nOn 2026-09-14, the user accepted opening-FMV/cutscene Spanish subtitles using USA/Europe Disc 1, `game_language=5`, Vulkan and 3840x2160.\n\n## Publication, limits and reporter validation\n\nGitHub Release [v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12) was published from `36e574b` at 2026-09-14T21:34:13Z. Release CI [34895591364](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34895591364) passed using the prebuilt PPC input from `LostOdysseyRecomp-build-inputs`.\n\nThe local acceptance is limited to the opening Spanish FMV/cutscene; German, French and Italian FMVs were not visually rechecked. Publication and CI prove package delivery, not reporter acceptance. Keep Issue #27 OPEN and the Project item awaiting validation until the reporter confirms the published package.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/27\n- https://github.com/freefrank/LostOdysseyRecomp/commit/36e574b\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12\n- https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34895591364\n- Local user acceptance, 2026-09-14 (opening Spanish FMV/cutscene only)\n",
+      "body": "<!-- lo-project:issue-27-spanish-fmv-subtitles -->\n\nIssue #27 is CLOSED. USA/Europe Spanish (GameLanguage ID 5) displayed menus and in-game dialogue but omitted FMV/cutscene subtitles. The v0.5.12 mapping repair is accepted.\n\n## Implementation and acceptance\n\nSource/tag `36e574b` includes the source-0.5.12 repair: host hook `sub_82481BE8` returns original table `0x832455F0` suffixes for GameLanguage IDs 1–9 when the cutscene registry `0x8336A5F0` is queried with `r4 == 0` or the active language. The former bypass applied only to Simplified Chinese (ID 9).\n\nOn 2026-09-14, the user accepted opening-FMV/cutscene Spanish subtitles using USA/Europe Disc 1, `game_language=5`, Vulkan and 3840x2160. On 2026-09-15 the original reporter confirmed v0.5.12 Spanish opening-soldier subtitles on Vulkan and Direct3D 12. Lead confirmed DE/FR/IT FMV coverage the same day. Issue #27 was closed.\n\n## Publication and remaining limits\n\nGitHub Release [v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12) was published from `36e574b` at 2026-09-14T21:34:13Z. Release CI [34895591364](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34895591364) passed using the prebuilt PPC input from `LostOdysseyRecomp-build-inputs`.\n\nComplete event coverage and whole-game validation remain unverified. Recurrence reopens this item.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/27\n- https://github.com/freefrank/LostOdysseyRecomp/commit/36e574b\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12\n- https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34895591364\n- Reporter confirmation, 2026-09-15 (Spanish opening FMV, Vulkan and D3D12)\n- Lead confirmation, 2026-09-15 (DE/FR/IT FMV coverage)\n",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/27",
       "record_type": "issue",
       "source_refs": [
@@ -5264,12 +5266,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Localization and cutscenes",
-        "Status": "Awaiting validation",
-        "Delivery": "Implemented",
+        "Status": "Done",
+        "Delivery": "Released",
         "Release": "v0.5.12",
         "Start date": "2026-09-14",
-        "Target date": null,
-        "Evidence": "Implemented in source/tag 36e574b and published as v0.5.12 at 2026-09-14T21:34:13Z. Release CI 34895591364 passed using prebuilt PPC from LostOdysseyRecomp-build-inputs. Local opening Spanish (GameLanguage ID 5) FMV/cutscene acceptance on USA/Europe Disc 1 with Vulkan 3840x2160 is retained; DE/FR/IT FMVs were not visually rechecked. Publication/CI do not establish reporter acceptance. Issue #27 remains OPEN pending reporter confirmation of the published package. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12"
+        "Target date": "2026-09-15",
+        "Evidence": "Issue #27 closed 2026-09-15. Reporter confirmed v0.5.12 Spanish opening FMV/cutscene subtitles on Vulkan and D3D12. Lead confirmed DE/FR/IT FMV coverage. Published v0.5.12 from 36e574b; Release CI 34895591364 passed. Complete event coverage and whole-game validation remain unverified. https://github.com/freefrank/LostOdysseyRecomp/issues/27"
       }
     }
   ]
