@@ -2,7 +2,7 @@
 
 ## 2026-09-14 欧美版字幕映射已包含在 v0.5.12
 
-`82481BE8` hook 的 USA/Europe FMV／事件字幕语言映射修复已包含在已发布的 [v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12)。本地 `game_language=5`、Vulkan 3840×2160 的西班牙语开场 FMV 检查已通过并获接受；这仍仅覆盖开场场景。德语、法语、意大利语 FMV 画面、完整事件覆盖、全游戏验证和报告者验收仍未核验。发布检查未重新核对 50 文件 manifest。
+`82481BE8` hook 的 USA/Europe FMV／事件字幕语言映射修复已包含在已发布的 [v0.5.12](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.12)。本地 `game_language=5`、Vulkan 3840×2160 的西班牙语开场 FMV 检查已通过并获接受。2026-09-15 原报告者确认 v0.5.12 西班牙语开场 FMV 字幕（Vulkan 与 Direct3D 12），德语、法语、意大利语 FMV 覆盖亦已确认。Issue [#27](https://github.com/freefrank/LostOdysseyRecomp/issues/27) 已关闭。完整事件覆盖和全游戏验证仍未核验。发布检查未重新核对 50 文件 manifest。
 
 2026-09-05，实现及验证记录。参考 [reblue](https://github.com/zolaware/reblue) 将新菜单接回原入口、分离设置数据与绘制的结构；没有复制 Blue Dragon 的游戏地址或菜单实现。
 
