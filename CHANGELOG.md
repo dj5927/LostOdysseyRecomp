@@ -8,11 +8,17 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- Add an unpublished installer migration checkpoint with Folder/XEX, XDVDFS ISO, GOD and STFS DLC discovery, portable hashing, edition-aware identity checks, transactional disc staging/rollback, and a self-drawn SDL2 host UI. Focused synthetic transaction/cancellation/mixed-edition/DLC checks passed; prior audited read-only scans are retained as bounded evidence, not release or cross-platform acceptance.
+- The UI still uses the disc-only `ScanSource`/`InstallDiscs` path, so automatic DLC selection is not wired into the visible flow. CJK font provenance is bundled SIL OFL Unifont 13.0.06 from SDL test assets; Chinese font support, game-style fidelity and highlight centering remain unresolved and not user-accepted.
+
 - Add the first playable Linux Vulkan-only, unbundled ELF path. The `linux-clang` CMake preset builds generated PowerPC sources directly, loads `libdxcompiler.so` through the Linux DXC path, uses SDL Vulkan presentation, and supports explicit `--game` candidates for the install root, `disc1` or `default.xex`.
 - The first playable was accepted on a local WSL2 Manjaro path using Mesa Dozen Vulkan-on-D3D12, with a watched window session and clean exit after the user closed it. This is not native-Linux-GPU, whole-game, Steam Deck, package, installer or published-release acceptance; no Linux package is published.
 - Deploy the GitHub Issue triage workflow update at `600b08e` with authorized human `@codex` comment requests, per-comment deduplication, recent human discussion and bounded first-party code retrieval. Nineteen triage/mention checks and seven retrieval checks pass; a real public `@codex` reply remains to be observed.
 
 ### 简体中文
+
+- 增加未发布的安装器迁移开发检查点：支持 Folder/XEX、XDVDFS ISO、GOD 和 STFS DLC 扫描、可移植哈希、版本对应的身份校验、事务式暂存／回滚，以及自绘 SDL2 宿主界面。定向合成事务／取消／混合版本／DLC 检查已通过；先前已审计的只读扫描作为有界证据保留，不代表发布或跨平台验收。
+- UI 仍使用仅支持光盘的 `ScanSource`／`InstallDiscs` 路径，自动 DLC 选择尚未接入。CJK 字体来源为 SDL 测试资源中的 SIL OFL Unifont 13.0.06；中文字体支持、游戏风格还原和高亮居中仍未解决，也未获用户验收。
 
 - 增加首个可玩的 Linux Vulkan-only 未打包 ELF 路径。`linux-clang` CMake preset 直接编译生成的 PowerPC 源码，通过 Linux DXC 路径加载 `libdxcompiler.so`，使用 SDL Vulkan presentation，并支持将安装根目录、`disc1` 或 `default.xex` 作为显式 `--game` 候选。
 - 首可玩路径已在本地 WSL2 Manjaro 的 Mesa Dozen Vulkan-on-D3D12 环境中由用户观看窗口并在用户关闭后正常退出。该结果不代表原生 Linux GPU、全游戏、Steam Deck、安装包、安装器或已发布版本验收；目前没有发布 Linux 包。

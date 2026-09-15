@@ -1,5 +1,15 @@
 # Project status
 
+## Installer migration checkpoint - unpublished development - 2026-09-15
+
+The source adds Folder/XEX, XDVDFS ISO, GOD and STFS DLC discovery, portable hashing, edition-aware identity checks, transactional disc staging/rollback, and an SDL2 self-drawn host installer. Focused synthetic transaction, cancellation, mixed-edition and DLC checks passed; audited read-only scans are retained as bounded evidence only. This is not a release or cross-platform/visual acceptance.
+
+The UI still uses the disc-only `ScanSource`/`InstallDiscs` path, so DLC is not wired into the visible flow. The bundled CJK font is derived from SDL's `unifont-13.0.06.hex` under SIL OFL 1.1. No secrets were found in reviewed installer source. Chinese font support, game-style fidelity and highlight centering remain unresolved and not user-accepted. Updater integration is next.
+
+Retained read-only evidence covers four USA/Europe ISOs, four Europe/Asia GOD discs plus three DLC packages, and four extracted Europe/Asia discs. The fixture's real-source branches are conditional on local paths being present; a pass elsewhere does not establish those branches ran. No application, input automation, build or repeated importer test was run for this commit-only checkpoint. The test-only hash overrides are gated by `LO_IMPORT_TESTING`, enabled only on `LoImportGameTest`.
+
+Source-review issues remain: importer locking/staging and the fixture use unguarded Win32 `HANDLE`/`GetCurrentProcessId`, blocking non-Windows compilation; the SDL worker writes screen/error state that the UI reads without synchronization; scan input is not gated while scanning and scan cancellation is not forwarded. The UI still prefers a local CJK demo directory when present and mouse clicks activate the keyboard-selected item rather than hit-testing. DLC output streams/sidecars lack complete write-error checks, display-name serialization needs proper JSON/Unicode handling, and discs are committed before the separate DLC phase, not as a single all-content transaction. These are open development findings, not covered by earlier success claims. See [font provenance](../LostOdysseyRecomp/install/FONT-PROVENANCE.md); binary font-license packaging remains unverified. No complete migration build or whole-game acceptance is claimed.
+
 ## Published v0.5.13 — Alt+Enter window/fullscreen toggle — 2026-09-14
 
 The source change adds an **Alt+Enter** presentation toggle between **Windowed** and **Borderless**. It does not select DXGI exclusive fullscreen, and `DXGI_MWA_NO_ALT_ENTER` remains set. The chord accepts SYSKEY scancode-only `RETURN`, `windowID=0`, left Alt, right Alt and AltGr (`KMOD_RALT|KMOD_CTRL` or `KMOD_MODE`). On Win32, `GetAsyncKeyState(VK_MENU)` is combined with left/right Alt handling because both Alt keys report key code 18 and right Alt may arrive as Ctrl without `KMOD_ALT`. `FitBorderless` is best-effort and cannot roll a successful toggle back to Windowed; Shift/GUI rejection, placement and debounce remain unchanged.
