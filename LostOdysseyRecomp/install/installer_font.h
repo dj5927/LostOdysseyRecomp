@@ -34,4 +34,8 @@ int MeasureTextWidth(std::string_view text, float scale = 1.0f);
 
 // Line height at given scale (base unifont glyph height is 16px)
 int TextLineHeight(float scale = 1.0f);
+
+// Truncates a UTF-8 string so that its measured width does not exceed maxWidth.
+// If truncated, appends ellipsis ("..."). Never cuts in the middle of a UTF-8 sequence.
+std::string TruncateTextWidth(std::string_view text, int maxWidth, float scale = 1.0f, std::string_view ellipsis = "...");
 }

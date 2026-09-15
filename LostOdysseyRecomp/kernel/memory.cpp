@@ -68,6 +68,11 @@ void Memory::InstallFunctionTracers()
 
 Memory::Memory()
 {
+#ifdef _WIN32
+    const std::wstring commandLine = GetCommandLineW();
+    if (commandLine.find(L"--apply-plan") != std::wstring::npos)
+        return;
+#endif
     base = GuestAddressSpace::Allocate();
     if (!base)
         return;

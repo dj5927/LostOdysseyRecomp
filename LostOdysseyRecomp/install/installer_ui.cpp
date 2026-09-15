@@ -1,4 +1,5 @@
 #include "installer_ui.h"
+#include "installer_navigation.h"
 #include "installer_font.h"
 #include "file_browser.h"
 #include "import_game.h"
@@ -12,6 +13,7 @@
 #include <sstream>
 #include <thread>
 #include <vector>
+#include <deque>
 
 #include <SDL.h>
 
@@ -19,33 +21,36 @@ namespace install
 {
 namespace
 {
-// Visual Design Palette: Lost Odyssey Game Menu Aesthetic
-// Warm slate / brushed steel panels, bevel lines, high-contrast gold/amber highlights,
-// dark active item text on metallic bright selection bar.
+// Lost Odyssey Game Menu Aesthetics:
+// Signature slate-steel brushed metal tones, warm gold titles, high-contrast bevels,
+// crisp metallic selection row with dark ink, and subtle folder icons.
 struct Color
 {
     uint8_t r, g, b, a = 255;
 };
 
-constexpr Color COLOR_STEEL{ 55, 58, 60, 255 };          // Dark steel/slate background
-constexpr Color COLOR_STEEL_PANEL{ 45, 48, 50, 255 };    // Panel interior
-constexpr Color COLOR_RAIL{ 38, 40, 42, 255 };           // Dark rail / well
-constexpr Color COLOR_BORDER_LIGHT{ 120, 124, 125, 255 };// Top/Left bevel highlight
-constexpr Color COLOR_BORDER_DARK{ 25, 26, 27, 255 };    // Bottom/Right bevel shadow
-constexpr Color COLOR_BORDER_LINE{ 70, 73, 75, 255 };    // Clean separator line
+constexpr Color COLOR_STEEL{ 50, 53, 55, 255 };          // Background dark steel slate
+constexpr Color COLOR_STEEL_PANEL{ 42, 45, 47, 255 };    // Panel interior
+constexpr Color COLOR_RAIL{ 32, 34, 36, 255 };           // Dark well / inset
+constexpr Color COLOR_BORDER_LIGHT{ 125, 128, 130, 255 };// Top/Left bevel highlight
+constexpr Color COLOR_BORDER_DARK{ 20, 21, 22, 255 };    // Bottom/Right bevel shadow
+constexpr Color COLOR_BORDER_LINE{ 65, 68, 70, 255 };    // Subtle divider line
 
 constexpr Color COLOR_ACCENT_GOLD{ 235, 205, 130, 255 }; // Lost Odyssey Title Gold
-constexpr Color COLOR_CYAN{ 110, 210, 230, 255 };        // Directory cyan
-constexpr Color COLOR_GREEN{ 140, 205, 150, 255 };       // Success / verified green
+constexpr Color COLOR_GOLD_MUTED{ 190, 168, 115, 255 };  // Muted gold subtitle
+constexpr Color COLOR_CYAN{ 120, 215, 235, 255 };        // Directory / path cyan
+constexpr Color COLOR_GREEN{ 140, 205, 150, 255 };       // Verified / success green
 constexpr Color COLOR_RED{ 225, 85, 75, 255 };           // Alert red
-constexpr Color COLOR_INK{ 245, 245, 242, 255 };         // Clean crisp white/cream text
-constexpr Color COLOR_MUTED{ 165, 170, 172, 255 };       // Subdued gray text
+constexpr Color COLOR_INK{ 245, 245, 242, 255 };         // Clean white/cream text
+constexpr Color COLOR_MUTED{ 165, 170, 172, 255 };       // Subdued secondary text
 
-// Game-style selected item bar: brushed silver/light gray surface with dark text
-constexpr Color COLOR_SEL_SURFACE{ 205, 210, 212, 255 }; // Light metallic highlight
-constexpr Color COLOR_SEL_INK{ 25, 28, 30, 255 };        // Crisp dark text on highlight
-constexpr Color COLOR_SEL_TOP{ 245, 248, 250, 255 };     // Top edge of selection bar
-constexpr Color COLOR_SEL_BOTTOM{ 135, 140, 142, 255 };  // Bottom edge of selection bar
+// Game-style selected item bar: brushed metallic highlight with crisp contrast
+constexpr Color COLOR_SEL_SURFACE{ 210, 215, 216, 255 }; // Bright brushed steel surface
+constexpr Color COLOR_SEL_INK{ 25, 28, 30, 255 };        // Dark text on bright highlight
+constexpr Color COLOR_SEL_TOP{ 250, 252, 254, 255 };     // Crisp top highlight line
+constexpr Color COLOR_SEL_BOTTOM{ 130, 135, 138, 255 };  // Shadow bottom bevel line
+constexpr Color COLOR_FOLDER_ICON{ 235, 195, 95, 255 };  // Warm amber/gold folder tab
+constexpr Color COLOR_FILE_ICON{ 140, 150, 155, 255 };   // Clean subtle file icon
 
 void SetDrawColor(SDL_Renderer* renderer, Color c)
 {
@@ -92,6 +97,29 @@ void DrawSelectionBar(SDL_Renderer* renderer, int x, int y, int w, int h)
     SDL_RenderDrawLine(renderer, x, y + h - 2, x + w - 1, y + h - 2);
 }
 
+// Draw a compact, clean graphic folder icon
+void DrawFolderIcon(SDL_Renderer* renderer, int x, int y, bool selected)
+{
+    Color bodyCol = selected ? Color{ 180, 135, 45, 255 } : COLOR_FOLDER_ICON;
+    Color darkCol = selected ? Color{ 60, 45, 15, 255 } : Color{ 40, 42, 45, 255 };
+    // Back tab
+    FillRect(renderer, x, y, 6, 3, bodyCol);
+    // Main folder body
+    FillRect(renderer, x, y + 3, 14, 10, bodyCol);
+    DrawRect(renderer, x, y + 3, 14, 10, darkCol);
+}
+
+// Draw a compact, clean graphic file icon
+void DrawFileIcon(SDL_Renderer* renderer, int x, int y, bool selected)
+{
+    Color bodyCol = selected ? Color{ 100, 105, 110, 255 } : COLOR_FILE_ICON;
+    Color lineCol = selected ? COLOR_SEL_INK : COLOR_STEEL_PANEL;
+    FillRect(renderer, x + 2, y + 1, 10, 13, bodyCol);
+    DrawRect(renderer, x + 2, y + 1, 10, 13, lineCol);
+    // Dog-ear corner fold
+    FillRect(renderer, x + 8, y + 1, 4, 4, selected ? COLOR_SEL_SURFACE : COLOR_STEEL_PANEL);
+}
+
 // Controller button prompt chip (e.g. [A], [B], [X])
 void DrawButtonPrompt(SDL_Renderer* renderer, int x, int y, std::string_view btn, std::string_view label, Color btnColor)
 {
@@ -101,6 +129,46 @@ void DrawButtonPrompt(SDL_Renderer* renderer, int x, int y, std::string_view btn
     DrawRect(renderer, x, y, btnW, btnH, COLOR_BORDER_DARK);
     ui::DrawString(renderer, x + 4, y + 2, btn, 20, 20, 20, 255, 1.0f);
     ui::DrawString(renderer, x + btnW + 6, y + 2, label, COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 1.0f);
+}
+
+SDL_Texture* CreateDpadIcon(SDL_Renderer* renderer)
+{
+    // One transparent bitmap, uploaded once and reused by both browser screens.
+    std::array<Uint32, 32 * 32> pixels{};
+    for (int y = 0; y < 32; ++y)
+    {
+        for (int x = 0; x < 32; ++x)
+        {
+            const bool vertical = x >= 11 && x <= 21;
+            const bool horizontal = y >= 11 && y <= 21;
+            if (!vertical && !horizontal) continue;
+            if ((y == 0 || y == 31) && (x == 11 || x == 21)) continue;
+            if ((x == 0 || x == 31) && (y == 11 || y == 21)) continue;
+            Uint32 color = x + y < 31 ? 0x41494AFF : 0x191F20FF;
+            const bool arrow =
+                (y >= 3 && y <= 7 && std::abs(x - 16) <= y - 3) ||
+                (y >= 25 && y <= 29 && std::abs(x - 16) <= 29 - y) ||
+                (x >= 3 && x <= 7 && std::abs(y - 16) <= x - 3) ||
+                (x >= 25 && x <= 29 && std::abs(y - 16) <= 29 - x);
+            if (arrow) color = 0xE4E9E8FF;
+            else if ((x - 16) * (x - 16) + (y - 16) * (y - 16) <= 6) color = 0x41494AFF;
+            pixels[y * 32 + x] = color;
+        }
+    }
+    auto* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STATIC, 32, 32);
+    if (texture)
+    {
+        SDL_UpdateTexture(texture, nullptr, pixels.data(), 32 * sizeof(Uint32));
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    }
+    return texture;
+}
+
+void DrawNavigationPrompt(SDL_Renderer* renderer, SDL_Texture* icon, int x, int y, std::string_view label)
+{
+    const SDL_Rect target{ x, y - 6, 32, 32 };
+    SDL_RenderCopy(renderer, icon, nullptr, &target);
+    ui::DrawString(renderer, x + 38, y + 2, label, COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 1.0f);
 }
 
 std::string FormatBytes(uint64_t bytes)
@@ -152,7 +220,7 @@ struct UIState
 
     // Scan result
     std::filesystem::path selectedSource;
-    Scan scanResult;
+    ContentScan scanResult;
     std::string scanError;
     std::atomic<bool> isScanning{ false };
     int reviewSelectedIndex = 0;
@@ -175,6 +243,17 @@ struct UIState
     std::string progressLabel;
     std::string importError;
     std::vector<int> installedDiscs;
+    InstallResult installResult;
+    struct WorkerEvent
+    {
+        enum class Type { ScanFinished, ScanFailed, ImportFinished, ImportFailed } type;
+        ContentScan scan;
+        InstallResult install;
+        std::string error;
+        bool cancelled = false;
+    };
+    std::mutex workerMutex;
+    std::deque<WorkerEvent> workerEvents;
 
     // UI flags
     bool quit = false;
@@ -238,22 +317,14 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         return result;
     }
 
+    SDL_Texture* dpadIcon = CreateDpadIcon(renderer);
     UIState state;
     state.roots = ui::GetSystemRoots();
 
     std::filesystem::path startSource = initialSource;
     if (startSource.empty() || !std::filesystem::exists(startSource))
     {
-        std::error_code ec;
-        auto cjkCandidate = std::filesystem::current_path() / "中文测试_LostOdyssey光盘";
-        if (std::filesystem::is_directory(cjkCandidate, ec))
-        {
-            startSource = cjkCandidate;
-        }
-        else
-        {
-            startSource = std::filesystem::current_path();
-        }
+        startSource = std::filesystem::current_path();
     }
     state.currentSourceBrowse = startSource;
     state.sourceItems = ui::ListDirectory(state.currentSourceBrowse);
@@ -281,21 +352,30 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
     auto startScan = [&](const std::filesystem::path& srcPath) {
         if (state.isScanning.load()) return;
         state.isScanning = true;
+        state.cancelRequested = false;
         state.selectedSource = srcPath;
         state.scanError.clear();
 
         if (workerThread.joinable()) workerThread.join();
 
         workerThread = std::thread([&state, srcPath]() {
+            UIState::WorkerEvent event;
             try
             {
-                state.scanResult = ScanSource(srcPath);
+                event.type = UIState::WorkerEvent::Type::ScanFinished;
+                event.scan = ScanContent(srcPath, [&state] { return state.cancelRequested.load(); });
+            }
+            catch (const Error& err)
+            {
+                event.type = UIState::WorkerEvent::Type::ScanFailed;
+                event.error = err.what();
             }
             catch (const std::exception& e)
             {
-                state.scanError = e.what();
+                event.type = UIState::WorkerEvent::Type::ScanFailed;
+                event.error = e.what();
             }
-            state.isScanning = false;
+            { std::lock_guard<std::mutex> lock(state.workerMutex); state.workerEvents.push_back(std::move(event)); }
         });
     };
 
@@ -310,7 +390,10 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
 
         if (workerThread.joinable()) workerThread.join();
 
-        workerThread = std::thread([&state, executableDirectory]() {
+        const ContentScan selection = state.scanResult;
+        const auto destination = state.selectedDest;
+        workerThread = std::thread([&state, executableDirectory, selection, destination]() {
+            UIState::WorkerEvent event;
             try
             {
                 auto progressCb = [&](uint64_t done, uint64_t total, std::string_view label) {
@@ -323,40 +406,89 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                     return state.cancelRequested.load();
                 };
 
-                state.installedDiscs = InstallDiscs(state.selectedSource, state.selectedDest, progressCb, cancelCb);
-
-                std::string err;
-                if (!WriteGamePath(executableDirectory, state.selectedDest, err))
-                {
-                    state.importError = "Failed to update game-path.txt: " + err;
-                    state.screen = ScreenState::Error;
-                }
+                event.install = InstallContent(selection, destination, progressCb, cancelCb);
+                if (!event.install.error.empty() || event.install.cancelled)
+                    event.type = UIState::WorkerEvent::Type::ImportFailed;
                 else
-                {
-                    state.installSuccess = true;
-                    state.screen = ScreenState::Complete;
-                }
+                    event.type = UIState::WorkerEvent::Type::ImportFinished;
             }
             catch (const Error& err)
             {
                 if (err.cancelled())
                 {
-                    state.userCancelled = true;
-                    state.screen = ScreenState::ReviewDiscs;
+                    event.cancelled = true;
+                    event.type = UIState::WorkerEvent::Type::ImportFailed;
                 }
                 else
                 {
-                    state.importError = err.what();
-                    state.screen = ScreenState::Error;
+                    event.type = UIState::WorkerEvent::Type::ImportFailed;
+                    event.error = err.what();
                 }
             }
             catch (const std::exception& ex)
             {
-                state.importError = ex.what();
-                state.screen = ScreenState::Error;
+                event.type = UIState::WorkerEvent::Type::ImportFailed;
+                event.error = ex.what();
             }
-            state.isImporting = false;
+            { std::lock_guard<std::mutex> lock(state.workerMutex); state.workerEvents.push_back(std::move(event)); }
         });
+    };
+
+    auto consumeWorkerEvents = [&]() {
+        std::deque<UIState::WorkerEvent> events;
+        { std::lock_guard<std::mutex> lock(state.workerMutex); events.swap(state.workerEvents); }
+        for (auto& event : events)
+        {
+            if (event.type == UIState::WorkerEvent::Type::ScanFinished)
+            {
+                state.scanResult = std::move(event.scan);
+                state.reviewSelectedIndex = ReviewActionStart(state.scanResult);
+                state.isScanning = false;
+            }
+            else if (event.type == UIState::WorkerEvent::Type::ScanFailed)
+            {
+                state.scanError = std::move(event.error);
+                state.isScanning = false;
+            }
+            else if (event.type == UIState::WorkerEvent::Type::ImportFinished)
+            {
+                state.isImporting = false;
+                state.installResult = std::move(event.install);
+                state.installedDiscs = state.installResult.discs;
+                bool pathSaved = true;
+                if (ShouldPersistGamePath(state.installResult))
+                {
+                    std::string pathError;
+                    if (!WriteGamePath(executableDirectory, state.selectedDest, pathError))
+                    { state.importError = "Failed to update game-path.txt: " + pathError; pathSaved = false; }
+                }
+                if (ShouldReportImportSuccess(state.installResult, pathSaved))
+                {
+                    state.installSuccess = true;
+                    state.screen = ScreenState::Complete;
+                }
+                else
+                    state.screen = ScreenState::Error;
+            }
+            else
+            {
+                state.isImporting = false;
+                state.installResult = std::move(event.install);
+                state.installedDiscs = state.installResult.discs;
+                state.importError = event.error.empty() ? state.installResult.error : event.error;
+                if (ShouldPersistGamePath(state.installResult))
+                {
+                    std::string pathError;
+                    if (!WriteGamePath(executableDirectory, state.selectedDest, pathError))
+                    {
+                        if (!state.importError.empty()) state.importError += "; ";
+                        state.importError += "Failed to update game-path.txt: " + pathError;
+                    }
+                }
+                if (event.cancelled || state.installResult.cancelled) { state.userCancelled = true; state.screen = ScreenState::ReviewDiscs; }
+                else state.screen = ScreenState::Error;
+            }
+        }
     };
 
     auto refreshSourceList = [&]() {
@@ -374,6 +506,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
     constexpr int VISIBLE_ITEMS = 14;
 
     auto handleNavUp = [&]() {
+        if (state.isScanning.load() || state.isImporting.load()) return;
         if (state.screen == ScreenState::BrowseSource)
         {
             if (state.focusOnRoots)
@@ -406,13 +539,10 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 }
             }
         }
-        else if (state.screen == ScreenState::ReviewDiscs)
-        {
-            if (state.reviewSelectedIndex > 0) state.reviewSelectedIndex--;
-        }
     };
 
     auto handleNavDown = [&]() {
+        if (state.isScanning.load() || state.isImporting.load()) return;
         if (state.screen == ScreenState::BrowseSource)
         {
             if (state.focusOnRoots)
@@ -445,14 +575,10 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 }
             }
         }
-        else if (state.screen == ScreenState::ReviewDiscs)
-        {
-            int maxIdx = static_cast<int>(state.scanResult.discs.size());
-            if (state.reviewSelectedIndex < maxIdx + 2) state.reviewSelectedIndex++;
-        }
     };
 
     auto handleNavLeft = [&]() {
+        if (state.isScanning.load() || state.isImporting.load()) return;
         if (state.screen == ScreenState::BrowseSource)
         {
             state.focusOnRoots = true;
@@ -461,9 +587,14 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         {
             state.destFocusOnRoots = true;
         }
+        else if (state.screen == ScreenState::ReviewDiscs)
+        {
+            state.reviewSelectedIndex = std::max(ReviewActionStart(state.scanResult), state.reviewSelectedIndex - 1);
+        }
     };
 
     auto handleNavRight = [&]() {
+        if (state.isScanning.load() || state.isImporting.load()) return;
         if (state.screen == ScreenState::BrowseSource)
         {
             state.focusOnRoots = false;
@@ -472,9 +603,14 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         {
             state.destFocusOnRoots = false;
         }
+        else if (state.screen == ScreenState::ReviewDiscs)
+        {
+            state.reviewSelectedIndex = std::min(ReviewActionStart(state.scanResult) + 2, state.reviewSelectedIndex + 1);
+        }
     };
 
     auto handleAction = [&]() {
+        if (state.isScanning.load() || state.isImporting.load()) return;
         if (state.screen == ScreenState::BrowseSource)
         {
             if (state.focusOnRoots)
@@ -529,16 +665,16 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         }
         else if (state.screen == ScreenState::ReviewDiscs)
         {
-            int discCount = static_cast<int>(state.scanResult.discs.size());
-            if (state.reviewSelectedIndex == discCount)
+            int actionStart = ReviewActionStart(state.scanResult);
+            if (state.reviewSelectedIndex == actionStart)
             {
                 startImport();
             }
-            else if (state.reviewSelectedIndex == discCount + 1)
+            else if (state.reviewSelectedIndex == actionStart + 1)
             {
                 state.screen = ScreenState::BrowseDest;
             }
-            else if (state.reviewSelectedIndex == discCount + 2)
+            else if (state.reviewSelectedIndex == actionStart + 2)
             {
                 state.screen = ScreenState::BrowseSource;
             }
@@ -554,11 +690,12 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
     };
 
     auto handleSelectCurrent = [&]() {
+        if (state.isScanning.load() || state.isImporting.load()) return;
         if (state.screen == ScreenState::BrowseSource)
         {
             startScan(state.currentSourceBrowse);
             state.screen = ScreenState::ReviewDiscs;
-            state.reviewSelectedIndex = static_cast<int>(state.scanResult.discs.size());
+            state.reviewSelectedIndex = ReviewActionStart(state.scanResult);
         }
         else if (state.screen == ScreenState::BrowseDest)
         {
@@ -568,6 +705,12 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
     };
 
     auto handleCancel = [&]() {
+        if (state.isScanning.load())
+        {
+            state.cancelRequested = true;
+            state.screen = ScreenState::BrowseSource;
+            return;
+        }
         if (state.screen == ScreenState::BrowseSource)
         {
             state.quit = true;
@@ -591,8 +734,10 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         }
     };
 
+    ui::StickNavigation stickNavigation;
     while (!state.quit)
     {
+        consumeWorkerEvents();
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -601,7 +746,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             case SDL_QUIT:
                 state.quit = true;
                 state.userCancelled = true;
-                if (state.isImporting.load())
+                if (state.isImporting.load() || state.isScanning.load())
                 {
                     state.cancelRequested = true;
                 }
@@ -658,6 +803,24 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 }
                 break;
 
+            case SDL_CONTROLLERDEVICEADDED:
+            {
+                const auto id = SDL_JoystickGetDeviceInstanceID(event.cdevice.which);
+                const bool opened = std::any_of(controllers.begin(), controllers.end(), [id](auto* pad) {
+                    return SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(pad)) == id;
+                });
+                if (!opened && SDL_IsGameController(event.cdevice.which))
+                    if (auto* pad = SDL_GameControllerOpen(event.cdevice.which)) controllers.push_back(pad);
+                break;
+            }
+            case SDL_CONTROLLERDEVICEREMOVED:
+                std::erase_if(controllers, [&](auto* pad) {
+                    if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(pad)) != event.cdevice.which) return false;
+                    SDL_GameControllerClose(pad);
+                    return true;
+                });
+                break;
+
             case SDL_CONTROLLERBUTTONDOWN:
                 switch (event.cbutton.button)
                 {
@@ -691,7 +854,98 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             case SDL_MOUSEBUTTONDOWN:
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
-                    handleAction();
+                    int mx = event.button.x;
+                    int my = event.button.y;
+                    int winW, winH;
+                    SDL_GetRendererOutputSize(renderer, &winW, &winH);
+                    int curBodyY = 80;
+                    int curFooterY = winH - 50;
+                    int curBodyH = curFooterY - curBodyY - 10;
+
+                    if (state.screen == ScreenState::BrowseSource || state.screen == ScreenState::BrowseDest)
+                    {
+                        bool isSource = (state.screen == ScreenState::BrowseSource);
+                        auto& items = isSource ? state.sourceItems : state.destItems;
+                        auto& selIdx = isSource ? state.sourceSelectedIndex : state.destSelectedIndex;
+                        auto& scrollOff = isSource ? state.sourceScrollOffset : state.destScrollOffset;
+                        auto& onRoots = isSource ? state.focusOnRoots : state.destFocusOnRoots;
+                        auto& rootIdx = isSource ? state.rootSelectedIndex : state.destRootSelectedIndex;
+
+                        int rootsW = 160;
+                        int rootListY = curBodyY + 44;
+                        int rootItemH = 28;
+
+                        // Click in roots panel
+                        if (mx >= 20 && mx <= 20 + rootsW && my >= rootListY)
+                        {
+                            int clickedRoot = (my - rootListY) / rootItemH;
+                            if (clickedRoot >= 0 && clickedRoot < static_cast<int>(state.roots.size()))
+                            {
+                                onRoots = true;
+                                rootIdx = clickedRoot;
+                                handleAction();
+                            }
+                        }
+                        else
+                        {
+                            // Click in main list
+                            int mainX = 20 + rootsW + 14;
+                            int mainW = winW - mainX - 20;
+                            int listY = curBodyY + 76;
+                            int rowH = 28;
+                            int maxVisible = (curBodyH - 90) / rowH;
+
+                            // Check if path bar was clicked to select folder
+                            if (mx >= mainX + 14 && mx <= mainX + mainW - 14 && my >= curBodyY + 36 && my <= curBodyY + 64)
+                            {
+                                handleSelectCurrent();
+                            }
+                            else if (mx >= mainX + 14 && mx <= mainX + mainW - 14 && my >= listY)
+                            {
+                                int clickedVisible = (my - listY) / rowH;
+                                if (clickedVisible >= 0 && clickedVisible < maxVisible)
+                                {
+                                    int clickedIndex = clickedVisible + scrollOff;
+                                    if (clickedIndex >= 0 && clickedIndex < static_cast<int>(items.size()))
+                                    {
+                                        onRoots = false;
+                                        selIdx = clickedIndex;
+                                        handleAction();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if (state.screen == ScreenState::ReviewDiscs)
+                    {
+                        int btnY = curBodyY + curBodyH - 65;
+                        int btnW = 230;
+                        int btnH = 38;
+                        int actionStart = ReviewActionStart(state.scanResult);
+
+                        if (my >= btnY && my <= btnY + btnH)
+                        {
+                            if (mx >= 40 && mx <= 40 + btnW)
+                            {
+                                state.reviewSelectedIndex = actionStart;
+                                handleAction();
+                            }
+                            else if (mx >= 40 + btnW + 20 && mx <= 40 + btnW + 20 + btnW)
+                            {
+                                state.reviewSelectedIndex = actionStart + 1;
+                                handleAction();
+                            }
+                            else if (mx >= 40 + (btnW + 20) * 2 && mx <= 40 + (btnW + 20) * 2 + btnW)
+                            {
+                                state.reviewSelectedIndex = actionStart + 2;
+                                handleAction();
+                            }
+                        }
+                    }
+                    else if (state.screen == ScreenState::Complete || state.screen == ScreenState::Error)
+                    {
+                        handleAction();
+                    }
                 }
                 break;
 
@@ -700,16 +954,42 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             }
         }
 
+        int stickX = 0;
+        int stickY = 0;
+        if ((SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) &&
+            !state.isScanning.load() && !state.isImporting.load())
+        {
+            for (auto* controller : controllers)
+            {
+                if (!SDL_GameControllerGetAttached(controller)) continue;
+                const int x = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
+                const int y = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
+                if (std::max(std::abs(x), std::abs(y)) > std::max(std::abs(stickX), std::abs(stickY)))
+                {
+                    stickX = x;
+                    stickY = y;
+                }
+            }
+        }
+        switch (stickNavigation.Update(stickX, stickY, SDL_GetTicks64()))
+        {
+        case ui::Direction::Left: handleNavLeft(); break;
+        case ui::Direction::Right: handleNavRight(); break;
+        case ui::Direction::Up: handleNavUp(); break;
+        case ui::Direction::Down: handleNavDown(); break;
+        case ui::Direction::None: break;
+        }
+
         // Render pass
         int w, h;
         SDL_GetRendererOutputSize(renderer, &w, &h);
         SetDrawColor(renderer, COLOR_STEEL);
         SDL_RenderClear(renderer);
 
-        // Header: Lost Odyssey Steel Bar
-        DrawBevelPanel(renderer, 0, 0, w, 70, COLOR_STEEL_PANEL);
-        ui::DrawString(renderer, 28, 16, "LOST ODYSSEY RECOMP", COLOR_ACCENT_GOLD.r, COLOR_ACCENT_GOLD.g, COLOR_ACCENT_GOLD.b, 255, 1.25f);
-        ui::DrawString(renderer, 28, 42, "Content Importer - Disc & Extracted Folder Setup", COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 0.9f);
+            // Header: Lost Odyssey Steel Bar
+            DrawBevelPanel(renderer, 0, 0, w, 70, COLOR_STEEL_PANEL);
+            ui::DrawString(renderer, 28, 16, "LOST ODYSSEY RECOMP", COLOR_ACCENT_GOLD.r, COLOR_ACCENT_GOLD.g, COLOR_ACCENT_GOLD.b, 255, 1.25f);
+            ui::DrawString(renderer, 28, 42, "Content Importer - Disc & Extracted Folder Setup", COLOR_GOLD_MUTED.r, COLOR_GOLD_MUTED.g, COLOR_GOLD_MUTED.b, 255, 0.9f);
 
         // Footer / Controller Prompts Bar
         int footerY = h - 50;
@@ -727,7 +1007,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             chipX += 150;
             DrawButtonPrompt(renderer, chipX, chipY, "B", "Cancel", COLOR_RED);
             chipX += 110;
-            DrawButtonPrompt(renderer, chipX, chipY, "PAD", "Navigate", COLOR_MUTED);
+            DrawNavigationPrompt(renderer, dpadIcon, chipX, chipY, "Navigate");
         }
         else if (state.screen == ScreenState::ReviewDiscs)
         {
@@ -735,7 +1015,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             chipX += 160;
             DrawButtonPrompt(renderer, chipX, chipY, "B", "Back to Browser", COLOR_RED);
             chipX += 160;
-            DrawButtonPrompt(renderer, chipX, chipY, "PAD", "Choose Option", COLOR_MUTED);
+            DrawNavigationPrompt(renderer, dpadIcon, chipX, chipY, "Choose Option");
         }
         else if (state.screen == ScreenState::Importing)
         {
@@ -796,50 +1076,63 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             std::string headerTitle = isSource ? "SOURCE SELECTION (Extracted Folder / Discs)" : "DESTINATION DIRECTORY SELECTION";
             ui::DrawString(renderer, mainX + 16, bodyY + 14, headerTitle, COLOR_CYAN.r, COLOR_CYAN.g, COLOR_CYAN.b, 255, 0.95f);
 
-            // Path bar well
-            std::u8string u8p = currentPath.u8string();
-            std::string pathStr(reinterpret_cast<const char*>(u8p.data()), u8p.size());
-            FillRect(renderer, mainX + 14, bodyY + 36, mainW - 28, 28, COLOR_RAIL);
-            DrawRect(renderer, mainX + 14, bodyY + 36, mainW - 28, 28, COLOR_BORDER_LINE);
+                // Path bar well
+                std::u8string u8p = currentPath.u8string();
+                std::string pathStr(reinterpret_cast<const char*>(u8p.data()), u8p.size());
+                FillRect(renderer, mainX + 14, bodyY + 36, mainW - 28, 28, COLOR_RAIL);
+                DrawRect(renderer, mainX + 14, bodyY + 36, mainW - 28, 28, COLOR_BORDER_LINE);
 
-            // Truncate path cleanly if needed
-            int availPathW = mainW - 44;
-            std::string displayPath = pathStr;
-            if (ui::MeasureTextWidth(displayPath, 0.95f) > availPathW)
-            {
-                displayPath = EllipsizePath(pathStr, 65);
-            }
-            ui::DrawString(renderer, mainX + 22, bodyY + 42, displayPath, COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 0.95f);
+                // Truncate path cleanly if needed using precise UTF-8 glyph measurement
+                int availPathW = mainW - 48;
+                std::string displayPath = ui::TruncateTextWidth(pathStr, availPathW, 0.95f, "...");
+                ui::DrawString(renderer, mainX + 22, bodyY + 42, displayPath, COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 0.95f);
 
-            // Item list
-            int listY = bodyY + 76;
-            int rowH = 28;
-            int maxVisible = (bodyH - 90) / rowH;
+                // Item list
+                int listY = bodyY + 76;
+                int rowH = 28;
+                int maxVisible = (bodyH - 90) / rowH;
 
-            for (int i = 0; i < maxVisible && (i + scrollOff) < static_cast<int>(items.size()); ++i)
-            {
-                int itemIdx = i + scrollOff;
-                const auto& item = items[itemIdx];
-                int itemY = listY + i * rowH;
-
-                bool isSelected = (!onRoots && itemIdx == selIdx);
-                int textY = itemY + (rowH - 2 - 16) / 2;
-
-                if (isSelected)
+                for (int i = 0; i < maxVisible && (i + scrollOff) < static_cast<int>(items.size()); ++i)
                 {
-                    DrawSelectionBar(renderer, mainX + 14, itemY, mainW - 28, rowH - 2);
+                    int itemIdx = i + scrollOff;
+                    const auto& item = items[itemIdx];
+                    int itemY = listY + i * rowH;
 
-                    std::string icon = item.isDirectory ? "[DIR]  " : "[FILE] ";
-                    std::string fullText = icon + item.name;
-                    ui::DrawString(renderer, mainX + 24, textY, fullText, COLOR_SEL_INK.r, COLOR_SEL_INK.g, COLOR_SEL_INK.b, 255, 1.0f);
+                    bool isSelected = (!onRoots && itemIdx == selIdx);
+                    int textY = itemY + (rowH - 2 - 16) / 2;
+
+                    // Available width for item text (leaving margin for icon and scroll space)
+                    int availItemW = mainW - 75;
+                    std::string displayName = ui::TruncateTextWidth(item.name, availItemW, 1.0f, "...");
+
+                    if (isSelected)
+                    {
+                        DrawSelectionBar(renderer, mainX + 14, itemY, mainW - 28, rowH - 2);
+
+                        if (item.isDirectory)
+                        {
+                            DrawFolderIcon(renderer, mainX + 24, textY + 1, true);
+                        }
+                        else
+                        {
+                            DrawFileIcon(renderer, mainX + 24, textY + 1, true);
+                        }
+                        ui::DrawString(renderer, mainX + 46, textY, displayName, COLOR_SEL_INK.r, COLOR_SEL_INK.g, COLOR_SEL_INK.b, 255, 1.0f);
+                    }
+                    else
+                    {
+                        if (item.isDirectory)
+                        {
+                            DrawFolderIcon(renderer, mainX + 24, textY + 1, false);
+                            ui::DrawString(renderer, mainX + 46, textY, displayName, COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 1.0f);
+                        }
+                        else
+                        {
+                            DrawFileIcon(renderer, mainX + 24, textY + 1, false);
+                            ui::DrawString(renderer, mainX + 46, textY, displayName, COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 1.0f);
+                        }
+                    }
                 }
-                else
-                {
-                    std::string icon = item.isDirectory ? "[DIR]  " : "[FILE] ";
-                    Color textCol = item.isDirectory ? COLOR_CYAN : COLOR_MUTED;
-                    ui::DrawString(renderer, mainX + 24, textY, icon + item.name, textCol.r, textCol.g, textCol.b, 255, 1.0f);
-                }
-            }
 
             if (items.empty())
             {
@@ -854,10 +1147,12 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
 
             ui::DrawString(renderer, 40, bodyY + 20, "SCANNED GAME DISCS REVIEW", COLOR_ACCENT_GOLD.r, COLOR_ACCENT_GOLD.g, COLOR_ACCENT_GOLD.b, 255, 1.25f);
 
-            std::string sourceInfo = "Source: " + state.selectedSource.string();
+            const auto sourceUtf8 = state.selectedSource.u8string();
+            std::string sourceInfo = ui::TruncateTextWidth("Source: " + std::string(sourceUtf8.begin(), sourceUtf8.end()), cardW - 40, 0.95f);
             ui::DrawString(renderer, 40, bodyY + 54, sourceInfo, COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 0.95f);
 
-            std::string destInfo = "Destination: " + state.selectedDest.string();
+            const auto destUtf8 = state.selectedDest.u8string();
+            std::string destInfo = ui::TruncateTextWidth("Destination: " + std::string(destUtf8.begin(), destUtf8.end()), cardW - 40, 0.95f);
             ui::DrawString(renderer, 40, bodyY + 76, destInfo, COLOR_CYAN.r, COLOR_CYAN.g, COLOR_CYAN.b, 255, 0.95f);
 
             if (state.isScanning.load())
@@ -896,7 +1191,17 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                     rowY += 28;
                 }
 
-                if (state.scanResult.discs.empty())
+                for (const auto& package : state.scanResult.packages)
+                {
+                    ui::DrawString(renderer, 50, rowY, "DLC", COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 1.0f);
+                    ui::DrawString(renderer, 220, rowY, ui::TruncateTextWidth(package.displayName, 168, 1.0f), COLOR_CYAN.r, COLOR_CYAN.g, COLOR_CYAN.b, 255, 1.0f);
+                    ui::DrawString(renderer, 400, rowY, std::to_string(package.files), COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 1.0f);
+                    ui::DrawString(renderer, 500, rowY, FormatBytes(package.bytes), COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 1.0f);
+                    ui::DrawString(renderer, 650, rowY, "Ready", COLOR_GREEN.r, COLOR_GREEN.g, COLOR_GREEN.b, 255, 1.0f);
+                    rowY += 28;
+                }
+
+                if (state.scanResult.discs.empty() && state.scanResult.packages.empty())
                 {
                     ui::DrawString(renderer, 50, rowY, "No valid Lost Odyssey discs or XEX files found in this folder.", COLOR_RED.r, COLOR_RED.g, COLOR_RED.b, 255, 1.0f);
                     ui::DrawString(renderer, 50, rowY + 22, "Make sure the folder contains disc1..disc4 or default.xex.", COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 1.0f);
@@ -906,10 +1211,10 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 int btnY = bodyY + bodyH - 65;
                 int btnW = 230;
                 int btnH = 38;
-                int discCount = static_cast<int>(state.scanResult.discs.size());
+                int actionStart = ReviewActionStart(state.scanResult);
 
                 // Button 1: Start Import
-                bool b1Sel = (state.reviewSelectedIndex == discCount);
+                bool b1Sel = (state.reviewSelectedIndex == actionStart);
                 if (b1Sel)
                 {
                     DrawSelectionBar(renderer, 40, btnY, btnW, btnH);
@@ -922,7 +1227,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 }
 
                 // Button 2: Change Destination
-                bool b2Sel = (state.reviewSelectedIndex == discCount + 1);
+                bool b2Sel = (state.reviewSelectedIndex == actionStart + 1);
                 if (b2Sel)
                 {
                     DrawSelectionBar(renderer, 40 + btnW + 20, btnY, btnW, btnH);
@@ -935,7 +1240,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 }
 
                 // Button 3: Rescan / Change Source
-                bool b3Sel = (state.reviewSelectedIndex == discCount + 2);
+                bool b3Sel = (state.reviewSelectedIndex == actionStart + 2);
                 if (b3Sel)
                 {
                     DrawSelectionBar(renderer, 40 + (btnW + 20) * 2, btnY, btnW, btnH);
@@ -1033,6 +1338,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         SDL_GameControllerClose(pad);
     }
 
+    SDL_DestroyTexture(dpadIcon);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

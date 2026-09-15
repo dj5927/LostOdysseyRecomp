@@ -50,7 +50,7 @@ inline std::vector<DirectoryItem> ListDirectory(const std::filesystem::path& dir
 
     if (!dir.empty() && dir != dir.root_path())
     {
-        items.push_back({ "..", dir.parent_path(), true, false });
+        items.push_back({ ".. (Parent Directory)", dir.parent_path(), true, false });
     }
 
     if (!std::filesystem::exists(dir, ec) || !std::filesystem::is_directory(dir, ec))

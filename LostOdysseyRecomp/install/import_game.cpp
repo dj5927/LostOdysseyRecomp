@@ -11,11 +11,13 @@
 #include <array>
 #include <cctype>
 #include <charconv>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <map>
+#include "../../tools/XenonRecomp/thirdparty/tomlplusplus/vendor/json.hpp"
 #include <memory>
 #include <optional>
 #include <set>
@@ -27,6 +29,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/file.h>
+#include <unistd.h>
 #endif
 
 namespace install
@@ -36,6 +42,15 @@ namespace
 constexpr uint32_t MAX_DISCOVERY_DEPTH = 8;
 constexpr uint32_t MAX_DISCOVERY_ENTRIES = 10000;
 constexpr size_t MAX_CANDIDATES = 256;
+
+std::string ProcessIdString()
+{
+#ifdef _WIN32
+    return std::to_string(GetCurrentProcessId());
+#else
+    return std::to_string(static_cast<unsigned long long>(getpid()));
+#endif
+}
 
 #ifdef LO_IMPORT_TESTING
 std::map<uint32_t, std::string> g_testSha256Asia;
@@ -437,8 +452,106 @@ struct DiscoveredSources
     // path -> (Format: Folder, ISO, GOD)
     std::vector<std::pair<std::filesystem::path, Kind>> candidates;
     std::vector<std::filesystem::path> packages;
+    std::vector<std::filesystem::path> extractedPackages;
     std::vector<std::pair<std::filesystem::path, std::string>> rejected;
 };
+
+using json = nlohmann::json;
+struct ExtractedDlcFile { std::string path; uint64_t size = 0; std::string sha256; };
+struct ExtractedDlc
+{
+    DlcPackageInfo info;
+    std::vector<ExtractedDlcFile> files;
+    std::array<std::vector<uint8_t>, 3> sidecars;
+};
+constexpr std::array<const char*, 3> DlcSidecars{".lo-content", ".lo-dlc-header", ".lo-dlc.json"};
+
+bool IsHexSha256(std::string_view value)
+{
+    if (value.size() != 64) return false;
+    return std::all_of(value.begin(), value.end(), [](unsigned char c) { return std::isxdigit(c) != 0; });
+}
+
+ExtractedDlc ReadExtractedDlc(const std::filesystem::path& dir, const Cancelled& cancelled = {})
+{
+    auto checkCancelled = [&]() {
+        if (cancelled && cancelled()) throw Error("DLC check cancelled", true);
+    };
+    checkCancelled();
+    for (auto ancestor = std::filesystem::absolute(dir); !ancestor.empty(); ancestor = ancestor.parent_path())
+    {
+        if (IsSymlinkOrReparse(ancestor)) throw Error("Links are not supported as DLC sources");
+        if (ancestor == ancestor.parent_path()) break;
+    }
+    ExtractedDlc package;
+    for (size_t i = 0; i < DlcSidecars.size(); ++i)
+    {
+        auto path = dir / DlcSidecars[i];
+        if (IsSymlinkOrReparse(path) || !std::filesystem::is_regular_file(path) || std::filesystem::file_size(path) > 1024 * 1024)
+            throw Error("Missing or invalid extracted DLC sidecar");
+        std::ifstream input(path, std::ios::binary);
+        package.sidecars[i] = std::vector<uint8_t>(std::istreambuf_iterator<char>(input), {});
+        if (!input.eof() && input.fail()) throw Error("Could not read extracted DLC sidecar");
+    }
+    const auto& manifest = package.sidecars[2];
+    json data = json::parse(manifest.begin(), manifest.end(), nullptr, false);
+    if (data.is_discarded() || !data.is_object()) throw Error("Invalid extracted DLC manifest");
+    if (data.value("schema", 0) != 1 || data.value("title_id", "") != "4D5307FA") throw Error("Wrong extracted DLC metadata");
+    auto contentId = data.value("content_id", "");
+    auto sourceSha = data.value("source_sha256", "");
+    if (contentId.size() != 40 || !std::all_of(contentId.begin(), contentId.end(), [](unsigned char c) { return std::isxdigit(c); }) || !IsHexSha256(sourceSha)) throw Error("Invalid extracted DLC identity");
+    auto& info = package.info;
+    info.path = dir; info.contentId = ToUpper(contentId); info.sourceSha256 = ToLower(sourceSha); info.format = "extracted";
+    info.extractedManifestSha256 = crypto::Sha256Hex(manifest.data(), manifest.size());
+    info.displayName = data.value("display_name", "");
+    info.licenseMask = data.value("license_mask", uint32_t(0));
+    const auto& header = package.sidecars[1];
+    const auto& record = package.sidecars[0];
+    auto ReadBeU32 = [](const uint8_t* p) -> uint32_t {
+        return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) | (uint32_t(p[2]) << 8) | uint32_t(p[3]);
+    };
+    if (header.size() < 0x3ad || (std::memcmp(header.data(), "CON ", 4) && std::memcmp(header.data(), "LIVE", 4) && std::memcmp(header.data(), "PIRS", 4)) ||
+        ReadBeU32(header.data() + 0x360) != 0x4D5307FA || ReadBeU32(header.data() + 0x344) != 2 ||
+        ToUpper(crypto::HexString(header.data() + 0x32c, 20)) != info.contentId ||
+        record.size() != 308 || ReadBeU32(record.data()) != 1 || ReadBeU32(record.data() + 4) != 2 ||
+        std::string(record.begin() + 264, record.begin() + 304) != info.contentId)
+        throw Error("Extracted DLC sidecars identify different content");
+    auto& files = package.files;
+    std::set<std::string> names;
+    for (const auto& item : data.value("files", json::array()))
+    {
+        if (!item.is_object()) throw Error("Invalid extracted DLC file entry");
+        checkCancelled();
+        auto name = item.value("path", ""); auto rel = std::filesystem::u8path(name);
+        if (name.empty() || !names.insert(ToLower(name)).second || rel.has_root_path() || rel.lexically_normal() != rel || name.find_first_of("\\:") != std::string::npos || name.find('\0') != std::string::npos)
+            throw Error("Unsafe extracted DLC manifest path");
+        for (const auto& component : rel)
+            if (component.empty() || component.string().front() == '.') throw Error("Unsafe extracted DLC path component");
+        auto file = dir / rel;
+        for (auto ancestor = file; ancestor != dir; ancestor = ancestor.parent_path())
+            if (IsSymlinkOrReparse(ancestor)) throw Error("Links are not supported as DLC payloads");
+        auto expected = item.value("size", uint64_t(0)); auto hash = item.value("sha256", "");
+        if (!IsHexSha256(hash)) throw Error("Invalid extracted DLC file hash");
+        std::error_code ec;
+        if (IsSymlinkOrReparse(file) || !std::filesystem::is_regular_file(file, ec) || std::filesystem::file_size(file, ec) != expected)
+            throw Error("Extracted DLC file is missing or has the wrong size: " + name);
+        std::ifstream stream(file, std::ios::binary); crypto::Sha256 sha; std::array<uint8_t, 4096> buffer{}; uint64_t read = 0;
+        if (!stream) throw Error("Could not open extracted DLC payload: " + name);
+        while (stream.read(reinterpret_cast<char*>(buffer.data()), buffer.size()) || stream.gcount()) { checkCancelled(); auto n = stream.gcount(); sha.Update(buffer.data(), static_cast<size_t>(n)); read += static_cast<uint64_t>(n); }
+        if (read != expected || ToLower(crypto::HexString(sha.Finalize())) != ToLower(hash)) throw Error("Extracted DLC file hash mismatch: " + name);
+        files.push_back({name, expected, ToLower(hash)}); info.bytes += expected;
+    }
+    if (files.empty()) throw Error("Extracted DLC manifest has no files");
+    for (const auto& sidecar : DlcSidecars) names.insert(sidecar);
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(dir))
+    {
+        checkCancelled();
+        if (IsSymlinkOrReparse(entry.path())) throw Error("Links are not supported as DLC payloads");
+        if (entry.is_regular_file() && !names.contains(ToLower(entry.path().lexically_relative(dir).generic_string())))
+            throw Error("Unlisted file in extracted DLC directory");
+    }
+    info.files = static_cast<uint32_t>(files.size()); return package;
+}
 
 DiscoveredSources DiscoverAllSources(const std::vector<std::filesystem::path>& paths,
                                     const Cancelled& cancelled = {})
@@ -509,11 +622,19 @@ DiscoveredSources DiscoverAllSources(const std::vector<std::filesystem::path>& p
 
                 bool hasDefaultXex = false;
                 bool hasData0000 = false;
+                bool hasDlcManifest = false;
                 for (const auto& child : children)
                 {
                     std::string lowerName = ToLower(child.filename().string());
                     if (lowerName == "default.xex") hasDefaultXex = true;
                     if (lowerName == "data0000") hasData0000 = true;
+                    if (lowerName == ".lo-dlc.json") hasDlcManifest = true;
+                }
+
+                if (hasDlcManifest)
+                {
+                    packages.insert(task.path);
+                    continue;
                 }
 
                 if (!task.insideDisc && hasDefaultXex)
@@ -802,6 +923,7 @@ ContentScan ScanContent(const std::vector<std::filesystem::path>& paths, const C
 
     // 2. Scan DLC packages
     std::map<std::string, std::string> seenDlcIdentities; // content_id -> source_sha256
+    std::map<std::string, std::string> seenExtractedManifests;
     for (const auto& pkgPath : discovered.packages)
     {
         if (cancelled && cancelled())
@@ -809,13 +931,29 @@ ContentScan ScanContent(const std::vector<std::filesystem::path>& paths, const C
 
         try
         {
+            if (std::filesystem::is_directory(pkgPath))
+            {
+                auto info = ReadExtractedDlc(pkgPath, cancelled).info;
+                auto it = seenDlcIdentities.find(info.contentId);
+                if (it != seenDlcIdentities.end())
+                {
+                    if (it->second != info.sourceSha256 || !seenExtractedManifests.contains(info.contentId) ||
+                        seenExtractedManifests.at(info.contentId) != info.extractedManifestSha256)
+                        throw Error("Different source packages have the same DLC content ID");
+                    continue;
+                }
+                seenDlcIdentities[info.contentId] = info.sourceSha256;
+                seenExtractedManifests[info.contentId] = info.extractedManifestSha256;
+                scanResult.packages.push_back(std::move(info));
+                continue;
+            }
             StfsPackage stfs(pkgPath, cancelled);
             const auto& info = stfs.GetInfo();
 
             auto it = seenDlcIdentities.find(info.contentId);
             if (it != seenDlcIdentities.end())
             {
-                if (it->second != info.sourceSha256)
+                if (it->second != info.sourceSha256 || seenExtractedManifests.contains(info.contentId))
                     throw Error("Different source packages have the same DLC content ID");
                 continue;
             }
@@ -946,6 +1084,17 @@ InstallResult InstallContent(const ContentScan& selection,
             throw Error("Source and destination must be separate folders");
     }
 
+    for (const auto& package : selection.packages)
+    {
+        if (!std::filesystem::is_directory(package.path)) continue;
+        const auto source = std::filesystem::absolute(package.path).lexically_normal();
+        auto contains = [](const auto& parent, const auto& child) {
+            const auto relative = child.lexically_relative(parent);
+            return !relative.empty() && *relative.begin() != "..";
+        };
+        if (contains(source, dest) || contains(dest, source))
+            throw Error("Source and destination must be separate folders");
+    }
     std::filesystem::create_directories(dest, ec);
 
     // Destination directory link/junction check
@@ -954,12 +1103,20 @@ InstallResult InstallContent(const ContentScan& selection,
 
     // .import.lock
     std::filesystem::path lockPath = dest / ".import.lock";
-    HANDLE lockHandle = INVALID_HANDLE_VALUE;
 #ifdef _WIN32
+    HANDLE lockHandle = INVALID_HANDLE_VALUE;
     lockHandle = CreateFileW(lockPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
                              CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (lockHandle == INVALID_HANDLE_VALUE)
     {
+        throw Error("Another import owns this destination. If an earlier import crashed, "
+                    "close all importers before removing .import.lock.");
+    }
+#else
+    const int lockFd = open(lockPath.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (lockFd < 0 || flock(lockFd, LOCK_EX | LOCK_NB) != 0)
+    {
+        if (lockFd >= 0) close(lockFd);
         throw Error("Another import owns this destination. If an earlier import crashed, "
                     "close all importers before removing .import.lock.");
     }
@@ -972,6 +1129,8 @@ InstallResult InstallContent(const ContentScan& selection,
             CloseHandle(lockHandle);
             lockHandle = INVALID_HANDLE_VALUE;
         }
+#else
+        close(lockFd);
 #endif
         std::error_code removeEc;
         std::filesystem::remove(lockPath, removeEc);
@@ -1052,7 +1211,7 @@ InstallResult InstallContent(const ContentScan& selection,
         if (!ec && spaceInfo.free < totalDiscBytes + 64ULL * 1024 * 1024)
             throw Error("Not enough free space for the selected discs");
 
-        std::string stagingName = ".import-staging-" + std::to_string(GetCurrentProcessId());
+        std::string stagingName = ".import-staging-" + ProcessIdString();
         std::filesystem::path stagingPath = dest / stagingName;
         std::filesystem::remove_all(stagingPath, ec);
         std::filesystem::create_directories(stagingPath, ec);
@@ -1192,19 +1351,42 @@ InstallResult InstallContent(const ContentScan& selection,
         if (IsSymlinkOrReparse(dlcRoot)) throw Error("DLC destination must not contain links or junctions");
         std::filesystem::create_directories(dlcRoot, ec);
 
-        std::vector<std::unique_ptr<StfsPackage>> dlcPackages;
+        struct DlcInstallPackage { DlcPackageInfo info; std::unique_ptr<StfsPackage> stfs; std::optional<ExtractedDlc> extracted; };
+        std::vector<DlcInstallPackage> dlcPackages;
         for (const auto& pkgInfo : selection.packages)
         {
             if (checkCancelled())
                 throw Error("DLC import cancelled; source files were kept", true);
 
-            auto pkg = std::make_unique<StfsPackage>(pkgInfo.path, checkCancelled);
-            if (pkg->GetInfo().sourceSha256 != pkgInfo.sourceSha256 || pkg->GetInfo().contentId != pkgInfo.contentId)
-                throw Error("DLC source changed since review; check the source again");
+            DlcInstallPackage package{pkgInfo, nullptr, std::nullopt};
+            if (std::filesystem::is_directory(pkgInfo.path))
+            {
+                package.extracted = ReadExtractedDlc(pkgInfo.path, checkCancelled);
+                package.info = package.extracted->info;
+                if (package.info.sourceSha256 != pkgInfo.sourceSha256 || package.info.contentId != pkgInfo.contentId ||
+                    package.info.extractedManifestSha256 != pkgInfo.extractedManifestSha256)
+                    throw Error("DLC source changed since review; check the source again");
+            }
+            else
+            {
+                package.stfs = std::make_unique<StfsPackage>(pkgInfo.path, checkCancelled);
+                if (package.stfs->GetInfo().sourceSha256 != pkgInfo.sourceSha256 || package.stfs->GetInfo().contentId != pkgInfo.contentId)
+                    throw Error("DLC source changed since review; check the source again");
+            }
 
             auto targetDir = dlcRoot / pkgInfo.contentId;
             if (std::filesystem::exists(targetDir, ec))
             {
+                if (package.extracted)
+                {
+                    auto existing = ReadExtractedDlc(targetDir, checkCancelled);
+                    if (existing.sidecars == package.extracted->sidecars)
+                    {
+                        result.dlcUnchanged.push_back(pkgInfo.contentId);
+                        continue;
+                    }
+                    throw Error("DLC already exists with different content; existing files were kept");
+                }
                 // Check if existing match
                 std::filesystem::path headerPath = targetDir / ".lo-dlc-header";
                 if (std::filesystem::exists(headerPath, ec))
@@ -1212,7 +1394,7 @@ InstallResult InstallContent(const ContentScan& selection,
                     std::ifstream hdrIn(headerPath, std::ios::binary);
                     std::vector<uint8_t> existingHdr((std::istreambuf_iterator<char>(hdrIn)),
                                                      std::istreambuf_iterator<char>());
-                    if (existingHdr == pkg->GetHeader() && ExistingDlcPayloadMatches(targetDir, *pkg))
+                    if (package.stfs && existingHdr == package.stfs->GetHeader() && ExistingDlcPayloadMatches(targetDir, *package.stfs))
                     {
                         result.dlcUnchanged.push_back(pkgInfo.contentId);
                         continue;
@@ -1221,19 +1403,19 @@ InstallResult InstallContent(const ContentScan& selection,
                 throw Error("DLC " + pkgInfo.contentId + " already exists with different content; existing files were kept");
             }
 
-            dlcPackages.push_back(std::move(pkg));
+            dlcPackages.push_back(std::move(package));
         }
 
         if (!dlcPackages.empty())
         {
             uint64_t totalDlcBytes = 0;
-            for (const auto& pkg : dlcPackages) totalDlcBytes += pkg->GetInfo().bytes;
+            for (const auto& pkg : dlcPackages) totalDlcBytes += pkg.info.bytes;
 
             auto spaceInfo = std::filesystem::space(dest, ec);
             if (!ec && spaceInfo.free < totalDlcBytes + 16ULL * 1024 * 1024)
                 throw Error("Not enough free space for the selected DLC");
 
-            std::string dlcStagingName = ".dlc-import-" + std::to_string(GetCurrentProcessId());
+            std::string dlcStagingName = ".dlc-import-" + ProcessIdString();
             std::filesystem::path dlcStagingPath = dest / dlcStagingName;
             std::filesystem::remove_all(dlcStagingPath, ec);
             std::filesystem::create_directories(dlcStagingPath, ec);
@@ -1248,7 +1430,7 @@ InstallResult InstallContent(const ContentScan& selection,
             {
                 for (const auto& pkg : dlcPackages)
                 {
-                    const auto& info = pkg->GetInfo();
+                    const auto& info = pkg.info;
                     std::filesystem::path targetDir = dlcStagingPath / info.contentId;
                     std::filesystem::create_directories(targetDir, ec);
 
@@ -1261,7 +1443,9 @@ InstallResult InstallContent(const ContentScan& selection,
                     std::vector<ManifestFile> manifestFiles;
 
                     std::vector<uint8_t> blockBuf(4096);
-                    for (const auto& entry : pkg->GetEntries())
+                    std::vector<StfsPackage::StfsEntry> stfsEntries;
+                    if (pkg.stfs) stfsEntries = pkg.stfs->GetEntries();
+                    for (const auto& entry : stfsEntries)
                     {
                         if (checkCancelled())
                             throw Error("DLC import cancelled; source files were kept", true);
@@ -1282,7 +1466,7 @@ InstallResult InstallContent(const ContentScan& selection,
 
                         for (uint32_t b : entry.blocks)
                         {
-                            pkg->ReadBlock(b, blockBuf.data());
+                            pkg.stfs->ReadBlock(b, blockBuf.data());
                             uint32_t take = std::min<uint32_t>(remaining, 4096);
                             if (take > 0)
                             {
@@ -1300,6 +1484,33 @@ InstallResult InstallContent(const ContentScan& selection,
 
                         manifestFiles.push_back({entry.path, entry.size, crypto::HexString(fileSha.Finalize())});
                     }
+                    if (pkg.extracted) for (const auto& entry : pkg.extracted->files)
+                    {
+                        if (checkCancelled()) throw Error("DLC import cancelled; source files were kept", true);
+                        auto source = info.path / std::filesystem::u8path(entry.path), outPath = targetDir / std::filesystem::u8path(entry.path);
+                        std::filesystem::create_directories(outPath.parent_path(), ec);
+                        std::ifstream in(source, std::ios::binary); std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
+                        if (!in || !out) throw Error("Could not open extracted DLC payload for copying");
+                        crypto::Sha256 sha; std::array<uint8_t, 4096> bytes{}; uint64_t total = 0;
+                        while (in.read(reinterpret_cast<char*>(bytes.data()), bytes.size()) || in.gcount()) { auto n = in.gcount(); sha.Update(bytes.data(), static_cast<size_t>(n)); out.write(reinterpret_cast<char*>(bytes.data()), n); total += n; dlcDone += n; reportProgress(dlcDone, totalDlcBytes, entry.path); if (checkCancelled()) throw Error("DLC import cancelled; source files were kept", true); }
+                        out.flush();
+                        if (!out) throw Error("Extracted DLC write failed");
+                        if (total != entry.size || ToLower(crypto::HexString(sha.Finalize())) != entry.sha256) throw Error("Extracted DLC changed during import");
+                    }
+
+                    if (pkg.extracted)
+                    {
+                        for (size_t i = 0; i < DlcSidecars.size(); ++i)
+                        {
+                            std::ofstream out(targetDir / DlcSidecars[i], std::ios::binary);
+                            const auto& bytes = pkg.extracted->sidecars[i];
+                            out.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+                            out.flush();
+                            if (!out) throw Error("Extracted DLC sidecar write failed");
+                        }
+                        ReadExtractedDlc(targetDir, checkCancelled);
+                        continue;
+                    }
 
                     // Sidecars
                     // 1. .lo-content
@@ -1311,7 +1522,8 @@ InstallResult InstallContent(const ContentScan& selection,
                     // 2. .lo-dlc-header
                     std::filesystem::path headerPath = targetDir / ".lo-dlc-header";
                     std::ofstream headerOut(headerPath, std::ios::binary);
-                    headerOut.write(reinterpret_cast<const char*>(pkg->GetHeader().data()), pkg->GetHeader().size());
+                    if (pkg.stfs) headerOut.write(reinterpret_cast<const char*>(pkg.stfs->GetHeader().data()), pkg.stfs->GetHeader().size());
+                    else { std::ifstream in(info.path / ".lo-dlc-header", std::ios::binary); headerOut << in.rdbuf(); }
 
                     // 3. .lo-dlc.json
                     std::filesystem::path jsonPath = targetDir / ".lo-dlc.json";
@@ -1343,7 +1555,7 @@ InstallResult InstallContent(const ContentScan& selection,
                 {
                     for (const auto& pkg : dlcPackages)
                     {
-                        const auto& info = pkg->GetInfo();
+                        const auto& info = pkg.info;
                         std::filesystem::rename(dlcStagingPath / info.contentId, dlcRoot / info.contentId, ec);
                         if (ec) throw Error("Failed to publish DLC: " + ec.message());
                         publishedDlc.push_back(info.contentId);

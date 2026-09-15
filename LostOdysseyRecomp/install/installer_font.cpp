@@ -105,19 +105,25 @@ int DrawGlyph(SDL_Renderer* renderer, int x, int y, uint32_t codepoint,
         {
             uint8_t bits = glyph.bitmap[row];
             if (bits == 0) continue;
-            int py = y + static_cast<int>(row * scale);
+            int py0 = y + static_cast<int>(std::floor(row * scale));
+            int py1 = y + static_cast<int>(std::floor((row + 1) * scale));
+            int ph = std::max(1, py1 - py0);
+
             for (int col = 0; col < 8; ++col)
             {
                 if (bits & (0x80 >> col))
                 {
-                    int px = x + static_cast<int>(col * scale);
-                    if (scaledPixel <= 1)
+                    int px0 = x + static_cast<int>(std::floor(col * scale));
+                    int px1 = x + static_cast<int>(std::floor((col + 1) * scale));
+                    int pw = std::max(1, px1 - px0);
+
+                    if (pw <= 1 && ph <= 1)
                     {
-                        SDL_RenderDrawPoint(renderer, px, py);
+                        SDL_RenderDrawPoint(renderer, px0, py0);
                     }
                     else
                     {
-                        SDL_Rect rc{ px, py, scaledPixel, scaledPixel };
+                        SDL_Rect rc{ px0, py0, pw, ph };
                         SDL_RenderFillRect(renderer, &rc);
                     }
                 }
@@ -132,19 +138,25 @@ int DrawGlyph(SDL_Renderer* renderer, int x, int y, uint32_t codepoint,
             uint16_t bits = (static_cast<uint16_t>(glyph.bitmap[row * 2]) << 8) |
                              static_cast<uint16_t>(glyph.bitmap[row * 2 + 1]);
             if (bits == 0) continue;
-            int py = y + static_cast<int>(row * scale);
+            int py0 = y + static_cast<int>(std::floor(row * scale));
+            int py1 = y + static_cast<int>(std::floor((row + 1) * scale));
+            int ph = std::max(1, py1 - py0);
+
             for (int col = 0; col < 16; ++col)
             {
                 if (bits & (0x8000 >> col))
                 {
-                    int px = x + static_cast<int>(col * scale);
-                    if (scaledPixel <= 1)
+                    int px0 = x + static_cast<int>(std::floor(col * scale));
+                    int px1 = x + static_cast<int>(std::floor((col + 1) * scale));
+                    int pw = std::max(1, px1 - px0);
+
+                    if (pw <= 1 && ph <= 1)
                     {
-                        SDL_RenderDrawPoint(renderer, px, py);
+                        SDL_RenderDrawPoint(renderer, px0, py0);
                     }
                     else
                     {
-                        SDL_Rect rc{ px, py, scaledPixel, scaledPixel };
+                        SDL_Rect rc{ px0, py0, pw, ph };
                         SDL_RenderFillRect(renderer, &rc);
                     }
                 }
@@ -215,6 +227,55 @@ int MeasureTextWidth(std::string_view text, float scale)
 int TextLineHeight(float scale)
 {
     return static_cast<int>(std::round(18.0f * scale));
+}
+
+std::string TruncateTextWidth(std::string_view text, int maxWidth, float scale, std::string_view ellipsis)
+{
+    if (maxWidth <= 0) return "";
+    int totalW = MeasureTextWidth(text, scale);
+    if (totalW <= maxWidth) return std::string(text);
+
+    int ellipW = MeasureTextWidth(ellipsis, scale);
+    int targetW = maxWidth - ellipW;
+    if (targetW <= 0)
+    {
+        // Not even room for full ellipsis, measure characters of ellipsis
+        std::string res;
+        size_t off = 0;
+        int curW = 0;
+        while (off < ellipsis.size())
+        {
+            size_t prev = off;
+            uint32_t cp = DecodeUtf8(ellipsis, off);
+            GlyphInfo g = GetGlyph(cp);
+            int adv = static_cast<int>(g.width * scale);
+            if (curW + adv > maxWidth) break;
+            curW += adv;
+            res.append(ellipsis.substr(prev, off - prev));
+        }
+        return res;
+    }
+
+    std::string result;
+    size_t offset = 0;
+    int curWidth = 0;
+    while (offset < text.size())
+    {
+        size_t prevOffset = offset;
+        uint32_t cp = DecodeUtf8(text, offset);
+        if (cp == '\n' || cp == '\r') break;
+
+        GlyphInfo g = GetGlyph(cp);
+        int adv = (cp == '\t') ? static_cast<int>(32 * scale) : static_cast<int>(g.width * scale);
+        if (curWidth + adv > targetW)
+        {
+            break;
+        }
+        curWidth += adv;
+        result.append(text.substr(prevOffset, offset - prevOffset));
+    }
+    result.append(ellipsis);
+    return result;
 }
 
 }

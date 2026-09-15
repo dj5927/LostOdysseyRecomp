@@ -23,6 +23,11 @@ lo_add_header_test(LoRenderBatchPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/rende
 lo_add_header_test(LoTextureDescriptorCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_descriptor_cache_test.cpp)
 lo_add_header_test(LoTextureKeyTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_key_test.cpp)
 lo_add_header_test(LoImportGameTest ${CMAKE_SOURCE_DIR}/tools/tests/import_game_test.cpp)
+lo_add_header_test(LoImportPayloadProbe ${CMAKE_SOURCE_DIR}/tools/tests/import_payload_probe.cpp)
+lo_add_header_test(LoInstallerControllerTest ${CMAKE_SOURCE_DIR}/tools/tests/installer_controller_test.cpp)
+target_sources(LoImportPayloadProbe PRIVATE
+    ${LO_RUNTIME_ROOT}/install/import_game.cpp
+    ${LO_RUNTIME_ROOT}/install/import_image.cpp)
 target_compile_definitions(LoImportGameTest PRIVATE LO_IMPORT_TESTING)
 target_sources(LoImportGameTest PRIVATE
     ${LO_RUNTIME_ROOT}/install/import_game.cpp
@@ -130,8 +135,21 @@ if(WIN32)
     target_compile_features(LoUpdaterHttpFailureTest PRIVATE cxx_std_20)
     target_compile_definitions(LoUpdaterHttpFailureTest PRIVATE NOMINMAX)
     target_link_libraries(LoUpdaterHttpFailureTest PRIVATE bcrypt shell32)
+    add_executable(LoUpdaterStartupOrderTest EXCLUDE_FROM_ALL
+        ${CMAKE_SOURCE_DIR}/tools/tests/updater_startup_order_test.cpp
+        ${LO_RUNTIME_ROOT}/updater/update.cpp
+        ${LO_RUNTIME_ROOT}/updater/windows_http.cpp
+        ${LO_RUNTIME_ROOT}/updater/sha256.cpp
+        ${LO_RUNTIME_ROOT}/updater/stage.cpp
+        ${LO_RUNTIME_ROOT}/updater/apply.cpp
+        ${LO_RUNTIME_ROOT}/updater/progress.cpp)
+    target_include_directories(LoUpdaterStartupOrderTest PRIVATE ${LO_RUNTIME_ROOT})
+    target_compile_features(LoUpdaterStartupOrderTest PRIVATE cxx_std_20)
+    target_compile_definitions(LoUpdaterStartupOrderTest PRIVATE NOMINMAX)
+    target_link_libraries(LoUpdaterStartupOrderTest PRIVATE bcrypt winhttp user32 gdi32 shell32)
     add_executable(LostOdysseyUpdater WIN32
         ${CMAKE_SOURCE_DIR}/tools/updater/helper_main.cpp
+        ${LO_RUNTIME_ROOT}/updater/apply_mode.cpp
         ${LO_RUNTIME_ROOT}/updater/standalone.cpp
         ${LO_RUNTIME_ROOT}/updater/windows_http.cpp
         ${LO_RUNTIME_ROOT}/updater/progress.cpp
@@ -142,9 +160,8 @@ if(WIN32)
     target_compile_definitions(LostOdysseyUpdater PRIVATE NOMINMAX)
     target_compile_definitions(LostOdysseyUpdater PRIVATE LO_SOURCE_VERSION="${LO_SOURCE_VERSION}")
     target_link_libraries(LostOdysseyUpdater PRIVATE bcrypt winhttp user32 gdi32 shell32)
-    # Both targets use this directory's runtime output path. Packaging takes
-    # the helper beside the game, and a runtime build must produce both.
-    add_dependencies(LostOdysseyRecomp LostOdysseyUpdater)
+    # The runtime owns the update path; the standalone helper remains available
+    # only for focused compatibility fixtures.
     # Capture once before either target compiles; publish per-binary stamps only
     # after successful links. An old EXE cannot inherit packaging-time HEAD.
     set(LO_BUILD_SOURCE_STAMP "${CMAKE_CURRENT_BINARY_DIR}/build-source-current.json")

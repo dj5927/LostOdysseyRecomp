@@ -50,6 +50,7 @@ struct DlcPackageInfo
     uint32_t licenseMask = 0;
     std::string format;
     std::string sourceSha256;
+    std::string extractedManifestSha256;
     uint32_t files = 0;
     uint64_t bytes = 0;
 };

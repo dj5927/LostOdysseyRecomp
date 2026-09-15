@@ -3,8 +3,25 @@
 #include <filesystem>
 #include <string>
 
+#include "import_game.h"
+
 namespace install
 {
+inline bool ShouldPersistGamePath(const InstallResult& result)
+{
+    return !result.discs.empty();
+}
+
+inline bool ShouldReportImportSuccess(const InstallResult& result, bool pathSaved)
+{
+    return !result.cancelled && result.error.empty() && pathSaved;
+}
+
+inline int ReviewActionStart(const ContentScan& scan)
+{
+    return static_cast<int>(scan.discs.size() + scan.packages.size());
+}
+
 struct InstallerResult
 {
     bool success = false;
