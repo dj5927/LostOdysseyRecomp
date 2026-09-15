@@ -2,7 +2,7 @@
 
 日期：2026-09-14  
 分支：`cpu-perf` / 实验分支 `cpu-perf-exp`  
-状态：**指南，未实施运行时。** Card A / Card B / Card C 已用 published v0.5.11 测过（耗尽资源类 = null；B1/B2/B3 与 Parallel Prepare 均不实施）。不授权改运行时、不改源版本、不宣称验收或发布。
+状态：**指南，未实施运行时。** Card A / Card B / Card C / Card D（进程级 3C6T 信封）已用 published v0.5.11 测过（耗尽资源类 = null；B1/B2/B3、Parallel Prepare 与默认 pinning 均不实施）。不授权改运行时、不改源版本、不宣称验收或发布。
 正文：简体中文；符号、路径、函数名保持英文。
 
 配套记录：
@@ -10,6 +10,7 @@
 - [Card A city measurement（2026-09-14；published v0.5.11，无耗尽资源）](cpu-card-a-city-2026-09-14.md)
 - [Card B city measurement（2026-09-14；published v0.5.11，B1/B2/B3 不实施）](cpu-card-b-city-2026-09-14.md)
 - [Card C prepare gate（2026-09-14；published v0.5.11，不实施 Parallel Prepare）](cpu-card-c-prepare-gate-2026-09-14.md)
+- [Card D 3C6T city measurement（2026-09-14；published v0.5.11，默认不钉核）](cpu-card-d-3c6t-city-2026-09-14.md)
 - [CPU 重编译深度诊断（2026-09-13；历史诊断）](cpu-recomp-deep-2026-09-13.md)
 - [性能分析完整报告（2026-09-11；v0.5.4 诊断）](perf-complete-analysis.md)
 - [GPU 环缓冲实测对比（2026-09-11；诊断，非验收）](perf-gpu-ring-compare.md)
@@ -222,10 +223,10 @@ Xbox 360 Xenon 是 3 个 in-order 物理核 × SMT = 6 硬件线程。同一核�
 
 | 优先级 | 方向 | 杠杆类型 | 3C6T 含义 | 状态 |
 |---|---|---|---|---|
-| A | 测量剩余 fence / mid-frame split | 等待 | 不增加线程 | **第一步；未用当前包复测** |
-| B | 剩余冗余 CPU（非 64B `memcmp`、hash lookup、重复 identity） | 单线程开销 | 不增加线程 | 64B SIMD 与 avalanche **已做**；其余待测 |
-| C | 有界 Parallel Prepare / Serial Commit | 并行准备 | 最多再占 1 个 SMT sibling，且可证明独立 | XMA / shader prep **已存在**；新任务未授权 |
-| D | 可选 topology-aware affinity | placement | 只移动现有线程 | stub 仍在；默认不做 |
+| A | 测量剩余 fence / mid-frame split | 等待 | 不增加线程 | v0.5.11 城市已测；无耗尽资源 |
+| B | 剩余冗余 CPU（非 64B `memcmp`、hash lookup、重复 identity） | 单线程开销 | 不增加线程 | 64B SIMD 与 avalanche **已做**；B1/B2/B3 不实施 |
+| C | 有界 Parallel Prepare / Serial Commit | 并行准备 | 最多再占 1 个 SMT sibling，且可证明独立 | 启动 prepare 已存在；新 Parallel Prepare 不实施 |
+| D | 可选 topology-aware affinity | placement | 只移动现有线程 | 进程级 3C6T 城市已测（affinity 0x3F）；**默认钉核不实施** |
 
 Amdahl 警告：城市场景的历史主因是提交路径上的串行等待，不是「没用满 6 线程」。在 fence 仍主导时加 worker，只会让更多线程堵在 `RecycleSlot` / descriptor 分配上。
 
@@ -419,8 +420,10 @@ Game + Render + GPU worker + 音频已经占满或接近 3C6T。新 worker 默�
 **回退**  
 默认关；开关关即恢复 OS 调度。
 
+**当前测量（事实，2026-09-14）**：published v0.5.11 Hidden 1280×720 D3D12 城市，进程 affinity `0x3F`（9800X3D 核 0–2 / 逻辑 0–5），1370 city frames。`fence_wait` 均值 0.0008、`gpu_queue` 0.816、`draw_ms` 3.805 / p95 4.556 / max 13.65，`over_budget=0%`，splits 全 0。冷启动 bundle 缺失时 prepare 仍按 `hardware_concurrency=16` 要 15 个 worker。UnleashedRecomp 的 `KeSetAffinityThread` 同为 stub，无 host pinning。详见 [Card D 3C6T city measurement](cpu-card-d-3c6t-city-2026-09-14.md)。
+
 **未决条件**  
-用户确认 3C6T 作用于整个进程（本文已采用该暂定解释）；测试机拓扑可读。Card B 当前 profile 已存在，不解除本卡片；affinity 默认关。
+本机拓扑可读；3C6T 作用于整个进程的信封已测。默认 pinning 仍不实施。这不是 Steam Deck、15 W、4C8T 或 1080p60@15W。
 
 ---
 
@@ -489,7 +492,7 @@ Agent 运行时测试须后台、默认静音、不抢前台。需要前台交�
 2. 若 `fence_wait` 已接近诊断对照里的低个位数毫秒且 `descriptor_splits = 0`：把「再加 slot / 再抬 limit」标为低优先级，转卡片 B 的当前 profile。Card A 测量满足该条件（`fence_wait` 均值 0.0007 ms，splits 全 0）。Card B 当前 profile 已记录：B1 仍缺长度直方图故不扩 SIMD；B2 lookup 不热且无 texture 链长快照；B3 无新 guest spin。见 [Card B city measurement](cpu-card-b-city-2026-09-14.md)。
 3. 若仍有中途 `Flush`：指出耗尽的是 descriptor、upload 还是 arena，再单独提案。禁止笼统「多缓冲」。
 4. 任何并行准备：先写数据契约（快照、所有权、join、取消），再写代码。默认关。3C6T 下最多再占 1 条硬件线程。
-5. Affinity 保持实验、默认关。修 stub 返回值若是正确性问题，单独提交，不和性能混。
+5. Affinity 保持实验、默认关。进程级 3C6T 城市信封已测，见 [Card D](cpu-card-d-3c6t-city-2026-09-14.md)；不要把 pinning 写进 `KeSetAffinityThread`。修 stub 返回值若是正确性问题，单独提交，不和性能混。这不是 Steam Deck / 15 W 验收。
 6. 没有新的授权不要改源版本，不要把本指南写进 Release notes。
 
 **第一项工作就是测量，不是实现。**

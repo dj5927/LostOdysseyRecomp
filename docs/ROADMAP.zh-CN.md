@@ -54,7 +54,9 @@ D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定�
 
    **Card B 城市实验（已发布 v0.5.11）：**同一 Hidden 1280×720 D3D12 城市 profile 已用 `LO_VERTEX_TIMING=1` 取得：1,846 个城市帧；`match_ms` 均值 0.1535 ms（占 0.3616 ms stage sum 的 42%）。B1/B2/B3 均维持不实施：没有 length histogram、v0.5.9+ texture-chain snapshot／仍热的 lookup，也没有新的 guest-spin 证据。不要扩展 SIMD、再写 hash mix 或扩展 `poll_wait`。这不是运行时实施、发布、CPU 性能验收或玩家验收。见 [Card B 证据](notes/cpu-card-b-city-2026-09-14.md)。
 
-   **Card C 准备门控（已发布 v0.5.11）：**同一城市日志加上既有 prepare worker 的静态清点表明启动 shader/pipeline prepare 已存在（bundle 2248 ms，pipeline 21 ms／4 workers／222 recipes）。per-frame 剩余（`copy_ms` 0.0091、lookup 0.051/0.03）低于排队／复制开销。新 Parallel Prepare 缺快照／所有权／join／取消／串行回退证据。`implement=false`；不要再加第三套准备池。Card D 仍是单独的亲和性实验，默认关。这不是运行时实施、发布、CPU 性能验收或玩家验收。见 [Card C 证据](notes/cpu-card-c-prepare-gate-2026-09-14.md)。
+   **Card C 准备门控（已发布 v0.5.11）：**同一城市日志加上既有 prepare worker 的静态清点表明启动 shader/pipeline prepare 已存在（bundle 2248 ms，pipeline 21 ms／4 workers／222 recipes）。per-frame 剩余（`copy_ms` 0.0091、lookup 0.051/0.03）低于排队／复制开销。新 Parallel Prepare 缺快照／所有权／join／取消／串行回退证据。`implement=false`；不要再加第三套准备池。Card D 已单独测过，仍默认关。这不是运行时实施、发布、CPU 性能验收或玩家验收。见 [Card C 证据](notes/cpu-card-c-prepare-gate-2026-09-14.md)。
+
+   **Card D 3C6T 城市实验（已发布 v0.5.11）：**Hidden 1280×720 D3D12 AA3 60-cap 城市窗口使用进程亲和性 `0x3F`（3 个物理核心／6 个硬件线程），取得 1,370 个城市帧，超预算 0%，`fence_wait_ms` 均值 0.0008／最大 0.1336，GPU queue 均值 0.8162／最大 1.8092，`draw_ms` 均值 3.805／p95 4.556／最大 13.65，descriptor/upload/arena split 为零。默认钉核 `implement=false`；这只是实验，不是 Steam Deck、15 W、1080p60@15W 或玩家验收。见 [Card D 证据](notes/cpu-card-d-3c6t-city-2026-09-14.md)。
 
 
 - [~] **v0.5.8 TAA 与 CPU 纳入：**[v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8) 已于 2026-09-13T15:11:11Z 从 6e6f11cf 公开发布；[Release CI 34764115203](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34764115203) 通过。干净 source-0.5.8 包已通过 ZIP CRC、全部 50 个 payload hash，以及四个公开资产的匿名核验（bytes、SHA、sidecar 和 API digest）。其中包含 TAA cde8b50 解决及 SIMD／LO_QUERY_TRACE presence cache 修复。TAA 原场景视觉验收和更广的性能／shader 启动调查仍待完成；历史 v0.5.6 有界城市发布证据及既有 40 W 窗口均保留其原始身份。
