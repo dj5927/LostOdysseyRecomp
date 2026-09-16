@@ -83,7 +83,11 @@ One record of completed changes, with unpublished work separated from verified r
 - CPU waiting paths now use condition-variable notifications in place of the former polling loops. Focused verification is retained in the historical development record.
 - Real network updates, AppImage gameplay or update runs, complete UI import, and full-game validation remain unverified.
 
+The published Linux AppImage had a packaging correction after a user launch exposed `execv` `ENOENT`: the original published package lacked `AppRun` because its desktop entry was placed at the AppDir root. `tools/package_appimage.py` now deploys metadata explicitly, uses two packaging stages, and checks the internal executable before output. The corrected Linux asset and checksum are published (SHA-256 `0991df9aca8e930fa8eacbd8afe99b7a3a81e940dfa740fcfbdba34cd54c4d0a`), with an anonymous download verified. The runtime and library bytes are unchanged; this correction does not claim gameplay or live-update validation.
+
 ### 简体中文
+
+- 已替换缺少 `AppRun` 入口的 Linux AppImage 和校验文件，修复启动时的 `execv` 报错。原主程序与库内容不变；5/5 打包回归通过，WSL 已验证进入主程序，未追加游戏或在线更新验证。
 
 - 主二进制现已统一提供安装器与更新器，并改进 DLC 导入失败处理、扫描与重试行为、apply 模式参数解析、Linux XDG profile 路径、已解包 DLC 尾部分隔符扫描和 AppImage 依赖过滤。
 - 同时提供 Windows x64 ZIP 和 Linux x64 AppImage，包含内嵌安装器／更新器与 XDG 用户数据路径。AppImage 游戏运行和原地更新仍未验证，完整 Steam Deck 兼容性尚未确立。

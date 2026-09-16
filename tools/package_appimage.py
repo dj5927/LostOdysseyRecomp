@@ -1,6 +1,7 @@
 """Package the Linux runtime as an AppImage using linuxdeploy."""
 import argparse
 import hashlib
+import os
 import shutil
 import subprocess
 import tempfile
@@ -23,6 +24,18 @@ def asset_tag(build, requested):
     source = stamp.read_text(encoding="utf-8").strip()
     commit = git("rev-parse", "HEAD")[:8]
     return f"v{source}-{commit}-dev"
+
+
+def validate_apprun(appdir):
+    entry = appdir / "AppRun"
+    try:
+        target = entry.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise SystemExit(f"Invalid AppRun entry: {error}") from error
+    if not target.is_relative_to(appdir.resolve()) or not target.is_file():
+        raise SystemExit("AppRun must resolve to a regular file inside the AppDir")
+    if not os.access(target, os.X_OK):
+        raise SystemExit("AppRun target is not executable")
 
 
 def main():
@@ -51,8 +64,12 @@ def main():
         shutil.copy2(dxc, appdir / "usr/lib/libdxcompiler.so")
         desktop = LINUX_PACKAGING / "io.github.freefrank.LostOdysseyRecomp.desktop"
         icon = LINUX_PACKAGING / "io.github.freefrank.LostOdysseyRecomp.png"
-        shutil.copy2(desktop, appdir / desktop.name)
-        shutil.copy2(icon, appdir / icon.name)
+        applications = appdir / "usr/share/applications"
+        icons = appdir / "usr/share/icons/hicolor/256x256/apps"
+        applications.mkdir(parents=True)
+        icons.mkdir(parents=True)
+        shutil.copy2(desktop, applications / desktop.name)
+        shutil.copy2(icon, icons / icon.name)
         if args.dry_layout:
             print(f"AppDir: {appdir}")
             for path in sorted(appdir.rglob("*")):
@@ -67,14 +84,15 @@ def main():
         # before linuxdeploy runs with cwd=temporary, or CI's
         # out/tools/linuxdeploy/linuxdeploy is looked up in the temp dir.
         deploy = str(Path(deploy).resolve())
-        subprocess.run(
-            # Exclude host display libraries during deployment, before the
-            # output plugin seals the AppDir into an AppImage.
-            [deploy, "--appdir", str(appdir), "--exclude-library", "libwayland*",
-             "--output", "appimage"],
-            cwd=temporary,
-            check=True,
-        )
+        command = [deploy, "--appdir", str(appdir),
+                   "--desktop-file", str(desktop), "--icon-file", str(icon),
+                   "--exclude-library", "libwayland*"]
+        # linuxdeploy can succeed without creating AppRun. Check the deployed
+        # entry before invoking the output plugin, rather than shipping that warning.
+        subprocess.run(command, cwd=temporary, check=True)
+        validate_apprun(appdir)
+        subprocess.run([*command, "--output", "appimage"], cwd=temporary, check=True)
+        validate_apprun(appdir)
         produced = next(Path(temporary).glob("*.AppImage"), None)
         if produced is None:
             raise SystemExit("linuxdeploy did not produce an AppImage")

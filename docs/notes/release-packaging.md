@@ -28,6 +28,16 @@ or update run. Reuse the recorded focused fixtures; real network updates,
 complete interactive import and full-game validation remain outside this
 release's evidence.
 
+Packaging correction: a user launch of the original Linux AppImage exposed
+`execv` `ENOENT` because the desktop entry at the AppDir root was not discovered
+by linuxdeploy, leaving the package without `AppRun`. `tools/package_appimage.py`
+now deploys metadata explicitly in two stages and checks the internal executable
+before image generation. Linux packaging regression checks passed 5/5, and a
+repacked extract-and-run reached the expected no-game-files exit in WSL. The
+replacement Linux asset and sidecar are published and anonymously verified
+(43,162,104 bytes, SHA-256 `0991df9aca8e930fa8eacbd8afe99b7a3a81e940dfa740fcfbdba34cd54c4d0a`); the original
+runtime and library content hashes were unchanged in the repacked extract.
+
 ## Current v0.5.0 CI delivery — 2026-09-09
 
 Release CI `34362242667` succeeded for tag/main `28be72f02649cf87126dd9f1a604ada6cdd380c5`. The Windows ZIP is 44,020,136 bytes with SHA256 `e8391a2353a7206398b2dca24a2d73bccdea7b946d55cbfca4e7573648e95312`; source identity is `5038af3b3561ffce579a78158fb088c8d5f27df7705ba140e0e56bd11624e9cc`. See `out/v0.5.0/release-finalization/ci-34362242667/CI-DELIVERY.json` and `REPORT.md`. That CI artifact predates the current shader-priority candidate and remains historical until the parent replaces it. Draft release `385591785` is not public and has no publication timestamp or verified anonymous public download. The current candidate's four capture-confirmed c7 paths and shader-anomaly priority are documented in `out/v0.5.0/performance-fix/shader-priority-0.5.0/REPORT.md`; no game run was performed for it. Publication must wait for final asset/tag/download verification.
