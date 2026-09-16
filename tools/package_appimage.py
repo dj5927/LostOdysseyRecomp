@@ -63,6 +63,10 @@ def main():
         deploy = shutil.which(args.linuxdeploy)
         if not deploy:
             raise SystemExit(f"linuxdeploy not found: {args.linuxdeploy}")
+        # shutil.which keeps a relative directory path as given. Resolve it
+        # before linuxdeploy runs with cwd=temporary, or CI's
+        # out/tools/linuxdeploy/linuxdeploy is looked up in the temp dir.
+        deploy = str(Path(deploy).resolve())
         subprocess.run(
             [deploy, "--appdir", str(appdir), "--output", "appimage"],
             cwd=temporary,
