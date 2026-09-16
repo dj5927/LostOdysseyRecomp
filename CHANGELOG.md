@@ -4,7 +4,7 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## Unreleased / 未发布
+## Historical development checkpoints / 历史开发检查点
 
 ### English
 
@@ -74,21 +74,23 @@ One record of completed changes, with unpublished work separated from verified r
 - 首个可玩的 Linux Vulkan-only 未打包 ELF 路径仍为源码构建路径（WSL2 Manjaro + Mesa Dozen Vulkan-on-D3D12）；目前没有发布 Linux 包。
 - 已在 `600b08e` 部署 GitHub Issue triage workflow 更新，支持授权协作者的 `@codex` 评论请求、按评论去重、最近人类讨论和有界的 first-party 代码检索。19 项 triage/mention 检查及 7 项 retrieval 检查已通过；首次公开 `@codex` 回复仍待观察。
 
-## v0.5.14 — 2026-09-16 / Release candidate / 未发布
+## v0.5.14 — 2026-09-16 / Published / 已发布
 
 ### English
 
-- Integrate the installer and updater into the main binary, with the accepted audit fixes for DLC I/O publication, scan and retry state, exact `--apply-plan` parsing, Linux XDG profile paths, extracted-DLC trailing-separator scanning, and AppImage dependency filtering.
-- Add Linux installer/updater XDG and AppImage support. The first hosted Linux packaging run is still pending; no Linux package or Steam Deck compatibility is claimed.
-- Include the R3 notified-wait CPU modernization, with its previously passed focused verification retained.
-- The user accepted the current fixes for this release candidate. Real network updates, AppImage packaging, complete UI import, and full-game validation remain unverified.
+- The main binary now provides the installer and updater in one place, with safer DLC import failure handling, reliable scan and retry behavior, exact apply-mode argument handling, Linux XDG profile paths, extracted-DLC trailing-separator scanning, and AppImage dependency filtering.
+- Linux x64 AppImage is available alongside the Windows x64 ZIP, with the embedded installer/updater and XDG user data paths. AppImage gameplay and in-place updating remain unverified; complete Steam Deck compatibility is not established.
+- CPU waiting paths now use condition-variable notifications in place of the former polling loops. Focused verification is retained in the historical development record.
+- Real network updates, AppImage gameplay or update runs, complete UI import, and full-game validation remain unverified.
 
 ### 简体中文
 
-- 将安装器与更新器整合到主二进制，并包含已验收的审计修复：DLC I/O 发布检查、扫描与重试状态、精确 `--apply-plan` 参数解析、Linux XDG profile 路径、已解包 DLC 尾部分隔符扫描以及 AppImage 依赖过滤。
-- 增加 Linux 安装器／更新器 XDG 与 AppImage 支持。首次托管 Linux 打包运行仍待完成；不宣称已发布 Linux 包或完整 Steam Deck 兼容性。
-- 纳入 R3 notified-wait CPU 等待路径现代化，沿用此前已通过的定向验证。
-- 用户已验收当前修复，当前为 release candidate。真实在线更新、AppImage 封包、UI 完整导入和全游戏验证仍未核验。
+- 主二进制现已统一提供安装器与更新器，并改进 DLC 导入失败处理、扫描与重试行为、apply 模式参数解析、Linux XDG profile 路径、已解包 DLC 尾部分隔符扫描和 AppImage 依赖过滤。
+- 同时提供 Windows x64 ZIP 和 Linux x64 AppImage，包含内嵌安装器／更新器与 XDG 用户数据路径。AppImage 游戏运行和原地更新仍未验证，完整 Steam Deck 兼容性尚未确立。
+- CPU 等待路径使用条件变量通知替代原有轮询循环，定向验证保留在历史开发记录中。
+- 真实在线更新、AppImage 游戏或更新运行、UI 完整导入和全游戏验证仍未核验。
+
+Published at [GitHub Release v0.5.14](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14) on 2026-09-16T07:18:53Z from source/tag commit `caf8060d99e5f1e52aec9d545331efe59e0c01e8`. Release CI `35065717899` succeeded. The Windows ZIP is 32,915,456 bytes with SHA-256 `c21224ed985ada3502e25b42dd9e9379cb95749b0f06cea6d838f4d60843c09d`; the Linux AppImage is 43,162,104 bytes with SHA-256 `a9912d2a258f17a2fea1a4d7f99c9589b538e66efd25225b1ade74af606e6196`. The 47-file Windows manifest and Linux format/sidecar checks passed; anonymous downloads of all four public assets matched their recorded bytes and hashes. Publication does not claim packaged gameplay or live update validation.
 
 ## v0.5.13 — 2026-09-14 / Published / 已发布
 

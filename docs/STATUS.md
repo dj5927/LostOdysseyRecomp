@@ -1,12 +1,14 @@
 # Project status
 
-## v0.5.14 release candidate — CI pending — 2026-09-16
+## Published v0.5.14 — 2026-09-16
 
-The current candidate contains the embedded installer/updater work, accepted audit fixes, Linux XDG/AppImage support, and the R3 notified-wait CPU modernization. The user accepted the current fixes for this candidate. The first hosted Linux packaging run is pending; no release or Linux package has been published, and Steam Deck compatibility is not complete.
+The published release contains the embedded installer/updater work, accepted audit fixes, Linux XDG/AppImage support, and the R3 notified-wait CPU modernization. It was published at [GitHub Release v0.5.14](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14) on 2026-09-16T07:18:53Z from source/tag commit `caf8060d99e5f1e52aec9d545331efe59e0c01e8`. Release CI `35065717899` succeeded; Linux Release job `104695450320` succeeded on attempt 1. The Windows ZIP is 32,915,456 bytes with SHA-256 `c21224ed985ada3502e25b42dd9e9379cb95749b0f06cea6d838f4d60843c09d`; the Linux AppImage is 43,162,104 bytes with SHA-256 `a9912d2a258f17a2fea1a4d7f99c9589b538e66efd25225b1ade74af606e6196`.
 
-Validation is bounded to the previously recorded R3 checks and the current focused installer, updater, importer, AppImage script, and WSL path fixtures. Real network updates, AppImage packaging, complete interactive import, and full-game playthrough remain unverified.
+Validation is bounded to the previously recorded R3 checks and the focused installer, updater, importer, AppImage script, and WSL path fixtures. The Windows package verification covered all 47 manifest files; Linux format and sidecar checks passed, and all four public assets matched their recorded bytes and hashes after redirect downloads. The AppImage has not been tested in a real game or update run. Real network updates, complete interactive import, and full-game playthrough remain unverified.
 
-## R3 CPU waiting-path modernization and native Vulkan test — unpublished development — 2026-09-15
+The dated development checkpoints below retain their original pre-release status and validation boundaries. Their installer/updater, Linux packaging and CPU wait changes are now included in v0.5.14.
+
+## R3 CPU waiting-path modernization and native Vulkan test — historical development checkpoint — 2026-09-15
 
 The source implements the R3 CPU waiting-path modernization on the local `deck` branch (uncommitted development checkpoint, source version remains `0.5.13`, not a release).
 - **Condition-variable kernel waits**: Adds `LostOdysseyRecomp/notified_wait.h` with predicate/deadline condition-variable helpers (`notified_wait::For` and `notified_wait::Until`). Replaces 200 µs polling sleep loops in `kernel/imports.cpp` for finite-timeout Event, Semaphore, and Mutant waits with condition-variable predicate and deadline waits while preserving consume, recursive ownership, and timeout semantics.

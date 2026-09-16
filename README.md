@@ -19,15 +19,15 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
-Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with AppImage packaging via `tools/package_appimage.py`; see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides. No prebuilt Linux package is published yet.
+Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with the published Linux x64 AppImage available from the [v0.5.14 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14); see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides.
 
 ## New in v0.5.14
 
-Release candidate: [v0.5.14](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14) (CI pending; not published).
+Published release: [v0.5.14](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14). It provides a Windows x64 ZIP and a Linux x64 AppImage.
 
 - Embedded installer and updater improvements, including the accepted DLC I/O, scan/retry, exact apply-argument, Linux XDG profile, extracted-DLC scanning and AppImage dependency fixes.
-- Linux installer/updater XDG and AppImage support is included; the first hosted Linux packaging run is still pending, and Steam Deck compatibility is not complete.
-- Includes the R3 notified-wait CPU modernization. Real updates, AppImage packaging, complete UI import and full-game validation remain unverified.
+- Linux installer/updater XDG and AppImage support is included; the published AppImage has not been tested in a real game or update run, and Steam Deck compatibility is not complete.
+- CPU waits now use notifications instead of polling. Real updates, complete UI import and full-game validation remain unverified.
 
 ## New in v0.5.13
 

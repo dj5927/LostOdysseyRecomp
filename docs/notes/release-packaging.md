@@ -7,19 +7,26 @@ separate `InstallGame.exe` or `LostOdysseyUpdater.exe`; the native importer and
 updater run from the single runtime binary. The CMake `LostOdysseyUpdater`
 target remains available for host-side fixtures.
 
-## v0.5.14 release candidate — 2026-09-16
+## Published v0.5.14 — 2026-09-16
 
-The candidate release notes are in the matching `v0.5.14` section of
-`CHANGELOG.md` for `extract_release_notes.py`. It includes the embedded
-installer/updater audit fixes, Linux XDG/AppImage support, and the R3
-notified-wait modernization. The user accepted the current fixes. The first
-hosted Linux packaging run is pending, so no Linux package or release
-publication is recorded; Steam Deck compatibility is not complete.
+The published release notes are in the matching `v0.5.14` section of
+`CHANGELOG.md`. It includes the embedded installer/updater fixes, Linux
+XDG/AppImage support, and the R3 notified-wait modernization. Release CI
+`35065717899` succeeded; Linux Release job `104695450320` succeeded on attempt
+1. The Linux x64 AppImage is 43,162,104 bytes with SHA-256
+`a9912d2a258f17a2fea1a4d7f99c9589b538e66efd25225b1ade74af606e6196`.
+The Windows ZIP is 32,915,456 bytes with SHA-256
+`c21224ed985ada3502e25b42dd9e9379cb95749b0f06cea6d838f4d60843c09d`.
+Publication completed at 2026-09-16T07:18:53Z from source/tag commit
+`caf8060d99e5f1e52aec9d545331efe59e0c01e8`; Steam Deck compatibility is not
+complete.
 
-Release checks still need the actual CI result and published asset evidence.
-Reuse the recorded focused fixtures; real network updates, AppImage packaging,
+The 47-file Windows manifest and Linux format/sidecar checks passed, and all
+four public ZIP/AppImage assets and sidecars matched their recorded bytes and
+hashes after redirect downloads. The AppImage has not been used in a real game
+or update run. Reuse the recorded focused fixtures; real network updates,
 complete interactive import and full-game validation remain outside this
-candidate's evidence.
+release's evidence.
 
 ## Current v0.5.0 CI delivery — 2026-09-09
 

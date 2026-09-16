@@ -19,15 +19,15 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
-Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flatpak 清单构建，支持通过 `tools/package_appimage.py` 打包 AppImage；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。目前尚未发布预编译的 Linux 软件包。
+Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flatpak 清单构建，Linux x64 AppImage 已随 [v0.5.14 发布版](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14)提供；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。
 
 ## v0.5.14 新增
 
-候选发布版本：[v0.5.14](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14)（CI 待完成，尚未发布）。
+已发布版本：[v0.5.14](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14)。提供 Windows x64 ZIP 和 Linux x64 AppImage。
 
 - 内置安装器与更新器改进，包含已验收的 DLC I/O、扫描／重试、精确 apply 参数、Linux XDG profile、已解包 DLC 扫描和 AppImage 依赖修复。
-- 包含 Linux 安装器／更新器 XDG 与 AppImage 支持；首次托管 Linux 打包仍待完成，Steam Deck 兼容性尚未完整建立。
-- 纳入 R3 notified-wait CPU 等待路径现代化。真实更新、AppImage 封包、UI 完整导入和全游戏验证仍未核验。
+- 包含 Linux 安装器／更新器 XDG 与 AppImage 支持；已发布 AppImage 尚未进行真实游戏或更新运行，Steam Deck 兼容性尚未完整建立。
+- CPU 等待改用通知替代轮询。真实更新、UI 完整导入和全游戏验证仍未核验。
 
 ## v0.5.13 新增
 
