@@ -5,15 +5,21 @@
 #include <string>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include "host_ui.h"
 #include "unifont.h"
 
 namespace host_ui
 {
-    // Color helper: ARGB uint32 representation (0xAARRGGBB)
+    inline constexpr uint32_t PackRgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+    {
+        return uint32_t(r) | (uint32_t(g) << 8) | (uint32_t(b) << 16) | (uint32_t(a) << 24);
+    }
+
+    // Keep the established alpha-first call signature while using RGBA8 memory layout.
     inline constexpr uint32_t MakeColor(uint8_t a, uint8_t r, uint8_t g, uint8_t b)
     {
-        return (uint32_t(a) << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | uint32_t(b);
+        return PackRgba(r, g, b, a);
     }
 
     inline constexpr uint32_t ColorBlend(uint32_t bg, uint32_t fg)
@@ -25,12 +31,49 @@ namespace host_ui
         uint32_t ba = (bg >> 24) & 0xFF;
         uint32_t inv_fa = 255 - fa;
 
-        uint32_t r = (((fg >> 16) & 0xFF) * fa + ((bg >> 16) & 0xFF) * inv_fa) / 255;
+        uint32_t r = ((fg & 0xFF) * fa + (bg & 0xFF) * inv_fa) / 255;
         uint32_t g = (((fg >> 8) & 0xFF) * fa + ((bg >> 8) & 0xFF) * inv_fa) / 255;
-        uint32_t b = ((fg & 0xFF) * fa + (bg & 0xFF) * inv_fa) / 255;
+        uint32_t b = (((fg >> 16) & 0xFF) * fa + ((bg >> 16) & 0xFF) * inv_fa) / 255;
         uint32_t a = fa + (ba * inv_fa) / 255;
 
-        return (a << 24) | (r << 16) | (g << 8) | b;
+        return PackRgba(uint8_t(r), uint8_t(g), uint8_t(b), uint8_t(a));
+    }
+
+    inline bool CompositeScaled(const PixelBuffer& source, uint32_t width, uint32_t height,
+                                std::vector<uint32_t>& destination)
+    {
+        if (!source.width || !source.height ||
+            size_t(source.width) > std::numeric_limits<size_t>::max() / size_t(source.height) ||
+            source.pixels.size() != size_t(source.width) * source.height || !width || !height ||
+            size_t(width) > std::numeric_limits<size_t>::max() / size_t(height))
+            return false;
+
+        const size_t pixelCount = size_t(width) * height;
+        if (destination.size() != pixelCount)
+            return false;
+
+        const double scale = std::min(width / double(source.width), height / double(source.height));
+        const uint32_t viewportWidth = std::min(width, uint32_t(std::ceil(source.width * scale)));
+        const uint32_t viewportHeight = std::min(height, uint32_t(std::ceil(source.height * scale)));
+        const uint32_t offsetX = (width - viewportWidth) / 2;
+        const uint32_t offsetY = (height - viewportHeight) / 2;
+
+        for (uint32_t y = 0; y < viewportHeight; ++y)
+        {
+            const uint32_t sourceY = std::min(source.height - 1,
+                                               uint32_t(y * source.height / double(viewportHeight)));
+            for (uint32_t x = 0; x < viewportWidth; ++x)
+            {
+                const uint32_t sourceX = std::min(source.width - 1,
+                                                   uint32_t(x * source.width / double(viewportWidth)));
+                const uint32_t foreground = source.pixels[size_t(sourceY) * source.width + sourceX];
+                if ((foreground >> 24) == 0) continue;
+
+                uint32_t& background = destination[size_t(offsetY + y) * width + offsetX + x];
+                background = ColorBlend(background, foreground) | 0xFF000000u;
+            }
+        }
+        return true;
     }
 
     struct Rasterizer

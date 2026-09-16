@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <condition_variable>
 #include <mutex>
+#include <limits>
 #include <vector>
 #include <string>
 
@@ -52,13 +53,21 @@ namespace host_ui
     {
         uint32_t width = kOverlayWidth;
         uint32_t height = kOverlayHeight;
-        std::vector<uint32_t> pixels; // 0xAABBGGRR / 0xAARRGGBB straight alpha depending on target
+        // Packed so little-endian memory is R, G, B, A for R8G8B8A8_UNORM uploads.
+        std::vector<uint32_t> pixels;
 
-        void Resize(uint32_t w = kOverlayWidth, uint32_t h = kOverlayHeight)
+        bool Resize(uint32_t w = kOverlayWidth, uint32_t h = kOverlayHeight)
         {
+            if (!w || !h || size_t(w) > std::numeric_limits<size_t>::max() / size_t(h))
+            {
+                width = height = 0;
+                pixels.clear();
+                return false;
+            }
             width = w;
             height = h;
-            pixels.resize(size_t(w) * h, 0);
+            pixels.assign(size_t(w) * h, 0);
+            return true;
         }
 
         void Clear(uint32_t color = 0)

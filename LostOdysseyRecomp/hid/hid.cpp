@@ -20,6 +20,7 @@ namespace
     std::vector<SDL_GameController*> g_controllers;
     std::array<Uint8, SDL_NUM_SCANCODES> g_keys{};
     Mutex g_hidMutex;
+    Mutex g_getStateMutex;
     uint32_t g_packet = 0;
 
     void OpenControllers()
@@ -129,40 +130,47 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
     if (dwUserIndex != 0)
         return ERROR_DEVICE_NOT_CONNECTED;
 
+    std::lock_guard stateLock(g_getStateMutex);
     Poll();
 
-    std::lock_guard lock(g_hidMutex);
     *pState = {};
     pState->dwPacketNumber = ++g_packet;
     auto& gp = pState->Gamepad;
+    std::array<Uint8, SDL_NUM_SCANCODES> keys{};
+    bool controllerConnected = false;
 
-    if (!g_externalPump) SDL_GameControllerUpdate();
-    for (auto* controller : g_controllers)
     {
-        if (!SDL_GameControllerGetAttached(controller)) continue;
-        auto btn = [&](SDL_GameControllerButton b) { return SDL_GameControllerGetButton(controller, b) != 0; };
-        auto axis = [&](SDL_GameControllerAxis a) { return SDL_GameControllerGetAxis(controller, a); };
+        std::lock_guard lock(g_hidMutex);
+        if (!g_externalPump) SDL_GameControllerUpdate();
+        for (auto* controller : g_controllers)
+        {
+            if (!SDL_GameControllerGetAttached(controller)) continue;
+            auto btn = [&](SDL_GameControllerButton b) { return SDL_GameControllerGetButton(controller, b) != 0; };
+            auto axis = [&](SDL_GameControllerAxis a) { return SDL_GameControllerGetAxis(controller, a); };
 
-        if (btn(SDL_CONTROLLER_BUTTON_DPAD_UP)) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_UP;
-        if (btn(SDL_CONTROLLER_BUTTON_DPAD_DOWN)) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_DOWN;
-        if (btn(SDL_CONTROLLER_BUTTON_DPAD_LEFT)) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_LEFT;
-        if (btn(SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_RIGHT;
-        if (btn(SDL_CONTROLLER_BUTTON_START)) gp.wButtons |= XAMINPUT_GAMEPAD_START;
-        if (btn(SDL_CONTROLLER_BUTTON_BACK)) gp.wButtons |= XAMINPUT_GAMEPAD_BACK;
-        if (btn(SDL_CONTROLLER_BUTTON_LEFTSTICK)) gp.wButtons |= XAMINPUT_GAMEPAD_LEFT_THUMB;
-        if (btn(SDL_CONTROLLER_BUTTON_RIGHTSTICK)) gp.wButtons |= XAMINPUT_GAMEPAD_RIGHT_THUMB;
-        if (btn(SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) gp.wButtons |= XAMINPUT_GAMEPAD_LEFT_SHOULDER;
-        if (btn(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) gp.wButtons |= XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
-        if (btn(SDL_CONTROLLER_BUTTON_A)) gp.wButtons |= XAMINPUT_GAMEPAD_A;
-        if (btn(SDL_CONTROLLER_BUTTON_B)) gp.wButtons |= XAMINPUT_GAMEPAD_B;
-        if (btn(SDL_CONTROLLER_BUTTON_X)) gp.wButtons |= XAMINPUT_GAMEPAD_X;
-        if (btn(SDL_CONTROLLER_BUTTON_Y)) gp.wButtons |= XAMINPUT_GAMEPAD_Y;
+            if (btn(SDL_CONTROLLER_BUTTON_DPAD_UP)) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_UP;
+            if (btn(SDL_CONTROLLER_BUTTON_DPAD_DOWN)) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_DOWN;
+            if (btn(SDL_CONTROLLER_BUTTON_DPAD_LEFT)) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_LEFT;
+            if (btn(SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_RIGHT;
+            if (btn(SDL_CONTROLLER_BUTTON_START)) gp.wButtons |= XAMINPUT_GAMEPAD_START;
+            if (btn(SDL_CONTROLLER_BUTTON_BACK)) gp.wButtons |= XAMINPUT_GAMEPAD_BACK;
+            if (btn(SDL_CONTROLLER_BUTTON_LEFTSTICK)) gp.wButtons |= XAMINPUT_GAMEPAD_LEFT_THUMB;
+            if (btn(SDL_CONTROLLER_BUTTON_RIGHTSTICK)) gp.wButtons |= XAMINPUT_GAMEPAD_RIGHT_THUMB;
+            if (btn(SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) gp.wButtons |= XAMINPUT_GAMEPAD_LEFT_SHOULDER;
+            if (btn(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) gp.wButtons |= XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
+            if (btn(SDL_CONTROLLER_BUTTON_A)) gp.wButtons |= XAMINPUT_GAMEPAD_A;
+            if (btn(SDL_CONTROLLER_BUTTON_B)) gp.wButtons |= XAMINPUT_GAMEPAD_B;
+            if (btn(SDL_CONTROLLER_BUTTON_X)) gp.wButtons |= XAMINPUT_GAMEPAD_X;
+            if (btn(SDL_CONTROLLER_BUTTON_Y)) gp.wButtons |= XAMINPUT_GAMEPAD_Y;
 
-        gp.bLeftTrigger = std::max(gp.bLeftTrigger, uint8_t(std::max(0, int(axis(SDL_CONTROLLER_AXIS_TRIGGERLEFT))) >> 7));
-        gp.bRightTrigger = std::max(gp.bRightTrigger, uint8_t(std::max(0, int(axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT))) >> 7));
-        auto flip = [](int16_t value) { return int16_t(std::min(32767, -int(value))); };
-        MergeStick(gp.sThumbLX, gp.sThumbLY, axis(SDL_CONTROLLER_AXIS_LEFTX), flip(axis(SDL_CONTROLLER_AXIS_LEFTY)), 7849);
-        MergeStick(gp.sThumbRX, gp.sThumbRY, axis(SDL_CONTROLLER_AXIS_RIGHTX), flip(axis(SDL_CONTROLLER_AXIS_RIGHTY)), 8689);
+            gp.bLeftTrigger = std::max(gp.bLeftTrigger, uint8_t(std::max(0, int(axis(SDL_CONTROLLER_AXIS_TRIGGERLEFT))) >> 7));
+            gp.bRightTrigger = std::max(gp.bRightTrigger, uint8_t(std::max(0, int(axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT))) >> 7));
+            auto flip = [](int16_t value) { return int16_t(std::min(32767, -int(value))); };
+            MergeStick(gp.sThumbLX, gp.sThumbLY, axis(SDL_CONTROLLER_AXIS_LEFTX), flip(axis(SDL_CONTROLLER_AXIS_LEFTY)), 7849);
+            MergeStick(gp.sThumbRX, gp.sThumbRY, axis(SDL_CONTROLLER_AXIS_RIGHTX), flip(axis(SDL_CONTROLLER_AXIS_RIGHTY)), 8689);
+        }
+        controllerConnected = !g_controllers.empty();
+        keys = g_keys;
     }
 
     {
@@ -170,7 +178,7 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
         static uint16_t lastButtons = 0;
         if (trace && gp.wButtons != lastButtons)
         {
-            LOG_INFO("input: buttons {:#06x} (controller {})", gp.wButtons, !g_controllers.empty() ? "yes" : "no");
+            LOG_INFO("input: buttons {:#06x} (controller {})", gp.wButtons, controllerConnected ? "yes" : "no");
             lastButtons = gp.wButtons;
         }
     }
@@ -276,7 +284,6 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
     }
 
     // Event-thread snapshot: keyboard remains available with any number of pads.
-    const auto& keys = g_keys;
     if (!keys.empty())
     {
         if (keys[SDL_SCANCODE_UP]) gp.wButtons |= XAMINPUT_GAMEPAD_DPAD_UP;
@@ -361,6 +368,7 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
     }
 
     // Chord detection: LB + RB simultaneous press edge triggers debug menu overlay.
+    bool overlayOwnsInput = debug_menu::IsOverlayVisible();
     {
         static uint16_t s_prevGamepadButtons = 0;
         const uint16_t chordMask = XAMINPUT_GAMEPAD_LEFT_SHOULDER | XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
@@ -373,6 +381,7 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
 
         if (debug_menu::IsOverlayVisible())
         {
+            overlayOwnsInput = true;
             // Edge detection for D-Pad, face buttons, shoulders
             const uint16_t pressed = gp.wButtons & ~s_prevGamepadButtons;
             if (pressed & XAMINPUT_GAMEPAD_DPAD_UP) debug_menu::HandleInput(debug_menu::InputAction::Up);
@@ -389,10 +398,13 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
     }
 
     const uint16_t beforeMenuButtons = gp.wButtons;
-    bool menuFiltered = settings::FilterInput(gp.wButtons, gp.sThumbLX, gp.sThumbLY);
-    if (debug_menu::IsOverlayVisible()) {
+    bool menuFiltered = false;
+    if (overlayOwnsInput || debug_menu::IsOverlayVisible()) {
         menuFiltered = true;
         gp.wButtons = 0;
+    }
+    else {
+        menuFiltered = settings::FilterInput(gp.wButtons, gp.sThumbLX, gp.sThumbLY);
     }
     if (menuFiltered) {
         gp.sThumbLX=gp.sThumbLY=gp.sThumbRX=gp.sThumbRY=0;

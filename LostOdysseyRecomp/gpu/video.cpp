@@ -834,31 +834,16 @@ namespace gpu::video
             host_ui::Rasterizer r(s_debugOverlayBuf);
             debug_menu::RenderOverlay(r);
 
-            // Blend 720p debug overlay onto g_menuPixels (or initialize g_menuPixels if settings menu not open)
+            // Blend the logical 720p debug overlay onto the current output-sized menu buffer.
             if (!menu) {
-                g_menuPixels.resize(1280 * 720);
-                std::fill(g_menuPixels.begin(), g_menuPixels.end(), 0xCC101018); // Semi-transparent backdrop over game
-            }
-            // Composite overlay pixels onto g_menuPixels (1280x720)
-            const uint32_t* overlaySrc = s_debugOverlayBuf.pixels.data();
-            for (size_t i = 0; i < 1280 * 720; ++i) {
-                uint32_t src = overlaySrc[i];
-                uint8_t a = uint8_t(src >> 24);
-                if (a == 0) continue;
-                if (a == 255) {
-                    g_menuPixels[i] = src;
-                } else {
-                    uint32_t dst = g_menuPixels[i];
-                    uint32_t rb_s = src & 0x00FF00FF;
-                    uint32_t g_s  = src & 0x0000FF00;
-                    uint32_t rb_d = dst & 0x00FF00FF;
-                    uint32_t g_d  = dst & 0x0000FF00;
-                    uint32_t rb = (rb_s * a + rb_d * (255 - a)) / 255;
-                    uint32_t g  = (g_s  * a + g_d  * (255 - a)) / 255;
-                    g_menuPixels[i] = (255 << 24) | (rb & 0x00FF00FF) | (g & 0x0000FF00);
+                if (size_t(menuWidth) > std::numeric_limits<size_t>::max() / size_t(menuHeight)) {
+                    g_menuPixels.clear();
+                }
+                else {
+                    g_menuPixels.assign(size_t(menuWidth) * menuHeight, host_ui::MakeColor(204, 16, 16, 24));
                 }
             }
-            menu = true;
+            menu = host_ui::CompositeScaled(s_debugOverlayBuf, menuWidth, menuHeight, g_menuPixels);
         }
         // Fast path: the frontbuffer was resolved on the GPU, copy it straight
         // into the swap chain. LO_PRESENT_CPU=1 forces the untiling path below.

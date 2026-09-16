@@ -380,7 +380,7 @@ target_include_directories(LoHidTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp
 target_compile_definitions(LoHidTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp,COMPILE_DEFINITIONS>)
 target_compile_options(LoHidTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp,COMPILE_OPTIONS>)
 target_compile_features(LoHidTest PRIVATE cxx_std_20)
-target_precompile_headers(LoHidTest REUSE_FROM LostOdysseyRecomp)
+set_target_properties(LoHidTest PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 target_link_libraries(LoHidTest PRIVATE fmt::fmt SDL2::SDL2-static xxHash::xxhash)
 
 add_executable(LoShaderTool
@@ -566,6 +566,19 @@ target_compile_features(LoTemporalHistoryDiagnosticTest PRIVATE cxx_std_20)
 add_executable(LoFramePacerTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/frame_pacer_test.cpp)
 target_include_directories(LoFramePacerTest PRIVATE ${LO_RUNTIME_ROOT})
 target_compile_features(LoFramePacerTest PRIVATE cxx_std_20)
+
+add_executable(LoHostUiCompositeTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/host_ui_composite_test.cpp)
+target_include_directories(LoHostUiCompositeTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoHostUiCompositeTest PRIVATE cxx_std_20)
+
+add_executable(LoDebugOverlayTest EXCLUDE_FROM_ALL
+    ${CMAKE_SOURCE_DIR}/tools/tests/debug_overlay_test.cpp
+    ${LO_RUNTIME_ROOT}/debug/menu_overlay.cpp)
+target_include_directories(LoDebugOverlayTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoDebugOverlayTest PRIVATE cxx_std_20)
+if(MSVC)
+    target_compile_options(LoDebugOverlayTest PRIVATE /utf-8)
+endif()
 
 add_executable(LoShaderPreparationQueueTest EXCLUDE_FROM_ALL
     ${CMAKE_SOURCE_DIR}/tools/tests/shader_preparation_queue_test.cpp)

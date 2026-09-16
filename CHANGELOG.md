@@ -4,6 +4,18 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
+## Unreleased / 未发布
+
+### English
+
+- Menu branch fixes improve the in-game debug overlay across output resolutions and protect shared overlay state during concurrent access. The software UI now uses the intended RGBA channel order, HID locking covers the complete device operation, and guest pause uses cooperative safe points so overlay interaction does not suspend worker threads indefinitely.
+- Added `LoHostUiCompositeTest` and `LoDebugOverlayTest` while retaining `LoHidTest`. All three focused Windows tests were rebuilt and passed. A complete Clang 22 Linux Release runtime also linked successfully and recognized `game_us/default.xex` during startup. The Linux launch check used `SDL_VIDEODRIVER=dummy`; Vulkan window creation and real scene gameplay therefore remain unverified.
+
+### 简体中文
+
+- menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
+- 新增 `LoHostUiCompositeTest` 和 `LoDebugOverlayTest`，保留 `LoHidTest`。三个 Windows 定向测试均已重新编译并通过。完整的 Clang 22 Linux Release runtime 也已成功链接，并在启动时识别 `game_us/default.xex`。Linux 启动检查使用了 `SDL_VIDEODRIVER=dummy`，因此 Vulkan 窗口创建和真实场景游戏运行仍未验证。
+
 ## Historical development checkpoints / 历史开发检查点
 
 ### English

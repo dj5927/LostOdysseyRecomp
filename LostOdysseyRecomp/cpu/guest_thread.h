@@ -42,6 +42,10 @@ struct GuestThreadHandle : KernelObject
 
 struct GuestThread
 {
+    // Cooperative pause point for code executing on behalf of a guest thread.
+    // Call only at boundaries where no host subsystem lock is held.
+    static void WaitIfPaused();
+
     static uint32_t Start(const GuestThreadParams& params);
     static GuestThreadHandle* Start(const GuestThreadParams& params, uint32_t* threadId);
 

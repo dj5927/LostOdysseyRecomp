@@ -19,10 +19,10 @@ namespace
     inline uint32_t Shade(uint32_t col, int amount)
     {
         uint32_t a = (col >> 24) & 0xFF;
-        int r = std::clamp(int((col >> 16) & 0xFF) + amount, 0, 255);
+        int r = std::clamp(int(col & 0xFF) + amount, 0, 255);
         int g = std::clamp(int((col >> 8) & 0xFF) + amount, 0, 255);
-        int b = std::clamp(int(col & 0xFF) + amount, 0, 255);
-        return (a << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | uint32_t(b);
+        int b = std::clamp(int((col >> 16) & 0xFF) + amount, 0, 255);
+        return host_ui::PackRgba(uint8_t(r), uint8_t(g), uint8_t(b), uint8_t(a));
     }
 }
 
@@ -158,7 +158,7 @@ bool settings::RasterizeMenu(const MenuSnapshot &current, uint32_t width, uint32
                         double channel = (samples[i] >> (8 * c)) & 255;
                         if (face != 0 && edge != 0)
                         {
-                            const int shift = (2 - c) * 8;
+                            const int shift = c * 8;
                             const double outlineChannel = (edge >> shift) & 255;
                             channel = outlineChannel + (((face >> shift) & 255) - outlineChannel) * channel / 255;
                         }
@@ -211,9 +211,9 @@ bool settings::RasterizeMenu(const MenuSnapshot &current, uint32_t width, uint32
                 noise ^= noise >> 15;
                 const int streak = int((noise >> 29) & 3) - 1;
                 const int delta = std::clamp(band + streak, -grain, grain);
-                const int red = std::clamp(int((base >> 16) & 255) + delta, 0, 255);
+                const int red = std::clamp(int(base & 255) + delta, 0, 255);
                 const int green = std::clamp(int((base >> 8) & 255) + delta, 0, 255);
-                const int blue = std::clamp(int(base & 255) + delta, 0, 255);
+                const int blue = std::clamp(int((base >> 16) & 255) + delta, 0, 255);
                 dib[size_t(py) * width + px] = MakeColor(255, red, green, blue);
             }
         }

@@ -19,6 +19,11 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## Unreleased development
+
+- The in-game debug overlay now composes correctly across output resolutions and protects shared overlay state during concurrent access. Its software UI uses the intended RGBA channel order, HID locking covers the complete device operation, and guest pause uses cooperative safe points so overlay interaction does not suspend worker threads indefinitely.
+- Focused Windows regression tests pass after rebuilding: `LoHostUiCompositeTest`, `LoDebugOverlayTest` and `LoHidTest`. A complete Clang 22 Linux Release runtime also links successfully and recognizes `game_us/default.xex` during startup. The Linux check used `SDL_VIDEODRIVER=dummy`, so Vulkan window creation and real scene gameplay were not exercised.
+
 Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with the published Linux x64 AppImage available from the [v0.5.14 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14); see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides.
 
 ## New in v0.5.14

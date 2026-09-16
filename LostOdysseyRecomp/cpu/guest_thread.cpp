@@ -4,6 +4,7 @@
 #include <kernel/heap.h>
 #include <kernel/function.h>
 #include <os/logger.h>
+#include <host_ui/host_ui.h>
 #include "ppc_context.h"
 
 // Layout mirrors the real kernel's per-thread block closely enough for the
@@ -109,6 +110,8 @@ uint32_t GuestThreadHandle::Wait(uint32_t timeout)
 
 uint32_t GuestThread::Start(const GuestThreadParams& params)
 {
+    WaitIfPaused();
+
     const auto procMask = (uint8_t)(params.flags >> 24);
     const auto cpuNumber = procMask == 0 ? 0 : 7 - std::countl_zero(procMask);
 
@@ -136,6 +139,11 @@ GuestThreadHandle* GuestThread::Start(const GuestThreadParams& params, uint32_t*
         *threadId = hThread->GetThreadId();
 
     return hThread;
+}
+
+void GuestThread::WaitIfPaused()
+{
+    host_ui::WaitIfPaused();
 }
 
 uint32_t GuestThread::GetCurrentThreadId()
