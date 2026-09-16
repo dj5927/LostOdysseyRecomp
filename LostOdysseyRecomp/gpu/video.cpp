@@ -15,6 +15,9 @@
 #include <os/shader_log.h>
 #include <hid/hid.h>
 #include <debug/battle_menu.h>
+#include <debug/menu_overlay.h>
+#include <host_ui/host_ui.h>
+#include <host_ui/rasterizer.h>
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -708,10 +711,30 @@ namespace gpu::video
                 if(scale>0) settings::PointerClick((event.button.x-(w-1280*scale)*0.5f)/scale,
                     (event.button.y-(h-720*scale)*0.5f)/scale,event.button.button==SDL_BUTTON_RIGHT);
             }
-            if (event.type == SDL_KEYDOWN && getenv("LO_TRACE_INPUT"))
-                LOG_INFO("video key: {} repeat {}", event.key.keysym.sym, event.key.repeat);
+            if (event.type == SDL_KEYDOWN)
+                LOG_INFO("video key: {} name: '{}' repeat {}", event.key.keysym.sym, SDL_GetKeyName(event.key.keysym.sym), event.key.repeat);
             if (event.type == SDL_KEYDOWN && !event.key.repeat && event.key.keysym.sym == SDLK_F1)
+            {
+                LOG_INFO("[host_ui] F1 key triggered!");
                 debug_menu::Toggle();
+            }
+            else if (event.type == SDL_KEYDOWN && !event.key.repeat && debug_menu::IsOverlayVisible())
+            {
+                switch (event.key.keysym.sym)
+                {
+                case SDLK_UP: debug_menu::HandleInput(debug_menu::InputAction::Up); break;
+                case SDLK_DOWN: debug_menu::HandleInput(debug_menu::InputAction::Down); break;
+                case SDLK_LEFT: debug_menu::HandleInput(debug_menu::InputAction::Left); break;
+                case SDLK_RIGHT: debug_menu::HandleInput(debug_menu::InputAction::Right); break;
+                case SDLK_RETURN:
+                case SDLK_KP_ENTER: debug_menu::HandleInput(debug_menu::InputAction::Confirm); break;
+                case SDLK_ESCAPE: debug_menu::HandleInput(debug_menu::InputAction::Cancel); break;
+                case SDLK_TAB:
+                case SDLK_q: debug_menu::HandleInput(debug_menu::InputAction::PrevTab); break;
+                case SDLK_e: debug_menu::HandleInput(debug_menu::InputAction::NextTab); break;
+                default: break;
+                }
+            }
             if (event.type == SDL_CONTROLLERDEVICEADDED || event.type == SDL_CONTROLLERDEVICEREMOVED)
                 hid::HandleControllerEvent(event.type, event.cdevice.which);
             if (event.type == SDL_QUIT)
@@ -788,7 +811,55 @@ namespace gpu::video
         const PresentationOptions presentationOptions{
             presentationConfig.antialiasing == 3 ? Antialiasing::SMAA : static_cast<Antialiasing>(presentationConfig.antialiasing),
             presentationConfig.scalingQuality ? ScalingFilter::Bicubic : ScalingFilter::Bilinear};
-        const bool menu=settings::DrawMenu(g_menuPixels,g_menuRevision,menuWidth,menuHeight);
+        // Debug / test trigger: auto-open overlay after N frames if LO_AUTO_OVERLAY is set
+        static int s_autoOverlayCountdown = []() {
+            const char* env = getenv("LO_AUTO_OVERLAY");
+            return env ? atoi(env) : -1;
+        }();
+        if (s_autoOverlayCountdown > 0) {
+            if (--s_autoOverlayCountdown == 0) {
+                LOG_INFO("[host_ui] LO_AUTO_OVERLAY triggered debug overlay!");
+                debug_menu::Toggle();
+                if (getenv("LO_AUTO_TAB")) {
+                    debug_menu::HandleInput(debug_menu::InputAction::NextTab);
+                }
+            }
+        }
+
+        bool menu = settings::DrawMenu(g_menuPixels, g_menuRevision, menuWidth, menuHeight);
+        if (debug_menu::IsOverlayVisible()) {
+            static host_ui::PixelBuffer s_debugOverlayBuf;
+            s_debugOverlayBuf.Resize(1280, 720);
+            s_debugOverlayBuf.Clear(0x00000000);
+            host_ui::Rasterizer r(s_debugOverlayBuf);
+            debug_menu::RenderOverlay(r);
+
+            // Blend 720p debug overlay onto g_menuPixels (or initialize g_menuPixels if settings menu not open)
+            if (!menu) {
+                g_menuPixels.resize(1280 * 720);
+                std::fill(g_menuPixels.begin(), g_menuPixels.end(), 0xCC101018); // Semi-transparent backdrop over game
+            }
+            // Composite overlay pixels onto g_menuPixels (1280x720)
+            const uint32_t* overlaySrc = s_debugOverlayBuf.pixels.data();
+            for (size_t i = 0; i < 1280 * 720; ++i) {
+                uint32_t src = overlaySrc[i];
+                uint8_t a = uint8_t(src >> 24);
+                if (a == 0) continue;
+                if (a == 255) {
+                    g_menuPixels[i] = src;
+                } else {
+                    uint32_t dst = g_menuPixels[i];
+                    uint32_t rb_s = src & 0x00FF00FF;
+                    uint32_t g_s  = src & 0x0000FF00;
+                    uint32_t rb_d = dst & 0x00FF00FF;
+                    uint32_t g_d  = dst & 0x0000FF00;
+                    uint32_t rb = (rb_s * a + rb_d * (255 - a)) / 255;
+                    uint32_t g  = (g_s  * a + g_d  * (255 - a)) / 255;
+                    g_menuPixels[i] = (255 << 24) | (rb & 0x00FF00FF) | (g & 0x0000FF00);
+                }
+            }
+            menu = true;
+        }
         // Fast path: the frontbuffer was resolved on the GPU, copy it straight
         // into the swap chain. LO_PRESENT_CPU=1 forces the untiling path below.
         static const bool cpuPresent = getenv("LO_PRESENT_CPU") != nullptr;

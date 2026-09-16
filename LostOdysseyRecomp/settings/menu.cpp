@@ -734,6 +734,11 @@ PPC_FUNC(sub_822F19B0)
 #endif
 }
 
+bool settings::IsOpen()
+{
+    return active.load();
+}
+
 bool settings::DrawMenu(std::vector<uint32_t> &pixels, uint64_t &revision, uint32_t width, uint32_t height)
 {
     if (!active.load())

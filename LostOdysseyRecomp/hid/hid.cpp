@@ -8,6 +8,7 @@ extern std::atomic<uint32_t> g_presentedSwaps;
 #include <vector>
 #include <SDL.h>
 #include <settings/menu.h>
+#include <debug/menu_overlay.h>
 #include <debug/frame_timing.h>
 #include "test_input_pulse.h"
 
@@ -359,8 +360,40 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
         traceInputActive = active;
     }
 
+    // Chord detection: LB + RB simultaneous press edge triggers debug menu overlay.
+    {
+        static uint16_t s_prevGamepadButtons = 0;
+        const uint16_t chordMask = XAMINPUT_GAMEPAD_LEFT_SHOULDER | XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
+        const bool prevChord = (s_prevGamepadButtons & chordMask) == chordMask;
+        const bool curChord = (gp.wButtons & chordMask) == chordMask;
+        if (curChord && !prevChord)
+        {
+            debug_menu::ToggleOverlay();
+        }
+
+        if (debug_menu::IsOverlayVisible())
+        {
+            // Edge detection for D-Pad, face buttons, shoulders
+            const uint16_t pressed = gp.wButtons & ~s_prevGamepadButtons;
+            if (pressed & XAMINPUT_GAMEPAD_DPAD_UP) debug_menu::HandleInput(debug_menu::InputAction::Up);
+            else if (pressed & XAMINPUT_GAMEPAD_DPAD_DOWN) debug_menu::HandleInput(debug_menu::InputAction::Down);
+            else if (pressed & XAMINPUT_GAMEPAD_DPAD_LEFT) debug_menu::HandleInput(debug_menu::InputAction::Left);
+            else if (pressed & XAMINPUT_GAMEPAD_DPAD_RIGHT) debug_menu::HandleInput(debug_menu::InputAction::Right);
+            else if (pressed & XAMINPUT_GAMEPAD_A) debug_menu::HandleInput(debug_menu::InputAction::Confirm);
+            else if (pressed & XAMINPUT_GAMEPAD_B) debug_menu::HandleInput(debug_menu::InputAction::Cancel);
+            else if (pressed & XAMINPUT_GAMEPAD_LEFT_SHOULDER && !curChord) debug_menu::HandleInput(debug_menu::InputAction::PrevTab);
+            else if (pressed & XAMINPUT_GAMEPAD_RIGHT_SHOULDER && !curChord) debug_menu::HandleInput(debug_menu::InputAction::NextTab);
+        }
+
+        s_prevGamepadButtons = gp.wButtons;
+    }
+
     const uint16_t beforeMenuButtons = gp.wButtons;
-    const bool menuFiltered = settings::FilterInput(gp.wButtons, gp.sThumbLX, gp.sThumbLY);
+    bool menuFiltered = settings::FilterInput(gp.wButtons, gp.sThumbLX, gp.sThumbLY);
+    if (debug_menu::IsOverlayVisible()) {
+        menuFiltered = true;
+        gp.wButtons = 0;
+    }
     if (menuFiltered) {
         gp.sThumbLX=gp.sThumbLY=gp.sThumbRX=gp.sThumbRY=0;
         gp.bLeftTrigger=gp.bRightTrigger=0;

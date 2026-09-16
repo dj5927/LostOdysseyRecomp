@@ -24,6 +24,7 @@
 #include <os/logger.h>
 #include <os/shader_log.h>
 #include <os/user_paths.h>
+#include <host_ui/host_ui.h>
 #include <csetjmp>
 
 // Kernel HLE for xboxkrnl.exe / xam.xex imports. Reference behaviour: Xenia
