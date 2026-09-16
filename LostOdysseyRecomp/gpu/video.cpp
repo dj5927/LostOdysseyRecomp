@@ -215,6 +215,13 @@ namespace gpu::video
         bool g_hasPresentedImage=false;
         bool g_presentPending=false;
         bool g_forceSwapResize=false;
+        struct PresentationDisplayState {
+            uint64_t resizedTicket = 0;
+#ifdef _WIN32
+            int appliedMode = -1;
+            uint64_t appliedSize = 0, appliedTicket = 0;
+#endif
+        } g_presentationDisplay;
         constexpr plume::RenderFormat kSwapChainFormat = plume::RenderFormat::R8G8B8A8_UNORM;
         constexpr uint32_t kSwapChainBuffers = 3;
 
@@ -347,6 +354,7 @@ namespace gpu::video
         g_fence.reset(); g_commandList.reset(); g_queue.reset();
         g_device.reset(); g_interface.reset();
         g_hasPresentedImage = false; g_lastPresentedImage = 0; g_forceSwapResize = false;
+        g_presentationDisplay = {};
 #endif
     }
 
@@ -752,18 +760,98 @@ namespace gpu::video
     }
 
 #ifdef LO_GPU_PLUME
-    static bool UploadAndPresentPixels(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height,
-                                       bool isMenu, uint64_t displayTicket, const PresentationOptions& presentationOptions)
+    // Sole presentation-thread entry for mode changes and swap-chain recovery.
+    // Both guest frames and host-only frames call this BEFORE reading dimensions
+    // or rasterizing UI. The returned ticket belongs to these prepared operations.
+    static bool PreparePresentation(uint64_t& displayTicket, uint32_t& width, uint32_t& height)
     {
-        if (!g_available)
+        if (!g_available || !g_swapChain)
             return false;
-
-        if (g_forceSwapResize || g_swapChain->needsResize()) {
-            if(!g_swapChain->resize()) { if(g_forceSwapResize) g_displayFailed=true; g_displayChanges.Complete(displayTicket,false); return false; }
-            g_forceSwapResize=false; g_hasPresentedImage=false;
+        displayTicket = g_displayChanges.PresentationTicket();
+        if (g_windowResizeRequested.exchange(false)) g_forceSwapResize = true;
+        if (displayTicket && displayTicket != g_presentationDisplay.resizedTicket) {
+            g_forceSwapResize = true;
+            g_presentationDisplay.resizedTicket = displayTicket;
+        }
+#ifdef _WIN32
+        const int mode = g_displayMode.load();
+        const uint64_t size = g_displaySize.load();
+        auto& applied = g_presentationDisplay;
+        if (!g_vulkan && mode >= 0 && (mode != applied.appliedMode || size != applied.appliedSize ||
+            (displayTicket && displayTicket != applied.appliedTicket))) {
+            WaitForPresentGpu();
+            auto* swap = static_cast<plume::D3D12SwapChain*>(g_swapChain.get());
+            const plume::WindowPixelContext pixels;
+            HRESULT result = swap->d3d->SetFullscreenState(FALSE, nullptr);
+            if (SUCCEEDED(result) && mode == int(settings::WindowMode::Exclusive)) {
+                DXGI_MODE_DESC target{};
+                target.Width = uint32_t(size >> 32); target.Height = uint32_t(size);
+                target.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                result = swap->d3d->ResizeTarget(&target);
+                if (SUCCEEDED(result)) result = swap->d3d->SetFullscreenState(TRUE, nullptr);
+            }
+            BOOL exclusive = FALSE;
+            const HRESULT queryResult = swap->d3d->GetFullscreenState(&exclusive, nullptr);
+            const bool modeApplied = SUCCEEDED(result) && SUCCEEDED(queryResult) &&
+                bool(exclusive) == (mode == int(settings::WindowMode::Exclusive));
+            if (applied.appliedMode == int(settings::WindowMode::Exclusive) && mode != applied.appliedMode)
+                g_reapplyWindow = true;
+            LOG_INFO("display mode: requested={} exclusive={} result={:#x}", mode, bool(exclusive), uint32_t(result));
+            // Flip-model buffers must be resized even for an equal-size transition.
+            g_forceSwapResize = true;
+            applied.appliedMode = mode; applied.appliedSize = size; applied.appliedTicket = displayTicket;
+            if (!modeApplied) {
+                g_displayFailed = true;
+                g_displayChanges.Complete(displayTicket, false);
+                return false;
+            }
+        }
+#endif
+        // Empty is recoverable: minimized Vulkan surfaces may have zero extent.
+        // Never return for isEmpty() before giving resize() a chance to recover.
+        if (g_forceSwapResize || g_swapChain->isEmpty() || g_swapChain->needsResize()) {
+            WaitForPresentGpu();
+            if (!g_swapChain->resize()) {
+                // Zero extent is transient. Retain the pending transaction and
+                // resize request until the window has a drawable extent again.
+                if (g_swapChain->getWidth() && g_swapChain->getHeight()) {
+                    if (g_forceSwapResize) g_displayFailed = true;
+                    g_displayChanges.Complete(displayTicket, false);
+                }
+                return false;
+            }
+            g_forceSwapResize = false;
+            g_hasPresentedImage = false;
+            LogOutputPixels("resized");
         }
         if (g_swapChain->isEmpty())
             return false;
+        width = g_swapChain->getWidth();
+        height = g_swapChain->getHeight();
+        return width != 0 && height != 0;
+    }
+
+    // Publish pixels, dimensions and provenance together on the presentation thread.
+    static void CacheCpuFrame(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height)
+    {
+        g_pixels = pixels;
+        g_frameWidth = width;
+        g_frameHeight = height;
+        g_frameOnGpu = false;
+    }
+
+    static bool UploadAndPresentPixels(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height,
+                                       bool isMenu, uint64_t displayTicket, const PresentationOptions& presentationOptions)
+    {
+        if (!g_available || !g_swapChain || g_swapChain->isEmpty())
+            return false;
+        if (!width || !height || size_t(width) > std::numeric_limits<size_t>::max() / height ||
+            pixels.size() != size_t(width) * height || width > (UINT32_MAX - 255u) / 4u) {
+            g_displayChanges.Complete(displayTicket, false);
+            return false;
+        }
+        // PreparePresentation has already finalized the output size. Do not
+        // resize a second time after the menu has been rasterized for that size.
 
         // Upload the untiled pixels; rows must be 256-byte aligned for D3D12.
         const uint32_t rowPitch = (width * 4 + 255) & ~255u;
@@ -835,53 +923,12 @@ namespace gpu::video
             return;
 
 #ifdef LO_GPU_PLUME
-        if (g_windowResizeRequested.exchange(false)) g_forceSwapResize = true;
-        const auto displayTicket = g_displayChanges.PresentationTicket();
-        static uint64_t resizedDisplayTicket = 0;
-        if (displayTicket && displayTicket != resizedDisplayTicket) {
-            g_forceSwapResize = true;
-            resizedDisplayTicket = displayTicket;
-        }
-        if(g_swapChain) {
-#ifdef _WIN32
-            static int appliedMode=-1;
-            static uint64_t appliedSize=0;
-            static uint64_t appliedDisplayTicket=0;
-            const int mode=g_displayMode.load(); const uint64_t size=g_displaySize.load();
-            if(!g_vulkan && mode>=0 && (mode!=appliedMode || size!=appliedSize || (displayTicket && displayTicket!=appliedDisplayTicket))) {
-                auto* swap=static_cast<plume::D3D12SwapChain*>(g_swapChain.get());
-                const plume::WindowPixelContext pixels;
-                HRESULT result=swap->d3d->SetFullscreenState(FALSE,nullptr);
-                if(mode==int(settings::WindowMode::Exclusive)) {
-                    DXGI_MODE_DESC target{}; target.Width=uint32_t(size>>32); target.Height=uint32_t(size);
-                    target.Format=DXGI_FORMAT_R8G8B8A8_UNORM;
-                    result=swap->d3d->ResizeTarget(&target);
-                    if(SUCCEEDED(result)) result=swap->d3d->SetFullscreenState(TRUE,nullptr);
-                }
-                BOOL exclusive=FALSE; swap->d3d->GetFullscreenState(&exclusive,nullptr);
-                if(FAILED(result) || (mode==int(settings::WindowMode::Exclusive) && !exclusive)) {
-                    g_displayFailed=true;
-                    g_displayChanges.Complete(displayTicket, false);
-                }
-                if(appliedMode==int(settings::WindowMode::Exclusive) && mode!=appliedMode) g_reapplyWindow=true;
-                LOG_INFO("display mode: requested={} exclusive={} result={:#x}",mode,bool(exclusive),uint32_t(result));
-                // Flip-model swap chains require ResizeBuffers after a
-                // fullscreen transition even when the dimensions are unchanged.
-                g_forceSwapResize=true;
-                appliedMode=mode; appliedSize=size;
-                appliedDisplayTicket=displayTicket;
-            }
-#endif
-        }
-        // Resize before rasterizing host text so its glyphs match the actual output.
-        if (g_available && (g_forceSwapResize || g_swapChain->needsResize())) {
-            if(!g_swapChain->resize()) { if(g_forceSwapResize) g_displayFailed=true; g_displayChanges.Complete(displayTicket,false); return; }
-            g_forceSwapResize=false; g_hasPresentedImage=false;
-            LogOutputPixels("resized");
-        }
-        if (g_available && g_swapChain->isEmpty()) return;
-        const uint32_t menuWidth = g_available ? g_swapChain->getWidth() : 1280;
-        const uint32_t menuHeight = g_available ? g_swapChain->getHeight() : 720;
+        uint64_t displayTicket = 0;
+        uint32_t menuWidth = 1280, menuHeight = 720;
+        // Preserve headless CPU diagnostics; a live swap chain uses the same
+        // preparation transaction as overlay-only presentation.
+        if (g_available && !PreparePresentation(displayTicket, menuWidth, menuHeight))
+            return;
         renderer::SetOutputSize(menuWidth, menuHeight);
         const auto presentationConfig = settings::GetConfig();
         gpu::SetFrameRateTarget(presentationConfig.frameRate);
@@ -947,10 +994,6 @@ namespace gpu::video
                 g_frameHeight = sourceHeight;
                 g_frontbufferPhysical = physicalAddress & 0x1FFFFFFF;
                 g_frameOnGpu = true;
-                if (g_forceSwapResize || g_swapChain->needsResize()) {
-                    if(!g_swapChain->resize()) { if(g_forceSwapResize) g_displayFailed=true; g_displayChanges.Complete(displayTicket,false); return; }
-                    g_forceSwapResize=false; g_hasPresentedImage=false;
-                }
                 if (g_swapChain->isEmpty())
                     return;
                 WaitForPresentGpu();
@@ -1000,9 +1043,7 @@ namespace gpu::video
 #ifdef LO_GPU_PLUME
         if (menu)
         {
-            g_pixels = menuPresentBuffer;
-            g_frameWidth = menuWidth;
-            g_frameHeight = menuHeight;
+            CacheCpuFrame(menuPresentBuffer, menuWidth, menuHeight);
             UploadAndPresentPixels(menuPresentBuffer, menuWidth, menuHeight, true, displayTicket, presentationOptions);
             return;
         }
@@ -1040,12 +1081,13 @@ namespace gpu::video
     void PresentHostOverlay()
     {
 #ifdef LO_GPU_PLUME
-        if (!g_available || !g_swapChain || g_swapChain->isEmpty())
+        if (!IsHostOverlayActive())
             return;
-        const uint32_t menuWidth = g_swapChain->getWidth();
-        const uint32_t menuHeight = g_swapChain->getHeight();
-        if (!menuWidth || !menuHeight)
+        uint64_t displayTicket = 0;
+        uint32_t menuWidth = 0, menuHeight = 0;
+        if (!PreparePresentation(displayTicket, menuWidth, menuHeight))
             return;
+        renderer::SetOutputSize(menuWidth, menuHeight);
 
         const bool hasSettings = settings::DrawMenu(g_menuPixels, g_menuRevision, menuWidth, menuHeight);
         const bool hasDebug = debug_menu::IsOverlayVisible();
@@ -1077,10 +1119,8 @@ namespace gpu::video
         if (menuPresentBuffer.empty())
             return;
 
-        g_pixels = menuPresentBuffer;
-        g_frameWidth = menuWidth;
-        g_frameHeight = menuHeight;
-        UploadAndPresentPixels(menuPresentBuffer, menuWidth, menuHeight, true, g_displayChanges.PresentationTicket(), PresentationOptions{});
+        CacheCpuFrame(menuPresentBuffer, menuWidth, menuHeight);
+        UploadAndPresentPixels(menuPresentBuffer, menuWidth, menuHeight, true, displayTicket, PresentationOptions{});
 #endif
     }
 
