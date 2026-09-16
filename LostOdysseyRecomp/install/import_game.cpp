@@ -6,6 +6,7 @@
 #include "import_game.h"
 #include "import_image.h"
 #include "import_crypto.h"
+#include "../os/user_paths.h"
 
 #include <algorithm>
 #include <array>
@@ -1610,6 +1611,8 @@ std::filesystem::path DefaultGameDirectory(const std::filesystem::path& executab
 {
     std::error_code ec;
     auto absExe = std::filesystem::absolute(executableDirectory, ec).lexically_normal();
+    if (!os::user_paths::UsePortableLayout())
+        return (os::user_paths::DataDir() / "game").lexically_normal();
     return (absExe.parent_path() / "game").lexically_normal();
 }
 
@@ -1619,7 +1622,9 @@ bool WriteGamePath(const std::filesystem::path& executableDirectory,
 {
     std::error_code ec;
     auto absExe = std::filesystem::absolute(executableDirectory, ec).lexically_normal();
-    auto configPath = absExe / "game-path.txt";
+    auto configPath = os::user_paths::UsePortableLayout()
+        ? absExe / "game-path.txt"
+        : os::user_paths::ConfigDir() / "game-path.txt";
 
     std::ofstream out(configPath, std::ios::binary | std::ios::trunc);
     if (!out)

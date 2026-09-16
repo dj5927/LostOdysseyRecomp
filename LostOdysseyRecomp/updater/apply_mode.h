@@ -2,7 +2,6 @@
 
 #include <optional>
 
-#ifdef _WIN32
 namespace updater
 {
 // Returns no value when the current command line is an ordinary launch.
@@ -10,4 +9,3 @@ namespace updater
 // process exit code before runtime startup has touched user state.
 std::optional<int> TryRunApplyMode();
 } // namespace updater
-#endif

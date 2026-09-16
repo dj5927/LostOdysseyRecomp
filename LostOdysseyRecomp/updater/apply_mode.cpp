@@ -199,3 +199,133 @@ std::optional<int> TryRunApplyMode()
 }
 } // namespace updater
 #endif
+
+#ifndef _WIN32
+#include "update.h"
+
+#include <cerrno>
+#include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <optional>
+#include <string>
+#include <thread>
+#include <vector>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/stat.h>
+
+namespace updater
+{
+std::optional<int> TryRunApplyMode()
+{
+    std::ifstream commandLine("/proc/self/cmdline", std::ios::binary);
+    std::vector<std::string> arguments;
+    std::string argument;
+    while (std::getline(commandLine, argument, '\0')) arguments.push_back(argument);
+    auto findArgument = [&](std::string_view name) -> std::optional<std::string> {
+        for (size_t index = 1; index + 1 < arguments.size(); ++index)
+            if (arguments[index] == name) return arguments[index + 1];
+        return std::nullopt;
+    };
+    const auto planArgument = findArgument("--apply-plan");
+    if (!planArgument) return std::nullopt;
+
+    std::optional<std::filesystem::path> failureOperationRoot;
+    auto failWithReason = [&](std::string_view reason) -> int {
+        if (failureOperationRoot && std::filesystem::is_directory(*failureOperationRoot))
+        {
+            std::ofstream result(*failureOperationRoot / "last-result.txt", std::ios::trunc);
+            if (result.is_open())
+            {
+                result << "failed=" << reason << "\n";
+            }
+        }
+        std::cerr << "Lost Odyssey update: " << reason << "\n";
+        return 1;
+    };
+
+    const auto waitArgument = findArgument("--wait-process");
+    if (!waitArgument) return failWithReason("missing --wait-process argument; existing installation not changed");
+    char *endPtr = nullptr;
+    errno = 0;
+    const long parsedParent = std::strtol(waitArgument->c_str(), &endPtr, 10);
+    if (errno != 0 || endPtr == waitArgument->c_str() || *endPtr != '\0' || parsedParent <= 0 ||
+        parsedParent > static_cast<long>(std::numeric_limits<pid_t>::max()))
+    {
+        return failWithReason("invalid --wait-process PID; existing installation not changed");
+    }
+    const auto parent = static_cast<pid_t>(parsedParent);
+    while (parent > 1)
+    {
+        if (kill(parent, 0) != 0)
+        {
+            if (errno == ESRCH)
+            {
+                break;
+            }
+            return failWithReason("cannot check parent process status; existing installation not changed");
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    std::string error;
+    const auto plan = ReadApplyPlan(*planArgument, error);
+    if (!plan)
+    {
+        return failWithReason("cannot read apply plan; existing installation not changed");
+    }
+    const auto operationRoot = plan->stageRoot.parent_path();
+    if (std::filesystem::is_directory(operationRoot))
+    {
+        failureOperationRoot = operationRoot;
+    }
+
+    const char *appImage = std::getenv("APPIMAGE");
+    if (!appImage || *appImage == '\0' || plan->files.size() != 1)
+    {
+        return failWithReason("invalid AppImage environment or payload file count; existing installation not changed");
+    }
+
+    std::error_code envPathError;
+    std::error_code planPathError;
+    const auto appImagePath = std::filesystem::absolute(appImage, envPathError).lexically_normal();
+    const auto planExecPath = std::filesystem::absolute(plan->executable, planPathError).lexically_normal();
+    if (envPathError || planPathError || appImagePath != planExecPath)
+    {
+        return failWithReason("AppImage path does not match plan executable; existing installation not changed");
+    }
+
+    const auto staged = plan->stageRoot / plan->files.front().path;
+    if (chmod(staged.c_str(), 0755) != 0)
+    {
+        return failWithReason("failed to set executable permissions on staged AppImage; existing installation not changed");
+    }
+    std::error_code filesystemError;
+    std::filesystem::rename(staged, appImagePath, filesystemError);
+    if (filesystemError)
+    {
+        return failWithReason("failed to rename staged AppImage over target; existing installation not changed");
+    }
+
+    std::vector<char *> execArguments;
+    const auto executable = appImagePath.string();
+    execArguments.push_back(const_cast<char *>(executable.c_str()));
+    std::vector<std::string> launchUtf8;
+    launchUtf8.reserve(plan->launchArguments.size());
+    for (const auto &launchArgument : plan->launchArguments)
+    {
+        const auto utf8 = std::filesystem::path(launchArgument).u8string();
+        launchUtf8.emplace_back(reinterpret_cast<const char *>(utf8.data()), utf8.size());
+    }
+    for (auto &launchArgument : launchUtf8)
+        execArguments.push_back(launchArgument.data());
+    execArguments.push_back(nullptr);
+    execv(executable.c_str(), execArguments.data());
+    return failWithReason("failed to execute updated AppImage; existing installation not changed");
+}
+} // namespace updater
+#endif

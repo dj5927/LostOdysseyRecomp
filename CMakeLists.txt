@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 project(LostOdysseyRecomp VERSION 0.5.13 LANGUAGES C CXX)
+include(GNUInstallDirs)
 # Source version, not a release/commit or clean-checkout assertion.
 # Capture before nested projects can replace PROJECT_VERSION in their scope.
 set(LO_SOURCE_VERSION "${PROJECT_VERSION}")
@@ -47,4 +48,17 @@ if(LO_BUILD_RUNTIME)
     if(TARGET LoPpcAutoSync)
         add_dependencies(LostOdysseyRecomp LoPpcAutoSync)
     endif()
+endif()
+
+if(UNIX AND LO_BUILD_RUNTIME)
+    install(TARGETS LostOdysseyRecomp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES
+        packaging/linux/io.github.freefrank.LostOdysseyRecomp.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES
+        packaging/linux/io.github.freefrank.LostOdysseyRecomp.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps)
+    install(FILES
+        packaging/linux/io.github.freefrank.LostOdysseyRecomp.metainfo.xml
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 endif()

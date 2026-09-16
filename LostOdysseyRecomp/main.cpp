@@ -15,6 +15,7 @@
 #include <apu/xma.h>
 #include <hid/hid.h>
 #include <os/logger.h>
+#include <os/user_paths.h>
 #include <os/shader_log.h>
 #include <os/log_file.h>
 #include <os/crash_handler.h>
@@ -35,6 +36,11 @@
 #include <timeapi.h>
 #include <shellapi.h>
 #endif
+#if defined(__linux__) && !defined(_WIN32)
+#include <spawn.h>
+#include <unistd.h>
+extern char** environ;
+#endif
 
 // Runtime entry: set up guest memory, load default.xex and run its entry point
 // on the first guest thread. Everything else is driven by the game through the
@@ -42,7 +48,7 @@
 
 static std::filesystem::path ExecutableDirectory()
 {
-#ifdef _WIN32
+#if defined(_WIN32)
     wchar_t executable[32768]{};
     if (GetModuleFileNameW(nullptr, executable, 32768))
         return std::filesystem::path(executable).parent_path();
@@ -70,12 +76,14 @@ void InstallPhysicalWatchpoint();
 int main(int argc, char* argv[])
 {
     std::filesystem::path failedUpdateOperation;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__linux__)
     if (const auto applyResult = updater::TryRunApplyMode()) return *applyResult;
+#ifdef _WIN32
     // A restart child must park before touching logs, settings, profiles,
     // saves, caches, or guest state. Invalid handshake arguments fail closed.
     if (settings::restart::WaitForParentIfRestartChild() == settings::restart::ChildHandshake::Invalid)
         return 1;
+#endif
 #endif
 #ifdef _WIN32
     // The CRT's narrow argv can best-fit Unicode (for example acute -> prime)
@@ -109,15 +117,19 @@ int main(int argc, char* argv[])
         requestedInstall |= strcmp(argv[i],"--install")==0;
     }
     const auto executableDirectory = ExecutableDirectory();
+    os::user_paths::Initialize(executableDirectory);
 #if defined(_WIN32) || defined(__linux__)
     // Direct launches keep all portable data beside the executable. Explicit
     // --game launches retain their caller's working directory for isolated tests.
-    if(!explicitGame) {
+    if(!explicitGame && os::user_paths::UsePortableLayout()) {
         std::filesystem::current_path(executableDirectory);
     }
 #endif
-#ifdef _WIN32
-    const auto startupPreferences = updater::ReadStartupPreferences(std::filesystem::current_path() / "settings.ini");
+#if defined(_WIN32) || defined(__linux__)
+    const auto startupPreferences = updater::ReadStartupPreferences(
+        os::user_paths::UsePortableLayout()
+            ? std::filesystem::current_path() / "settings.ini"
+            : os::user_paths::ConfigDir() / "settings.ini");
     updater::StartupOptions updateOptions;
     updateOptions.currentVersion = lo_version::Source;
     updateOptions.installRoot = executableDirectory;
@@ -129,6 +141,7 @@ int main(int argc, char* argv[])
     if (updateResult.status == updater::StartupStatus::Ready && updateResult.update)
     {
         const auto &prepared = *updateResult.update;
+#ifdef _WIN32
         if (settings::restart::LaunchWaitingProcess(prepared.runnerPath.wstring(),
                                                      updater::ApplyHelperArguments(prepared.planPath)))
             return 0;
@@ -138,6 +151,30 @@ int main(int argc, char* argv[])
         std::ofstream diagnostic(prepared.operationRoot / "handoff-failure.txt", std::ios::trunc);
         diagnostic << "The staged update runner did not complete the restart handshake.\n"
                    << "Staged files were preserved for inspection.\n";
+#elif defined(__linux__)
+        const std::string selfExe = updater::CurrentExecutablePath().string();
+        const std::string planStr = prepared.planPath.string();
+        const std::string waitPid = std::to_string(getpid());
+        std::vector<char*> args;
+        args.push_back(const_cast<char*>(selfExe.c_str()));
+        args.push_back(const_cast<char*>("--apply-plan"));
+        args.push_back(const_cast<char*>(planStr.c_str()));
+        args.push_back(const_cast<char*>("--wait-process"));
+        args.push_back(const_cast<char*>(waitPid.c_str()));
+        args.push_back(nullptr);
+
+        pid_t pid = 0;
+        if (posix_spawn(&pid, selfExe.c_str(), nullptr, nullptr, args.data(), environ) == 0)
+        {
+            return 0;
+        }
+        fprintf(stderr, "update runner failed its restart handshake; preserving staged update at %s\n",
+                FileSystem::PathUtf8(prepared.operationRoot).c_str());
+        failedUpdateOperation = prepared.operationRoot;
+        std::ofstream diagnostic(prepared.operationRoot / "handoff-failure.txt", std::ios::trunc);
+        diagnostic << "The staged update runner did not complete the restart handshake.\n"
+                   << "Staged files were preserved for inspection.\n";
+#endif
     }
 #endif
     // Keep each run separately, including launches without a terminal. Tests
@@ -149,7 +186,7 @@ int main(int argc, char* argv[])
             std::chrono::system_clock::now().time_since_epoch()).count();
         const std::filesystem::path logPath = logOverride
             ? std::filesystem::u8path(logOverride)
-            : std::filesystem::path(fmt::format("logs/runtime-{}.log", ticks));
+            : (os::user_paths::UsePortableLayout() ? std::filesystem::path(fmt::format("logs/runtime-{}.log", ticks)) : os::user_paths::StateDir() / "logs" / fmt::format("runtime-{}.log", ticks));
         std::error_code ec;
         if (logPath.has_parent_path())
             std::filesystem::create_directories(logPath.parent_path(), ec);

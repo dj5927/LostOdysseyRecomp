@@ -352,15 +352,5 @@ bool ProgressWindow::Cancelled()
 }
 } // namespace updater
 #else
-namespace updater
-{
-struct ProgressWindow::Impl {};
-ProgressWindow::ProgressWindow(uint32_t) : impl_(std::make_unique<Impl>()) {}
-ProgressWindow::~ProgressWindow() = default;
-void ProgressWindow::SetProgress(uint64_t, uint64_t, std::wstring_view) {}
-void ProgressWindow::SetDownloadProgress(uint64_t, uint64_t) {}
-void ProgressWindow::SetPhase(ProgressPhase) {}
-void ProgressWindow::SetPhase(std::wstring_view) {}
-bool ProgressWindow::Cancelled() { return false; }
-}
+#include "progress_posix.inl"
 #endif

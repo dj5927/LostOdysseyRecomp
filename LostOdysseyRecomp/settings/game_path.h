@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 
+#include "../os/user_paths.h"
+
 namespace settings::game_path
 {
     enum class Source
@@ -110,7 +112,10 @@ namespace settings::game_path
         }
 
         Resolution result;
-        std::ifstream location(exeDirectory / "game-path.txt", std::ios::binary);
+        const auto configPath = os::user_paths::UsePortableLayout()
+            ? exeDirectory / "game-path.txt"
+            : os::user_paths::ConfigDir() / "game-path.txt";
+        std::ifstream location(configPath, std::ios::binary);
         std::string configured;
         if (std::getline(location, configured) && !(configured = Trim(std::move(configured))).empty())
         {

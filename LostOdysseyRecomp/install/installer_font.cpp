@@ -26,6 +26,14 @@ int FindGlyphIndex(uint32_t codepoint)
     }
     return -1;
 }
+
+int GlyphAdvance(const GlyphInfo& glyph, float scale)
+{
+    int baseW = (glyph.width > 0) ? glyph.width : 8;
+    int cellW = static_cast<int>(std::ceil(static_cast<float>(baseW) * scale));
+    int tracking = std::max(1, static_cast<int>(std::round(1.0f * scale)));
+    return cellW + tracking;
+}
 }
 
 GlyphInfo GetGlyph(uint32_t codepoint)
@@ -91,12 +99,11 @@ int DrawGlyph(SDL_Renderer* renderer, int x, int y, uint32_t codepoint,
               uint8_t r, uint8_t g, uint8_t b, uint8_t a, float scale)
 {
     GlyphInfo glyph = GetGlyph(codepoint);
-    if (!glyph.bitmap) return static_cast<int>(8 * scale);
+    if (!glyph.bitmap) return GlyphAdvance(glyph, scale);
 
     SDL_SetRenderDrawColor(renderer, r, g, b, a);
 
-    int scaledPixel = static_cast<int>(std::ceil(scale));
-    int advWidth = static_cast<int>(glyph.width * scale);
+    int advWidth = GlyphAdvance(glyph, scale);
 
     if (glyph.width == 8)
     {
@@ -219,7 +226,7 @@ int MeasureTextWidth(std::string_view text, float scale)
         }
 
         GlyphInfo g = GetGlyph(cp);
-        curWidth += static_cast<int>(g.width * scale);
+        curWidth += GlyphAdvance(g, scale);
     }
     return std::max(maxWidth, curWidth);
 }
@@ -248,7 +255,7 @@ std::string TruncateTextWidth(std::string_view text, int maxWidth, float scale, 
             size_t prev = off;
             uint32_t cp = DecodeUtf8(ellipsis, off);
             GlyphInfo g = GetGlyph(cp);
-            int adv = static_cast<int>(g.width * scale);
+            int adv = GlyphAdvance(g, scale);
             if (curW + adv > maxWidth) break;
             curW += adv;
             res.append(ellipsis.substr(prev, off - prev));
@@ -266,7 +273,7 @@ std::string TruncateTextWidth(std::string_view text, int maxWidth, float scale, 
         if (cp == '\n' || cp == '\r') break;
 
         GlyphInfo g = GetGlyph(cp);
-        int adv = (cp == '\t') ? static_cast<int>(32 * scale) : static_cast<int>(g.width * scale);
+        int adv = (cp == '\t') ? static_cast<int>(32 * scale) : GlyphAdvance(g, scale);
         if (curWidth + adv > targetW)
         {
             break;

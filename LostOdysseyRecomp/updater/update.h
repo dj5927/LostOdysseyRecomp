@@ -101,6 +101,7 @@ enum class StartupStatus
 {
     Disabled,
     UnmanagedBuild,
+    ExternalUpdateAvailable,
     CurrentPackageMismatch,
     Offline,
     UpToDate,

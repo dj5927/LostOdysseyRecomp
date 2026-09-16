@@ -11,6 +11,10 @@
 #include <array>
 #include <fstream>
 
+#ifndef _WIN32
+#include "../install/import_crypto.h"
+#endif
+
 namespace updater
 {
 std::string Sha256File(const std::filesystem::path &path, std::string &error)
@@ -78,9 +82,26 @@ std::string Sha256File(const std::filesystem::path &path, std::string &error)
     }
     return result;
 #else
-    (void)path;
-    error = "SHA256 is not implemented for this platform";
-    return {};
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+    {
+        error = "could not open file for SHA256";
+        return {};
+    }
+    install::crypto::Sha256 hash;
+    std::array<char, 64 * 1024> buffer{};
+    while (input)
+    {
+        input.read(buffer.data(), buffer.size());
+        const auto count = input.gcount();
+        if (count > 0) hash.Update(buffer.data(), static_cast<size_t>(count));
+    }
+    if (!input.eof())
+    {
+        error = "could not read file for SHA256";
+        return {};
+    }
+    return install::crypto::HexString(hash.Finalize());
 #endif
 }
 } // namespace updater

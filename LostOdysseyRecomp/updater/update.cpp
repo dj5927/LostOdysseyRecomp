@@ -446,6 +446,7 @@ const char *StatusName(StartupStatus status)
     {
     case StartupStatus::Disabled: return "disabled";
     case StartupStatus::UnmanagedBuild: return "unmanaged-build";
+    case StartupStatus::ExternalUpdateAvailable: return "external-update-available";
     case StartupStatus::CurrentPackageMismatch: return "current-package-mismatch";
     case StartupStatus::Offline: return "offline";
     case StartupStatus::UpToDate: return "up-to-date";

@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include <os/logger.h>
+#include <os/user_paths.h>
 #include <stdafx.h>
 namespace settings
 {
@@ -45,7 +46,8 @@ Config Read()
 {
     Config value;
     bool hasAntialiasing = false;
-    std::ifstream input("settings.ini");
+    const auto path = os::user_paths::UsePortableLayout() ? std::filesystem::path("settings.ini") : os::user_paths::ConfigDir() / "settings.ini";
+    std::ifstream input(path);
     std::string key;
     while (std::getline(input, key))
     {
@@ -153,7 +155,11 @@ uint32_t GameLanguage()
 }
 static bool WriteConfig(const Config &value)
 {
-    std::ofstream output("settings.ini.tmp", std::ios::trunc);
+    const auto path = os::user_paths::UsePortableLayout() ? std::filesystem::path("settings.ini") : os::user_paths::ConfigDir() / "settings.ini";
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    const auto temporary = path.parent_path() / (path.filename().string() + ".tmp");
+    std::ofstream output(temporary, std::ios::trunc);
     output << "ui_language=" << value.uiLanguage << "\ngame_language=" << value.gameLanguage
            << "\nwidth=" << value.width << "\nheight=" << value.height << "\nwindow_mode=" << uint32_t(value.windowMode)
            << "\ngraphics_backend=" << uint32_t(value.graphicsBackend)
@@ -169,11 +175,11 @@ static bool WriteConfig(const Config &value)
     if (!output)
         return false;
 #ifdef _WIN32
-    if (!MoveFileExW(L"settings.ini.tmp", L"settings.ini", MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    if (!MoveFileExW(temporary.wstring().c_str(), path.wstring().c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
         return false;
 #else
     std::error_code error;
-    std::filesystem::rename("settings.ini.tmp", "settings.ini", error);
+    std::filesystem::rename(temporary, path, error);
     if (error)
         return false;
 #endif

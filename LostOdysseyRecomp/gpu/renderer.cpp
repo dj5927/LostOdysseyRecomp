@@ -5,6 +5,7 @@
 #include "bloom_prefilter.h"
 #include <stdafx.h>
 #include "renderer.h"
+#include <os/user_paths.h>
 #include "render_resolution.h"
 #include "video.h"
 #include "command_processor.h"
@@ -1120,7 +1121,7 @@ namespace gpu::renderer
                 if (const char* dir = getenv("LO_SHADER_CACHE_DIR"))
                     shaderCacheDir = dir;
                 else
-                    shaderCacheDir = "cache/shaders";
+                    shaderCacheDir = os::user_paths::UsePortableLayout() ? "cache/shaders" : (os::user_paths::DataDir() / "cache/shaders").string();
                 if (!shaderCacheDir.empty()) {
                     std::error_code ec;
                     std::filesystem::create_directories(shaderCacheDir, ec);

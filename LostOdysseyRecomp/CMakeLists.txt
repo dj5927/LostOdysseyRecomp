@@ -40,8 +40,30 @@ lo_add_header_test(LoCapturedShaderTest ${CMAKE_SOURCE_DIR}/tools/tests/captured
 lo_add_header_test(LoVertexCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/vertex_cache_test.cpp)
 lo_add_header_test(LoResolveCopyPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/resolve_copy_policy_test.cpp)
 target_include_directories(LoVertexCacheTest PRIVATE ${CMAKE_SOURCE_DIR}/thirdparty/unordered_dense/include)
-    lo_add_header_test(LoRenderTimingTest ${CMAKE_SOURCE_DIR}/tools/tests/render_timing_test.cpp)
+lo_add_header_test(LoRenderTimingTest ${CMAKE_SOURCE_DIR}/tools/tests/render_timing_test.cpp)
     lo_add_header_test(LoRenderArenaTest ${CMAKE_SOURCE_DIR}/tools/tests/render_arena_policy_test.cpp)
+add_executable(LoUpdaterPosixSha256Test EXCLUDE_FROM_ALL
+    ${CMAKE_SOURCE_DIR}/tools/tests/updater_posix_sha256_test.cpp
+    ${LO_RUNTIME_ROOT}/updater/sha256.cpp
+    ${LO_RUNTIME_ROOT}/updater/update.cpp)
+target_include_directories(LoUpdaterPosixSha256Test PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoUpdaterPosixSha256Test PRIVATE cxx_std_20)
+if(WIN32)
+    target_link_libraries(LoUpdaterPosixSha256Test PRIVATE bcrypt)
+endif()
+
+add_executable(LoUpdaterSdlUiTest EXCLUDE_FROM_ALL
+    ${CMAKE_SOURCE_DIR}/tools/tests/updater_sdl_ui_test.cpp
+    ${LO_RUNTIME_ROOT}/install/installer_font.cpp
+    ${LO_RUNTIME_ROOT}/updater/posix_ui.cpp
+    ${LO_RUNTIME_ROOT}/updater/sha256.cpp
+    ${LO_RUNTIME_ROOT}/updater/update.cpp)
+target_include_directories(LoUpdaterSdlUiTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoUpdaterSdlUiTest PRIVATE cxx_std_20)
+target_link_libraries(LoUpdaterSdlUiTest PRIVATE SDL2::SDL2-static)
+if(WIN32)
+    target_link_libraries(LoUpdaterSdlUiTest PRIVATE bcrypt)
+endif()
 set(LO_PRIVATE_DIR ${CMAKE_SOURCE_DIR}/LostOdysseyRecompLib/private)
 
 # Logging stubs for every kernel import without an implementation. Regenerated
@@ -50,6 +72,7 @@ file(GLOB_RECURSE LO_RUNTIME_SOURCES CONFIGURE_DEPENDS
     "${LO_RUNTIME_ROOT}/*.cpp"
     "${LO_RUNTIME_ROOT}/*.h")
 list(FILTER LO_RUNTIME_SOURCES EXCLUDE REGEX "imports_stubs\\.cpp$")
+list(FILTER LO_RUNTIME_SOURCES EXCLUDE REGEX "updater/posix_ui\\.cpp$")
 
 set(LO_IMPORT_STUBS "${LO_RUNTIME_ROOT}/kernel/imports_stubs.cpp")
 add_custom_command(
@@ -107,7 +130,11 @@ target_link_libraries(LostOdysseyRecomp PRIVATE
     o1heap
     SDL2::SDL2-static)
 if(UNIX)
+    set_target_properties(LostOdysseyRecomp PROPERTIES
+        INSTALL_RPATH "$ORIGIN;$ORIGIN/../lib")
+    find_package(CURL REQUIRED)
     target_link_libraries(LostOdysseyRecomp PRIVATE pthread dl)
+    target_link_libraries(LostOdysseyRecomp PRIVATE CURL::libcurl)
 endif()
 target_link_libraries(LostOdysseyRecomp PRIVATE lo_avcodec)
 
@@ -388,6 +415,10 @@ add_executable(LoGamePathTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/g
 target_include_directories(LoGamePathTest PRIVATE ${LO_RUNTIME_ROOT})
 target_compile_features(LoGamePathTest PRIVATE cxx_std_20)
 
+add_executable(LoUserPathsTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/user_paths_test.cpp)
+target_include_directories(LoUserPathsTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoUserPathsTest PRIVATE cxx_std_20)
+
 # Tests the exact address mappings used by the runtime, without game assets.
 add_executable(LoCriticalSectionTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/critical_section_test.cpp)
 target_include_directories(LoCriticalSectionTest PRIVATE ${LO_RUNTIME_ROOT})
@@ -613,6 +644,9 @@ if(WIN32 AND LO_BUILD_GPU)
     endforeach()
 elseif(UNIX AND LO_BUILD_GPU)
     set(LO_DXC_SO "${CMAKE_SOURCE_DIR}/tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so")
+    if(EXISTS "${LO_DXC_SO}")
+        install(FILES "${LO_DXC_SO}" DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    endif()
     foreach(target LostOdysseyRecomp LoShaderTool)
         if(TARGET ${target} AND EXISTS "${LO_DXC_SO}")
             add_custom_command(TARGET ${target} POST_BUILD

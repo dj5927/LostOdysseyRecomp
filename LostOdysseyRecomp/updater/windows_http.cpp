@@ -16,6 +16,9 @@
 #include <cwchar>
 #include <fstream>
 #include <limits>
+#if defined(__linux__) && !defined(_WIN32)
+#include <unistd.h>
+#endif
 
 namespace updater
 {
@@ -262,6 +265,7 @@ bool ConfirmUpdate(const Release &release, const StartupOptions &options)
 
 } // namespace
 
+#ifdef _WIN32
 StartupResult PrepareAtStartup(const StartupOptions &options)
 {
     StartupResult result;
@@ -283,7 +287,6 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
     // The running game's version is sufficient; local package provenance is
     // unrelated to whether a newer release can replace this installation.
     const auto current = ParseVersion(options.currentVersion).value_or(*ParseVersion("0.0.0"));
-#ifdef _WIN32
     std::string releaseText;
     if (!ReadResponse(options.releaseApiUrl, 2 * 1024 * 1024, releaseText, error))
     {
@@ -381,12 +384,8 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
     result.detail = release->tag;
     result.update = std::move(update);
     return result;
-#else
-    result.status = StartupStatus::UnmanagedBuild;
-    result.detail = "updater is not implemented for this platform";
-    return result;
-#endif
 }
+#endif
 
 std::wstring ApplyHelperArguments(const std::filesystem::path &planPath)
 {
@@ -406,6 +405,10 @@ std::filesystem::path CurrentExecutablePath()
     std::wstring value(32768, L'\0');
     const auto length = GetModuleFileNameW(nullptr, value.data(), DWORD(value.size()));
     if (length && length < value.size()) { value.resize(length); return std::filesystem::path(value); }
+#elif defined(__linux__)
+    std::array<char, 4096> value{};
+    const auto length = readlink("/proc/self/exe", value.data(), value.size() - 1);
+    if (length > 0) return std::filesystem::path(value.data(), value.data() + length);
 #endif
     return {};
 }

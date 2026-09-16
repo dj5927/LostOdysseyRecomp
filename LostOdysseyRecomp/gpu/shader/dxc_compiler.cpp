@@ -3,6 +3,7 @@
 #include "binary_cache.h"
 #include "resource_cpx_index_sha256.h"
 #include <os/shader_log.h>
+#include <os/user_paths.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -348,7 +349,7 @@ namespace xenos
             ":" + std::to_string(std::strlen(profile)) + ":" + profile;
         const bool pixel = std::string_view(profile).starts_with("ps_");
         const char* configured = std::getenv("LO_SHADER_CACHE_DIR");
-        const auto directory = std::filesystem::path(configured ? configured : "cache/shaders") / "builtin";
+        const auto directory = (configured ? std::filesystem::path(configured) : (os::user_paths::UsePortableLayout() ? std::filesystem::path("cache/shaders") : os::user_paths::DataDir() / "cache/shaders")) / "builtin";
         const auto path = directory / cache::FileName(pixel, hash, identity);
         CompiledShader result;
         if (!configured || *configured) result.bytecode = cache::ReadBinary(path, pixel, hash, identity);

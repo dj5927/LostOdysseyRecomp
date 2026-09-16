@@ -7,6 +7,7 @@
 #include <kernel/xdm.h>
 #include <kernel/function.h>
 #include <os/logger.h>
+#include <os/user_paths.h>
 #ifdef _WIN32
 #include <io.h>
 #endif
@@ -165,8 +166,9 @@ void FileSystem::Init(const std::filesystem::path& gameRoot)
     g_gameRoot = gameRoot;
     g_discRoot = gameRoot;
     g_discIdentity = DiscSet::ReadIdentity(gameRoot);
-    g_saveRoot = std::filesystem::absolute("save");
-    g_cacheRoot = std::filesystem::absolute("cache");
+    const auto dataRoot = os::user_paths::UsePortableLayout() ? std::filesystem::current_path() : os::user_paths::DataDir();
+    g_saveRoot = dataRoot / "save";
+    g_cacheRoot = dataRoot / "cache";
     std::error_code ec;
     std::filesystem::create_directories(g_saveRoot, ec);
     std::filesystem::create_directories(g_cacheRoot, ec);

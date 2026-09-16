@@ -1,4 +1,5 @@
 #include "installer_ui.h"
+#include "installer_colors.h"
 #include "installer_navigation.h"
 #include "installer_font.h"
 #include "file_browser.h"
@@ -19,84 +20,9 @@
 
 namespace install
 {
+using namespace install::ui;
 namespace
 {
-// Lost Odyssey Game Menu Aesthetics:
-// Signature slate-steel brushed metal tones, warm gold titles, high-contrast bevels,
-// crisp metallic selection row with dark ink, and subtle folder icons.
-struct Color
-{
-    uint8_t r, g, b, a = 255;
-};
-
-constexpr Color COLOR_STEEL{ 50, 53, 55, 255 };          // Background dark steel slate
-constexpr Color COLOR_STEEL_PANEL{ 42, 45, 47, 255 };    // Panel interior
-constexpr Color COLOR_RAIL{ 32, 34, 36, 255 };           // Dark well / inset
-constexpr Color COLOR_BORDER_LIGHT{ 125, 128, 130, 255 };// Top/Left bevel highlight
-constexpr Color COLOR_BORDER_DARK{ 20, 21, 22, 255 };    // Bottom/Right bevel shadow
-constexpr Color COLOR_BORDER_LINE{ 65, 68, 70, 255 };    // Subtle divider line
-
-constexpr Color COLOR_ACCENT_GOLD{ 235, 205, 130, 255 }; // Lost Odyssey Title Gold
-constexpr Color COLOR_GOLD_MUTED{ 190, 168, 115, 255 };  // Muted gold subtitle
-constexpr Color COLOR_CYAN{ 120, 215, 235, 255 };        // Directory / path cyan
-constexpr Color COLOR_GREEN{ 140, 205, 150, 255 };       // Verified / success green
-constexpr Color COLOR_RED{ 225, 85, 75, 255 };           // Alert red
-constexpr Color COLOR_INK{ 245, 245, 242, 255 };         // Clean white/cream text
-constexpr Color COLOR_MUTED{ 165, 170, 172, 255 };       // Subdued secondary text
-
-// Game-style selected item bar: brushed metallic highlight with crisp contrast
-constexpr Color COLOR_SEL_SURFACE{ 210, 215, 216, 255 }; // Bright brushed steel surface
-constexpr Color COLOR_SEL_INK{ 25, 28, 30, 255 };        // Dark text on bright highlight
-constexpr Color COLOR_SEL_TOP{ 250, 252, 254, 255 };     // Crisp top highlight line
-constexpr Color COLOR_SEL_BOTTOM{ 130, 135, 138, 255 };  // Shadow bottom bevel line
-constexpr Color COLOR_FOLDER_ICON{ 235, 195, 95, 255 };  // Warm amber/gold folder tab
-constexpr Color COLOR_FILE_ICON{ 140, 150, 155, 255 };   // Clean subtle file icon
-
-void SetDrawColor(SDL_Renderer* renderer, Color c)
-{
-    SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, c.a);
-}
-
-void DrawRect(SDL_Renderer* renderer, int x, int y, int w, int h, Color c)
-{
-    SetDrawColor(renderer, c);
-    SDL_Rect r{ x, y, w, h };
-    SDL_RenderDrawRect(renderer, &r);
-}
-
-void FillRect(SDL_Renderer* renderer, int x, int y, int w, int h, Color c)
-{
-    SetDrawColor(renderer, c);
-    SDL_Rect r{ x, y, w, h };
-    SDL_RenderFillRect(renderer, &r);
-}
-
-// Lost Odyssey signature beveled metallic frame
-void DrawBevelPanel(SDL_Renderer* renderer, int x, int y, int w, int h, Color fillCol)
-{
-    FillRect(renderer, x, y, w, h, fillCol);
-    // Bevel highlights
-    SetDrawColor(renderer, COLOR_BORDER_LIGHT);
-    SDL_RenderDrawLine(renderer, x, y, x + w - 1, y);
-    SDL_RenderDrawLine(renderer, x, y, x, y + h - 1);
-    // Bevel shadows
-    SetDrawColor(renderer, COLOR_BORDER_DARK);
-    SDL_RenderDrawLine(renderer, x, y + h - 1, x + w - 1, y + h - 1);
-    SDL_RenderDrawLine(renderer, x + w - 1, y, x + w - 1, y + h - 1);
-}
-
-// Lost Odyssey signature selection row: metallic pill/bar with crisp bevel
-void DrawSelectionBar(SDL_Renderer* renderer, int x, int y, int w, int h)
-{
-    FillRect(renderer, x, y, w, h, COLOR_SEL_SURFACE);
-    SetDrawColor(renderer, COLOR_SEL_TOP);
-    SDL_RenderDrawLine(renderer, x, y, x + w - 1, y);
-    SDL_RenderDrawLine(renderer, x, y + 1, x + w - 1, y + 1);
-    SetDrawColor(renderer, COLOR_SEL_BOTTOM);
-    SDL_RenderDrawLine(renderer, x, y + h - 1, x + w - 1, y + h - 1);
-    SDL_RenderDrawLine(renderer, x, y + h - 2, x + w - 1, y + h - 2);
-}
-
 // Draw a compact, clean graphic folder icon
 void DrawFolderIcon(SDL_Renderer* renderer, int x, int y, bool selected)
 {
@@ -287,19 +213,56 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         }
     }
 
-    constexpr int WIN_WIDTH = 980;
-    constexpr int WIN_HEIGHT = 680;
+    constexpr int LOGICAL_WIN_WIDTH = 1280;
+    constexpr int LOGICAL_WIN_HEIGHT = 720;
+
+    int requestedWidth = LOGICAL_WIN_WIDTH;
+    int requestedHeight = LOGICAL_WIN_HEIGHT;
+
+    SDL_Rect displayBounds{};
+    if (SDL_GetDisplayUsableBounds(0, &displayBounds) == 0 && displayBounds.w > 0 && displayBounds.h > 0)
+    {
+        int targetW = static_cast<int>(std::round(displayBounds.w * 0.8f));
+        int targetH = static_cast<int>(std::round(displayBounds.h * 0.8f));
+
+        requestedWidth = std::min(displayBounds.w, std::max(LOGICAL_WIN_WIDTH, targetW));
+        requestedHeight = std::min(displayBounds.h, std::max(LOGICAL_WIN_HEIGHT, targetH));
+    }
+
+    float uiScale = 1.0f;
+    float ddpi = 0.0f, hdpi = 0.0f, vdpi = 0.0f;
+    if (SDL_GetDisplayDPI(0, &ddpi, &hdpi, &vdpi) == 0 && hdpi > 0.0f)
+    {
+        // Standard baseline display DPI is 96.0f
+        uiScale = hdpi / 96.0f;
+    }
+    uiScale = std::clamp(uiScale, 1.0f, 2.0f);
+
+    int windowWidth = static_cast<int>(std::round(requestedWidth * uiScale));
+    int windowHeight = static_cast<int>(std::round(requestedHeight * uiScale));
+
+    if (displayBounds.w > 0 && displayBounds.h > 0)
+    {
+        windowWidth = std::min(windowWidth, displayBounds.w);
+        windowHeight = std::min(windowHeight, displayBounds.h);
+    }
+    windowWidth = std::max(1, windowWidth);
+    windowHeight = std::max(1, windowHeight);
 
     SDL_Window* window = SDL_CreateWindow(
         "Lost Odyssey Recomp - Game Content Installer",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        WIN_WIDTH, WIN_HEIGHT,
-        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
+        windowWidth, windowHeight,
+        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI
     );
 
     if (!window)
     {
         result.error = std::string("SDL_CreateWindow failed: ") + SDL_GetError();
+        for (auto* pad : controllers)
+        {
+            SDL_GameControllerClose(pad);
+        }
         SDL_Quit();
         return result;
     }
@@ -312,10 +275,28 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
     if (!renderer)
     {
         result.error = std::string("SDL_CreateRenderer failed: ") + SDL_GetError();
+        for (auto* pad : controllers)
+        {
+            SDL_GameControllerClose(pad);
+        }
         SDL_DestroyWindow(window);
         SDL_Quit();
         return result;
     }
+
+    if (SDL_RenderSetLogicalSize(renderer, LOGICAL_WIN_WIDTH, LOGICAL_WIN_HEIGHT) != 0)
+    {
+        result.error = std::string("SDL_RenderSetLogicalSize failed: ") + SDL_GetError();
+        for (auto* pad : controllers)
+        {
+            SDL_GameControllerClose(pad);
+        }
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return result;
+    }
+    SDL_RenderSetIntegerScale(renderer, SDL_FALSE);
 
     SDL_Texture* dpadIcon = CreateDpadIcon(renderer);
     UIState state;
@@ -854,12 +835,15 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             case SDL_MOUSEBUTTONDOWN:
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
-                    int mx = event.button.x;
-                    int my = event.button.y;
-                    int winW, winH;
-                    SDL_GetRendererOutputSize(renderer, &winW, &winH);
+                    float logicalX = 0.0f;
+                    float logicalY = 0.0f;
+                    SDL_RenderWindowToLogical(renderer, event.button.x, event.button.y, &logicalX, &logicalY);
+                    int mx = static_cast<int>(std::round(logicalX));
+                    int my = static_cast<int>(std::round(logicalY));
+                    int winW = LOGICAL_WIN_WIDTH;
+                    int winH = LOGICAL_WIN_HEIGHT;
                     int curBodyY = 80;
-                    int curFooterY = winH - 50;
+                    int curFooterY = winH - 68;
                     int curBodyH = curFooterY - curBodyY - 10;
 
                     if (state.screen == ScreenState::BrowseSource || state.screen == ScreenState::BrowseDest)
@@ -981,8 +965,8 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         }
 
         // Render pass
-        int w, h;
-        SDL_GetRendererOutputSize(renderer, &w, &h);
+        int w = LOGICAL_WIN_WIDTH;
+        int h = LOGICAL_WIN_HEIGHT;
         SetDrawColor(renderer, COLOR_STEEL);
         SDL_RenderClear(renderer);
 
@@ -991,39 +975,83 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             ui::DrawString(renderer, 28, 16, "LOST ODYSSEY RECOMP", COLOR_ACCENT_GOLD.r, COLOR_ACCENT_GOLD.g, COLOR_ACCENT_GOLD.b, 255, 1.25f);
             ui::DrawString(renderer, 28, 42, "Content Importer - Disc & Extracted Folder Setup", COLOR_GOLD_MUTED.r, COLOR_GOLD_MUTED.g, COLOR_GOLD_MUTED.b, 255, 0.9f);
 
-        // Footer / Controller Prompts Bar
-        int footerY = h - 50;
-        DrawBevelPanel(renderer, 0, footerY, w, 50, COLOR_STEEL_PANEL);
+        // Footer / Controller & Keyboard Prompts Bar
+        int footerH = 68;
+        int footerY = h - footerH;
+        DrawBevelPanel(renderer, 0, footerY, w, footerH, COLOR_STEEL_PANEL);
 
-        // Button chips matching Lost Odyssey controller legend
+        // Row 1: Controller button chips matching Lost Odyssey legend
         int chipX = 24;
-        int chipY = footerY + 15;
+        int chipY = footerY + 10;
 
         if (state.screen == ScreenState::BrowseSource || state.screen == ScreenState::BrowseDest)
         {
-            DrawButtonPrompt(renderer, chipX, chipY, "A", "Enter / Open", COLOR_GREEN);
-            chipX += 140;
-            DrawButtonPrompt(renderer, chipX, chipY, "X", "Choose Folder", COLOR_CYAN);
-            chipX += 150;
-            DrawButtonPrompt(renderer, chipX, chipY, "B", "Cancel", COLOR_RED);
-            chipX += 110;
-            DrawNavigationPrompt(renderer, dpadIcon, chipX, chipY, "Navigate");
+            DrawButtonPrompt(renderer, chipX, chipY, "A", "Open", COLOR_GREEN);
+            chipX += 90;
+            DrawButtonPrompt(renderer, chipX, chipY, "X", "Select", COLOR_CYAN);
+            chipX += 100;
+            DrawButtonPrompt(renderer, chipX, chipY, "B", "Back", COLOR_RED);
+            chipX += 90;
+            DrawNavigationPrompt(renderer, dpadIcon, chipX, chipY, "Move");
         }
         else if (state.screen == ScreenState::ReviewDiscs)
         {
-            DrawButtonPrompt(renderer, chipX, chipY, "A", "Confirm / Select", COLOR_GREEN);
-            chipX += 160;
-            DrawButtonPrompt(renderer, chipX, chipY, "B", "Back to Browser", COLOR_RED);
-            chipX += 160;
-            DrawNavigationPrompt(renderer, dpadIcon, chipX, chipY, "Choose Option");
+            DrawButtonPrompt(renderer, chipX, chipY, "A", "Select", COLOR_GREEN);
+            chipX += 100;
+            DrawButtonPrompt(renderer, chipX, chipY, "B", "Back", COLOR_RED);
+            chipX += 90;
+            DrawNavigationPrompt(renderer, dpadIcon, chipX, chipY, "Move");
         }
         else if (state.screen == ScreenState::Importing)
         {
-            DrawButtonPrompt(renderer, chipX, chipY, "B", "Cancel Import (Safe Rollback)", COLOR_RED);
+            DrawButtonPrompt(renderer, chipX, chipY, "B", "Cancel", COLOR_RED);
         }
         else if (state.screen == ScreenState::Complete)
         {
-            DrawButtonPrompt(renderer, chipX, chipY, "A", "Finish / Launch Game", COLOR_GREEN);
+            DrawButtonPrompt(renderer, chipX, chipY, "A", "Launch", COLOR_GREEN);
+        }
+        else if (state.screen == ScreenState::Error)
+        {
+            DrawButtonPrompt(renderer, chipX, chipY, "A", "Retry", COLOR_GREEN);
+            chipX += 100;
+            DrawButtonPrompt(renderer, chipX, chipY, "B", "Exit", COLOR_RED);
+        }
+
+        // Row 2: Keyboard shortcuts hint line
+        int kbX = 24;
+        int kbY = footerY + 40;
+        ui::DrawString(renderer, kbX, kbY, "KEYBOARD:", COLOR_GOLD_MUTED.r, COLOR_GOLD_MUTED.g, COLOR_GOLD_MUTED.b, 255, 0.85f);
+        int kbTextX = kbX + ui::MeasureTextWidth("KEYBOARD: ", 0.85f);
+
+        if (state.screen == ScreenState::BrowseSource || state.screen == ScreenState::BrowseDest)
+        {
+            ui::DrawString(renderer, kbTextX, kbY,
+                           "[Enter] Open  [F] Select  [Bksp] Up  [Esc] Back  [Arrows] Move",
+                           COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 0.85f);
+        }
+        else if (state.screen == ScreenState::ReviewDiscs)
+        {
+            ui::DrawString(renderer, kbTextX, kbY,
+                           "[Enter] Select  [Esc] Back  [Arrows] Move",
+                           COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 0.85f);
+        }
+        else if (state.screen == ScreenState::Importing)
+        {
+            ui::DrawString(renderer, kbTextX, kbY,
+                           "[Esc] Cancel",
+                           COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 0.85f);
+        }
+        else if (state.screen == ScreenState::Complete)
+        {
+            ui::DrawString(renderer, kbTextX, kbY,
+                           "[Enter] Launch  [Esc] Exit",
+                           COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 0.85f);
+        }
+        else if (state.screen == ScreenState::Error)
+        {
+            ui::DrawString(renderer, kbTextX, kbY,
+                           "[Enter] Retry  [Esc] Exit",
+                           COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 0.85f);
         }
 
         // Body Content
