@@ -129,23 +129,10 @@ static uint16_t ReadRawButtonsLocked()
         if (btn(SDL_CONTROLLER_BUTTON_X)) buttons |= XAMINPUT_GAMEPAD_X;
         if (btn(SDL_CONTROLLER_BUTTON_Y)) buttons |= XAMINPUT_GAMEPAD_Y;
     }
-    const auto& keys = g_keys;
-    if (keys[SDL_SCANCODE_KP_8] || keys[SDL_SCANCODE_UP]) buttons |= XAMINPUT_GAMEPAD_DPAD_UP;
-    if (keys[SDL_SCANCODE_KP_2] || keys[SDL_SCANCODE_DOWN]) buttons |= XAMINPUT_GAMEPAD_DPAD_DOWN;
-    if (keys[SDL_SCANCODE_KP_4] || keys[SDL_SCANCODE_LEFT]) buttons |= XAMINPUT_GAMEPAD_DPAD_LEFT;
-    if (keys[SDL_SCANCODE_KP_6] || keys[SDL_SCANCODE_RIGHT]) buttons |= XAMINPUT_GAMEPAD_DPAD_RIGHT;
-    if (keys[SDL_SCANCODE_RETURN]) buttons |= XAMINPUT_GAMEPAD_START;
-    if (keys[SDL_SCANCODE_BACKSPACE]) buttons |= XAMINPUT_GAMEPAD_BACK;
-    if (keys[SDL_SCANCODE_LEFTBRACKET]) buttons |= XAMINPUT_GAMEPAD_LEFT_THUMB;
-    if (keys[SDL_SCANCODE_RIGHTBRACKET]) buttons |= XAMINPUT_GAMEPAD_RIGHT_THUMB;
-    if (keys[SDL_SCANCODE_Z]) buttons |= XAMINPUT_GAMEPAD_A;
-    if (keys[SDL_SCANCODE_X]) buttons |= XAMINPUT_GAMEPAD_B;
-    if (keys[SDL_SCANCODE_C]) buttons |= XAMINPUT_GAMEPAD_X;
-    if (keys[SDL_SCANCODE_V]) buttons |= XAMINPUT_GAMEPAD_Y;
-    if (keys[SDL_SCANCODE_Q]) buttons |= XAMINPUT_GAMEPAD_LEFT_SHOULDER;
-    if (keys[SDL_SCANCODE_W]) buttons |= XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
     return buttons;
 }
+
+static std::atomic<uint16_t> s_quarantinedButtons{0};
 
 static void ProcessHostInput(uint16_t buttons)
 {
@@ -155,7 +142,12 @@ static void ProcessHostInput(uint16_t buttons)
     const bool curChord = (buttons & chordMask) == chordMask;
     if (curChord && !prevChord)
     {
+        const bool wasVisible = debug_menu::IsOverlayVisible();
         debug_menu::ToggleOverlay();
+        if (wasVisible)
+        {
+            s_quarantinedButtons.fetch_or(chordMask, std::memory_order_relaxed);
+        }
     }
     else if (debug_menu::IsOverlayVisible())
     {
@@ -165,7 +157,11 @@ static void ProcessHostInput(uint16_t buttons)
         else if (pressed & XAMINPUT_GAMEPAD_DPAD_LEFT) debug_menu::HandleInput(debug_menu::InputAction::Left);
         else if (pressed & XAMINPUT_GAMEPAD_DPAD_RIGHT) debug_menu::HandleInput(debug_menu::InputAction::Right);
         else if (pressed & XAMINPUT_GAMEPAD_A) debug_menu::HandleInput(debug_menu::InputAction::Confirm);
-        else if (pressed & XAMINPUT_GAMEPAD_B) debug_menu::HandleInput(debug_menu::InputAction::Cancel);
+        else if (pressed & XAMINPUT_GAMEPAD_B)
+        {
+            debug_menu::HandleInput(debug_menu::InputAction::Cancel);
+            s_quarantinedButtons.fetch_or(XAMINPUT_GAMEPAD_B, std::memory_order_relaxed);
+        }
         else if ((pressed & XAMINPUT_GAMEPAD_LEFT_SHOULDER) && !curChord) debug_menu::HandleInput(debug_menu::InputAction::PrevTab);
         else if ((pressed & XAMINPUT_GAMEPAD_RIGHT_SHOULDER) && !curChord) debug_menu::HandleInput(debug_menu::InputAction::NextTab);
     }
@@ -447,12 +443,25 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
     // When external event pump is active, PumpHostInput() on the window/event pump thread
     // independently drives chord detection and menu navigation (even when guest is paused).
     // When external pump is NOT active (e.g. standalone test), handle it here.
+    // Capture overlay state BEFORE processing input, because ProcessHostInput
+    // may close the overlay (Cancel/B), and we must still filter that button.
+    const bool overlayVisibleBefore = debug_menu::IsOverlayVisible();
+
     if (!g_externalPump)
     {
         ProcessHostInput(gp.wButtons);
     }
 
-    bool overlayOwnsInput = debug_menu::IsOverlayVisible();
+    // Release quarantine: if a button (such as B or LB+RB chord) was consumed to close
+    // the overlay, keep filtering that button from the guest/settings until physically released.
+    const uint16_t quarantine = s_quarantinedButtons.load(std::memory_order_relaxed);
+    if (quarantine)
+    {
+        s_quarantinedButtons.store(gp.wButtons & quarantine, std::memory_order_relaxed);
+        gp.wButtons &= ~quarantine;
+    }
+
+    bool overlayOwnsInput = overlayVisibleBefore || debug_menu::IsOverlayVisible();
     const uint16_t beforeMenuButtons = gp.wButtons;
     bool menuFiltered = false;
     if (overlayOwnsInput) {

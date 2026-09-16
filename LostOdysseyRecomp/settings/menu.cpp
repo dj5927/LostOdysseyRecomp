@@ -129,8 +129,12 @@ void Publish(uint8_t *base, uint32_t config)
     }
     else if (tab == 2)
     {
+#ifdef _WIN32
         addChoices(L"Graphics backend", L"圖形後端", {L"Direct3D 12", L"Vulkan", Tr(L"Direct3D 11 (unsupported)", L"Direct3D 11（尚未支援）")},
                    uint32_t(edit.graphicsBackend));
+#else
+        addChoices(L"Graphics backend", L"圖形後端", {L"Vulkan"}, 0);
+#endif
         addChoices(L"Display mode", L"顯示模式",
                    {Tr(L"Windowed", L"視窗"), Tr(L"Borderless fullscreen", L"無邊框全螢幕"),
                     Tr(L"Exclusive fullscreen", L"獨占全螢幕")},
@@ -216,6 +220,7 @@ void Publish(uint8_t *base, uint32_t config)
     if (restartPrompt)
     {
         next.dialogTitle = Tr(L"Restart required", L"需要重新啟動");
+#ifdef _WIN32
         next.dialogMessage = restartSaveFailed
             ? Tr(L"Settings could not be saved. Check settings.ini permissions, then retry or cancel.",
                  L"無法儲存設定。請檢查 settings.ini 權限後重試或取消。")
@@ -223,6 +228,16 @@ void Publish(uint8_t *base, uint32_t config)
             : Tr(L"Save these settings and restart now?", L"儲存這些設定並立即重新啟動嗎？");
         next.dialogChoices = {Tr(L"Restart now", L"立即重新啟動"), Tr(L"Later", L"稍後"), Tr(L"Cancel", L"取消")};
         if (savedRestartPrompt) next.dialogChoices.resize(2);
+#else
+        next.dialogMessage = restartSaveFailed
+            ? Tr(L"Settings could not be saved. Check settings.ini permissions, then retry or cancel.",
+                 L"無法儲存設定。請檢查 settings.ini 權限後重試或取消。")
+            : savedRestartPrompt ? Tr(L"Settings saved. Restart manually to apply changes.", L"設定已儲存。請手動重新啟動以套用變更。")
+            : Tr(L"Save these settings? Restart manually to apply changes.", L"儲存這些設定嗎？請手動重新啟動以套用變更。");
+        next.dialogChoices = savedRestartPrompt
+            ? std::vector<std::wstring>{Tr(L"OK", L"確定")}
+            : std::vector<std::wstring>{Tr(L"Save and restart later", L"儲存並稍後手動重啟"), Tr(L"Cancel", L"取消")};
+#endif
         next.dialogSelection = restartChoice;
     }
     if (collectionPrompt) {
@@ -458,7 +473,11 @@ PPC_FUNC(sub_822F19B0)
     }
     if (restartPrompt)
     {
+#ifdef _WIN32
         const int choices = savedRestartPrompt ? 2 : 3;
+#else
+        const int choices = savedRestartPrompt ? 1 : 2;
+#endif
         if (int selected = mouseDialog.exchange(-1); selected >= 0)
             restartChoice = std::min(selected, choices - 1);
         if (input & 1) restartChoice = (restartChoice + choices - 1) % choices;
@@ -473,12 +492,16 @@ PPC_FUNC(sub_822F19B0)
                 restartPrompt = false;
                 savedRestartPrompt = false;
                 restartSaveFailed = false;
+#ifdef _WIN32
                 status = restartChoice == 0
                     ? Tr(L"Saved. Preparing a safe restart…", L"已儲存，正在準備安全重新啟動……")
                     : Tr(L"Saved. Changes take effect after restarting.", L"已儲存，重新啟動後套用變更。");
                 if (restartChoice == 0) restart::Request();
+#else
+                status = Tr(L"Saved. Please restart manually to apply changes.", L"已儲存，請手動重新啟動以套用變更。");
+#endif
             }
-            else if (restartChoice == 2)
+            else if (restartChoice == (choices - 1))
             {
                 restartPrompt = false;
                 restartSaveFailed = false;
@@ -489,10 +512,14 @@ PPC_FUNC(sub_822F19B0)
                 edit = restartAfter;
                 restartPrompt = false;
                 restartSaveFailed = false;
+#ifdef _WIN32
                 status = restartChoice == 0
                     ? Tr(L"Saved. Preparing a safe restart…", L"已儲存，正在準備安全重新啟動……")
                     : Tr(L"Saved. Changes take effect after restarting.", L"已儲存，重新啟動後套用變更。");
                 if (restartChoice == 0) restart::Request();
+#else
+                status = Tr(L"Saved. Please restart manually to apply changes.", L"已儲存，請手動重新啟動以套用變更。");
+#endif
             }
             else
                 restartSaveFailed = true;
@@ -587,7 +614,11 @@ PPC_FUNC(sub_822F19B0)
         else if (tab == 2)
         {
             if (row == 0)
+#ifdef _WIN32
                 edit.graphicsBackend = GraphicsBackend(cycle(uint32_t(edit.graphicsBackend), 3));
+#else
+                edit.graphicsBackend = GraphicsBackend::Vulkan;
+#endif
             if (row == 1)
                 edit.windowMode = WindowMode(cycle(uint32_t(edit.windowMode), 3));
             if (row == 2)

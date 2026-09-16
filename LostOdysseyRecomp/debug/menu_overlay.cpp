@@ -3,6 +3,7 @@
 #include <mutex>
 #include <vector>
 #include <string>
+#include <chrono>
 #include "../host_ui/rasterizer.h"
 #include "../host_ui/widgets.h"
 #include "../debug/teleport.h"
@@ -34,6 +35,7 @@ namespace debug_menu
         uint64_t poiRevision = ~uint64_t(0);
 
         std::wstring statusMessage;
+        std::chrono::steady_clock::time_point statusExpiry{};
     };
 
     static std::mutex g_overlayStateMutex;
@@ -50,6 +52,7 @@ namespace debug_menu
     {
         std::lock_guard lock(g_overlayStateMutex);
         g_overlayState.statusMessage = std::move(message);
+        g_overlayState.statusExpiry = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     }
 
     static void ToggleOverlayLocked()
@@ -100,7 +103,8 @@ namespace debug_menu
             std::lock_guard lock(g_overlayStateMutex);
             if (g_overlayState.visible)
             {
-                if (!snapshot.status.empty() && g_overlayState.activeTab == 1)
+                if (!snapshot.status.empty() && g_overlayState.activeTab == 1 &&
+                    std::chrono::steady_clock::now() >= g_overlayState.statusExpiry)
                 {
                     g_overlayState.statusMessage = snapshot.status;
                 }
@@ -254,8 +258,8 @@ namespace debug_menu
                         stateLock.lock();
                         g_overlayState.editCoordinates[0] = s.current.x;
                         g_overlayState.editCoordinates[1] = s.current.y;
-                        g_overlayState.editCoordinates[2] = s.current.z;
                         g_overlayState.statusMessage = g_overlayState.chinese ? L"已填入当前角色坐标" : L"Position filled";
+                        g_overlayState.statusExpiry = std::chrono::steady_clock::now() + std::chrono::seconds(2);
                     }
                     else
                     {

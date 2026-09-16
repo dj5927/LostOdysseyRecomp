@@ -923,6 +923,16 @@ namespace gpu
                 if (matched)
                     break;
                 video::PumpEvents();
+                if (video::IsHostOverlayActive())
+                {
+                    static auto s_lastWaitOverlayPresent = std::chrono::steady_clock::time_point{};
+                    const auto now = std::chrono::steady_clock::now();
+                    if (now - s_lastWaitOverlayPresent >= std::chrono::milliseconds(16))
+                    {
+                        s_lastWaitOverlayPresent = now;
+                        video::PresentHostOverlay();
+                    }
+                }
                 if (std::chrono::steady_clock::now() > deadline)
                 {
                     LOG_WARNING("WAIT_REG_MEM stalled 5s ({} {:#x} ref {:#x} mask {:#x} value {:#x}), still waiting", isMemory ? "mem" : "reg", pollRegAddr, ref, mask, value);

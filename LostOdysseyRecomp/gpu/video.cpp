@@ -1000,6 +1000,7 @@ namespace gpu::video
 #ifdef LO_GPU_PLUME
         if (menu)
         {
+            g_pixels = menuPresentBuffer;
             g_frameWidth = menuWidth;
             g_frameHeight = menuHeight;
             UploadAndPresentPixels(menuPresentBuffer, menuWidth, menuHeight, true, displayTicket, presentationOptions);
@@ -1076,9 +1077,10 @@ namespace gpu::video
         if (menuPresentBuffer.empty())
             return;
 
+        g_pixels = menuPresentBuffer;
         g_frameWidth = menuWidth;
         g_frameHeight = menuHeight;
-        UploadAndPresentPixels(menuPresentBuffer, menuWidth, menuHeight, true, 0, PresentationOptions{});
+        UploadAndPresentPixels(menuPresentBuffer, menuWidth, menuHeight, true, g_displayChanges.PresentationTicket(), PresentationOptions{});
 #endif
     }
 
@@ -1150,7 +1152,7 @@ namespace gpu::video
         }
         if (g_frameOnGpu && !renderer::ReadbackResolvedSurface(g_frontbufferPhysical, g_pixels, g_frameWidth, g_frameHeight))
             return false;
-        if (g_pixels.empty())
+        if (g_pixels.empty() || g_pixels.size() != size_t(g_frameWidth) * g_frameHeight)
             return false;
         FILE* f = fopen(path, "wb");
         if (!f)

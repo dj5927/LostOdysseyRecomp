@@ -15,7 +15,16 @@ One record of completed changes, with unpublished work separated from verified r
   - Implemented pause-aware active game clock (`GetActiveGameTimeMs`) and scene generation tracking for teleport and battle commands, preserving bookmarks and pending states across pauses, and provided accurate asynchronous status feedback in the debug overlay (R3, R9).
   - Enabled custom settings on Linux via renderer capability check (`LO_GPU_PLUME`), isolated settings buffer caching from debug overlay compositing, guarded mouse click propagation under modal overlays, and corrected straight-alpha source-over blending math (R4, R7, R8, R10).
   - Migrated `LoDebugMenuInteractionTest` to the host overlay model, covering navigation, state synchronization, and error handling (R6).
-- Maintained and expanded test suite: `LoHidTest`, `LoHostUiCompositeTest`, `LoDebugOverlayTest`, and `LoDebugMenuInteractionTest` all built and passed.
+- Addressed third-round code review report items R11 through R17:
+  - Synchronized `g_pixels` buffer, dimensions, and added exact-size validation in `SaveScreenshot` CPU fallback to eliminate out-of-bounds reads during menu presentation (R11).
+  - Deduplicated keyboard navigation between window event pump and host HID polling by removing raw key polling from `PumpHostInput` (R12).
+  - Implemented button release quarantine for overlay close actions (B button and LB+RB chord) to prevent consumed buttons from leaking to underlying settings and game simulation (R13).
+  - Added throttled 16ms host overlay presentation inside GPU `PM4_WAIT_REG_MEM` loops to ensure UI refreshes even when CP waits on paused guest conditions (R14).
+  - Propagated active presentation tickets from `DisplayChangeTracker` in `PresentHostOverlay` to properly resolve display change transactions (R15).
+  - Protected overlay status feedback with minimum display durations so immediate command rejections are not overwritten by stale service snapshots (R16).
+  - Configured platform-appropriate graphics backend choices and graceful manual-restart guidance on non-Windows platforms (R17).
+  - Relocated `LoDebugMenuInteractionTest` into the cross-platform test suite in CMake.
+- Maintained and expanded test suite: `LoHidTest`, `LoHostUiCompositeTest`, `LoDebugOverlayTest`, `LoDebugMenuInteractionTest`, and `LoMenuRenderTest` all built and passed.
 
 ### 简体中文
 
@@ -26,7 +35,16 @@ One record of completed changes, with unpublished work separated from verified r
   - 引入感知暂停的主动游戏时钟（`GetActiveGameTimeMs`）与场景代数（`sceneGeneration`），防止暂停超时误判失效并保留传送标记与胜负请求；浮层 UI 准确反馈异步命令状态，杜绝虚假成功提示（R3, R9）。
   - 移除 Linux 设置菜单入口的平台宏限制，改为按渲染器能力启用（`LO_GPU_PLUME`）；拆分独立呈现缓冲隔离设置底图缓存，拦截模态下底层鼠标点击穿透，并修正 `ColorBlend` 的 straight-alpha source-over 混合算法（R4, R7, R8, R10）。
   - 将废弃的原生窗口测试迁移为浮层交互测试 `LoDebugMenuInteractionTest`，覆盖模态切换、导航、错误反馈及光栅化渲染（R6）。
-- 维持并扩充测试套件：`LoHidTest`、`LoHostUiCompositeTest`、`LoDebugOverlayTest` 与 `LoDebugMenuInteractionTest` 全部重新编译并测试通过。
+- 完整修复第三轮代码审查报告 R11 至 R17 缺陷项：
+  - 同步菜单呈现时的 `g_pixels` 缓冲与元数据，并在 `SaveScreenshot` 的 CPU 回退分支增加严格尺寸一致性校验，根除截图越界读取隐患（R11）。
+  - 去除 `PumpHostInput` 中的按键重复轮询，统一由窗口事件泵处理键盘导航，解决方向与切页键双重触发问题（R12）。
+  - 引入按键释放隔离（Release Quarantine）机制，关闭浮层的 B 键及肩键组合（LB+RB）在物理松开前持续过滤，防止泄漏到底层设置及游戏（R13）。
+  - 在 GPU `PM4_WAIT_REG_MEM` 循环中增加 16ms 节拍的浮层独立呈现，解决等待停滞期间的菜单重绘饥饿问题（R14）。
+  - 浮层呈现接入 `DisplayChangeTracker` 的有效展示凭证（Presentation Ticket），修复暂停期间全屏切换事务挂起缺陷（R15）。
+  - 为浮层命令反馈增加最短保留时间，防止即时拒绝提示被过期的业务快照无条件覆盖（R16）。
+  - 在 Linux 平台上按实际能力展示唯一的 Vulkan 图形后端，并将重启对话框调整为友好的手动重启提示（R17）。
+  - 将 `LoDebugMenuInteractionTest` 测试目标移出 Windows 独占条件，加入跨平台测试套件。
+- 维持并扩充测试套件：`LoHidTest`、`LoHostUiCompositeTest`、`LoDebugOverlayTest`、`LoDebugMenuInteractionTest` 与 `LoMenuRenderTest` 全部重新编译并测试通过。
 
 ## Historical development checkpoints / 历史开发检查点
 
