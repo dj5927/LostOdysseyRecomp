@@ -7,6 +7,7 @@
 #include "import_image.h"
 #include "import_crypto.h"
 #include "../os/user_paths.h"
+#include "../settings/game_path.h"
 
 #include <algorithm>
 #include <array>
@@ -1611,9 +1612,7 @@ std::filesystem::path DefaultGameDirectory(const std::filesystem::path& executab
 {
     std::error_code ec;
     auto absExe = std::filesystem::absolute(executableDirectory, ec).lexically_normal();
-    if (!os::user_paths::UsePortableLayout())
-        return (os::user_paths::DataDir() / "game").lexically_normal();
-    return (absExe.parent_path() / "game").lexically_normal();
+    return settings::game_path::DefaultGameRoot(absExe);
 }
 
 bool WriteGamePath(const std::filesystem::path& executableDirectory,
@@ -1626,22 +1625,48 @@ bool WriteGamePath(const std::filesystem::path& executableDirectory,
         ? absExe / "game-path.txt"
         : os::user_paths::ConfigDir() / "game-path.txt";
 
-    std::ofstream out(configPath, std::ios::binary | std::ios::trunc);
-    if (!out)
+    std::filesystem::create_directories(configPath.parent_path(), ec);
+    if (ec)
     {
-        error = "Could not open game-path.txt for writing";
+        error = "Could not create config directory for game-path.txt";
         return false;
     }
 
-    auto u8str = gameDirectory.generic_u8string();
-    out.write(reinterpret_cast<const char*>(u8str.data()), u8str.size());
-    out.put('\n');
-
-    if (!out)
+    const auto temporary = configPath.parent_path() / "game-path.txt.tmp";
     {
-        error = "Could not write to game-path.txt";
+        std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+        if (!out)
+        {
+            error = "Could not open game-path.txt for writing";
+            return false;
+        }
+
+        auto u8str = gameDirectory.generic_u8string();
+        out.write(reinterpret_cast<const char*>(u8str.data()), u8str.size());
+        out.put('\n');
+        out.flush();
+        if (!out)
+        {
+            error = "Could not write to game-path.txt";
+            return false;
+        }
+    }
+
+#ifdef _WIN32
+    if (!MoveFileExW(temporary.wstring().c_str(), configPath.wstring().c_str(),
+                     MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    {
+        error = "Could not commit game-path.txt";
         return false;
     }
+#else
+    std::filesystem::rename(temporary, configPath, ec);
+    if (ec)
+    {
+        error = "Could not commit game-path.txt";
+        return false;
+    }
+#endif
     return true;
 }
 

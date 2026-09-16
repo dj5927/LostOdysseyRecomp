@@ -63,19 +63,23 @@ def main():
         deploy = shutil.which(args.linuxdeploy)
         if not deploy:
             raise SystemExit(f"linuxdeploy not found: {args.linuxdeploy}")
-        subprocess.run([deploy, "--appdir", str(appdir), "--output", "appimage"], cwd=ROOT, check=True)
+        subprocess.run(
+            [deploy, "--appdir", str(appdir), "--output", "appimage"],
+            cwd=temporary,
+            check=True,
+        )
         for wayland in (appdir / "usr/lib").glob("libwayland*"):
             wayland.unlink()
-    produced = next(appdir.parent.glob("*.AppImage"), None)
-    if produced is None:
-        raise SystemExit("linuxdeploy did not produce an AppImage")
-    destination = output / f"{name}.AppImage"
-    shutil.move(str(produced), destination)
-    checksum_path = destination.with_suffix(".AppImage.sha256")
-    checksum = hashlib.sha256(destination.read_bytes()).hexdigest()
-    checksum_path.write_text(f"{checksum}  {destination.name}\n", encoding="utf-8")
-    print(f"SelectAsset: {destination.name}")
-    print(f"SelectAsset: {checksum_path.name}")
+        produced = next(Path(temporary).glob("*.AppImage"), None)
+        if produced is None:
+            raise SystemExit("linuxdeploy did not produce an AppImage")
+        destination = output / f"{name}.AppImage"
+        shutil.move(str(produced), destination)
+        checksum_path = destination.with_suffix(".AppImage.sha256")
+        checksum = hashlib.sha256(destination.read_bytes()).hexdigest()
+        checksum_path.write_text(f"{checksum}  {destination.name}\n", encoding="utf-8")
+        print(f"SelectAsset: {destination.name}")
+        print(f"SelectAsset: {checksum_path.name}")
 
 
 if __name__ == "__main__":

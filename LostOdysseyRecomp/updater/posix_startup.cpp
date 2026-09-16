@@ -97,7 +97,7 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
     std::filesystem::copy_file(archive, staged, std::filesystem::copy_options::overwrite_existing, filesystemError);
     if (filesystemError) { result.status = StartupStatus::IntegrityFailed; result.detail = "could not stage AppImage"; return result; }
     update.files.push_back({staged.filename(), asset->sha256});
-    if (!WriteApplyPlan(update, std::filesystem::absolute(appImage), {}, error, false))
+    if (!WriteApplyPlan(update, std::filesystem::absolute(appImage), CurrentLaunchArguments(), error, false))
     {
         result.status = StartupStatus::IntegrityFailed; result.detail = error; return result;
     }

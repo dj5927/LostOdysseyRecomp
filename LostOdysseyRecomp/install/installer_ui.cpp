@@ -835,11 +835,10 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             case SDL_MOUSEBUTTONDOWN:
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
-                    float logicalX = 0.0f;
-                    float logicalY = 0.0f;
-                    SDL_RenderWindowToLogical(renderer, event.button.x, event.button.y, &logicalX, &logicalY);
-                    int mx = static_cast<int>(std::round(logicalX));
-                    int my = static_cast<int>(std::round(logicalY));
+                    // SDL already converts button.x/y to logical coordinates after
+                    // SDL_RenderSetLogicalSize; do not convert a second time.
+                    int mx = event.button.x;
+                    int my = event.button.y;
                     int winW = LOGICAL_WIN_WIDTH;
                     int winH = LOGICAL_WIN_HEIGHT;
                     int curBodyY = 80;

@@ -22,8 +22,34 @@ permissions:
   contents: read
 
 jobs:
+  create-draft-release:
+    name: Create draft release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
+          persist-credentials: false
+      - name: Create draft release if missing
+        if: env.RELEASE_TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release already exists; not recreating."
+            exit 0
+          fi
+          mkdir -p out/releases
+          python3 tools/release/extract_release_notes.py --changelog CHANGELOG.md --version "$RELEASE_TAG" --output out/releases/release-notes.md
+          gh release create "$RELEASE_TAG" --verify-tag --draft --notes-file out/releases/release-notes.md
+
   release-windows:
     name: Windows Release
+    needs: [create-draft-release]
     runs-on: windows-2022
     timeout-minutes: 180
     permissions:
@@ -151,23 +177,31 @@ jobs:
           name: PPC-cache-identity
           path: out/ppc-cache-identity.json
           if-no-files-found: error
-      - name: Create draft release
+      - name: Upload Windows assets to draft release
         if: env.RELEASE_TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $assets = Get-ChildItem out/releases/LostOdysseyRecomp-*.zip,out/releases/LostOdysseyRecomp-*.sha256 | ForEach-Object FullName
-          $existing = gh release view $env:RELEASE_TAG --json isDraft 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host 'Release already exists; preserving its reviewed assets.'
+          $assets = @(Get-ChildItem out/releases/LostOdysseyRecomp-*.zip,out/releases/LostOdysseyRecomp-*.sha256 | ForEach-Object FullName)
+          if ($assets.Count -eq 0) { throw 'No Windows release assets to upload.' }
+          $json = gh release view $env:RELEASE_TAG --json isDraft,assets
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release is missing.' }
+          $release = $json | ConvertFrom-Json
+          if (-not $release.isDraft) {
+            Write-Host 'Release already published; preserving its reviewed assets.'
             exit 0
           }
-          python tools/release/extract_release_notes.py --changelog CHANGELOG.md --version $env:RELEASE_TAG --output out/releases/release-notes.md
-          if ($LASTEXITCODE -ne 0) { throw 'Could not extract release notes from CHANGELOG.md.' }
-          gh release create $env:RELEASE_TAG --verify-tag --draft --notes-file out/releases/release-notes.md @assets
+          $existing = @($release.assets | ForEach-Object { $_.name })
+          $missing = @($assets | Where-Object { $existing -notcontains [IO.Path]::GetFileName($_) })
+          if ($missing.Count -eq 0) {
+            Write-Host 'Windows assets already on the draft; preserving its reviewed assets.'
+            exit 0
+          }
+          gh release upload $env:RELEASE_TAG @missing
 
   release-linux:
     name: Linux Release
+    needs: [create-draft-release]
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     permissions:
@@ -274,6 +308,17 @@ jobs:
               linux_assets+=("$file")
             fi
           done
-          if [ ${#linux_assets[@]} -gt 0 ]; then
-            gh release upload "$RELEASE_TAG" "${linux_assets[@]}" --clobber
+          if [ ${#linux_assets[@]} -eq 0 ]; then
+            echo "No Linux release assets to upload." >&2
+            exit 1
           fi
+          if ! gh release view "$RELEASE_TAG" --json isDraft >/dev/null; then
+            echo "Draft release is missing." >&2
+            exit 1
+          fi
+          is_draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)
+          if [ "$is_draft" != "true" ]; then
+            echo "Release already published; refusing to overwrite Linux assets."
+            exit 0
+          fi
+          gh release upload "$RELEASE_TAG" "${linux_assets[@]}" --clobber

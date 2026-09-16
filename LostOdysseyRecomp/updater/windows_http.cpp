@@ -16,6 +16,8 @@
 #include <cwchar>
 #include <fstream>
 #include <limits>
+#include <string>
+#include <vector>
 #if defined(__linux__) && !defined(_WIN32)
 #include <unistd.h>
 #endif
@@ -422,7 +424,8 @@ std::vector<std::wstring> CurrentLaunchArguments()
     for (int i = 1; arguments && i < count; ++i)
     {
         const std::wstring_view argument(arguments[i]);
-        if ((argument == L"--wait-process" || argument == L"--restart-ready") && i + 1 < count)
+        if ((argument == L"--wait-process" || argument == L"--restart-ready" || argument == L"--apply-plan") &&
+            i + 1 < count)
         {
             ++i;
             continue;
@@ -430,6 +433,23 @@ std::vector<std::wstring> CurrentLaunchArguments()
         result.emplace_back(argument);
     }
     if (arguments) LocalFree(arguments);
+#else
+    std::ifstream commandLine("/proc/self/cmdline", std::ios::binary);
+    std::vector<std::string> arguments;
+    std::string argument;
+    while (std::getline(commandLine, argument, '\0')) arguments.push_back(std::move(argument));
+    for (size_t i = 1; i < arguments.size(); ++i)
+    {
+        const auto &value = arguments[i];
+        if ((value == "--wait-process" || value == "--restart-ready" || value == "--apply-plan") &&
+            i + 1 < arguments.size())
+        {
+            ++i;
+            continue;
+        }
+        const auto utf8 = std::u8string(reinterpret_cast<const char8_t *>(value.data()), value.size());
+        result.push_back(std::filesystem::path(utf8).wstring());
+    }
 #endif
     return result;
 }

@@ -96,6 +96,13 @@ namespace settings::game_path
         return std::nullopt;
     }
 
+    inline std::filesystem::path DefaultGameRoot(const std::filesystem::path& executableDirectory)
+    {
+        if (!os::user_paths::UsePortableLayout())
+            return (os::user_paths::DataDir() / "game").lexically_normal();
+        return (executableDirectory / ".." / "game").lexically_normal();
+    }
+
     inline Resolution Resolve(const std::filesystem::path& executableDirectory,
                              const std::optional<std::filesystem::path>& explicitGame = std::nullopt)
     {
@@ -147,8 +154,9 @@ namespace settings::game_path
         }
 
         // Keep a deterministic, useful path for the existing loader error and
-        // installer handoff when no candidate exists.
-        result.root = (exeDirectory / ".." / "game").lexically_normal();
+        // installer handoff when no candidate exists. Non-portable layouts use
+        // the XDG data game directory instead of a read-only install tree.
+        result.root = DefaultGameRoot(exeDirectory);
         result.source = Source::Fallback;
         result.valid = false;
         return result;

@@ -300,15 +300,62 @@ std::optional<int> TryRunApplyMode()
     }
 
     const auto staged = plan->stageRoot / plan->files.front().path;
-    if (chmod(staged.c_str(), 0755) != 0)
+    std::string digestError;
+    const auto expectedDigest = plan->files.front().sha256;
+    if (expectedDigest.empty() || Sha256File(staged, digestError) != expectedDigest)
     {
-        return failWithReason("failed to set executable permissions on staged AppImage; existing installation not changed");
+        return failWithReason("staged AppImage digest mismatch; existing installation not changed");
     }
+
+    // Copy onto the target filesystem, re-check the bytes that will be renamed,
+    // then swap with a same-directory backup so EXDEV cannot replace the only copy.
+    const auto incoming = appImagePath.parent_path() / (appImagePath.filename().string() + ".new");
+    const auto previous = appImagePath.parent_path() / (appImagePath.filename().string() + ".previous");
     std::error_code filesystemError;
-    std::filesystem::rename(staged, appImagePath, filesystemError);
+    std::filesystem::remove(incoming, filesystemError);
+    std::filesystem::copy_file(staged, incoming, std::filesystem::copy_options::overwrite_existing, filesystemError);
     if (filesystemError)
     {
-        return failWithReason("failed to rename staged AppImage over target; existing installation not changed");
+        std::filesystem::remove(incoming, filesystemError);
+        return failWithReason("failed to copy staged AppImage onto the target filesystem; existing installation not changed");
+    }
+    digestError.clear();
+    if (Sha256File(incoming, digestError) != expectedDigest)
+    {
+        std::filesystem::remove(incoming, filesystemError);
+        return failWithReason("copied AppImage digest mismatch; existing installation not changed");
+    }
+    if (chmod(incoming.c_str(), 0755) != 0)
+    {
+        std::filesystem::remove(incoming, filesystemError);
+        return failWithReason("failed to set executable permissions on staged AppImage; existing installation not changed");
+    }
+
+    std::error_code existsError;
+    const bool hadExisting = std::filesystem::exists(appImagePath, existsError);
+    if (hadExisting)
+    {
+        std::filesystem::rename(appImagePath, previous, filesystemError);
+        if (filesystemError)
+        {
+            std::filesystem::remove(incoming, filesystemError);
+            return failWithReason("failed to preserve existing AppImage; existing installation not changed");
+        }
+    }
+
+    std::filesystem::rename(incoming, appImagePath, filesystemError);
+    if (filesystemError)
+    {
+        std::filesystem::remove(incoming, filesystemError);
+        if (hadExisting)
+        {
+            std::error_code restoreError;
+            std::filesystem::rename(previous, appImagePath, restoreError);
+            if (restoreError)
+                return failWithReason("failed to replace AppImage and failed to restore the previous installation");
+            return failWithReason("failed to replace AppImage; existing installation restored");
+        }
+        return failWithReason("failed to replace AppImage; existing installation not changed");
     }
 
     std::vector<char *> execArguments;
@@ -325,7 +372,7 @@ std::optional<int> TryRunApplyMode()
         execArguments.push_back(launchArgument.data());
     execArguments.push_back(nullptr);
     execv(executable.c_str(), execArguments.data());
-    return failWithReason("failed to execute updated AppImage; existing installation not changed");
+    return failWithReason("failed to execute updated AppImage; installation was replaced");
 }
 } // namespace updater
 #endif

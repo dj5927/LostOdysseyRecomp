@@ -164,6 +164,22 @@ int main()
     Check(explicitResult.source == Source::ExplicitArgument, "explicit source was lost");
     Check(!explicitResult.valid, "missing explicit path was treated as valid");
 
+#ifndef _WIN32
+    {
+        const bool previousPortable = os::user_paths::g_usePortableLayout;
+        os::user_paths::g_usePortableLayout = false;
+        const auto dataHome = fixture.root / "xdg-data";
+        setenv("XDG_DATA_HOME", dataHome.c_str(), 1);
+        const auto nonPortable = Resolve(fixture.exe);
+        Check(nonPortable.root == (dataHome / "lost-odyssey-recomp" / "game").lexically_normal(),
+              "non-portable fallback did not use the XDG data game directory");
+        Check(nonPortable.source == Source::Fallback && !nonPortable.valid,
+              "non-portable missing default did not report fallback state");
+        os::user_paths::g_usePortableLayout = previousPortable;
+        unsetenv("XDG_DATA_HOME");
+    }
+#endif
+
     fs::current_path(originalDirectory);
     std::cout << "PASS: game path discovery fixture\n";
     return 0;
