@@ -43,6 +43,7 @@ struct MockServices
     int restorePosCalls = 0;
     int poiTeleportCalls = 0;
 
+    debug_menu::Position lastTeleport{};
     debug_menu::TeleportSnapshot snapshot;
 } g_mock;
 } // namespace
@@ -98,9 +99,10 @@ TeleportSnapshot GetTeleportSnapshot()
     return g_mock.snapshot;
 }
 
-bool RequestTeleport(Position)
+bool RequestTeleport(Position position)
 {
     if (!g_mock.allowTeleport) return false;
+    g_mock.lastTeleport = position;
     ++g_mock.teleportCalls;
     return true;
 }
@@ -214,10 +216,45 @@ int main()
     debug_menu::HandleInput(debug_menu::InputAction::Down);
     debug_menu::HandleInput(debug_menu::InputAction::Confirm);
     Require(g_mock.teleportCalls == 1, "Teleport XYZ was not called");
+    Require(g_mock.lastTeleport.x == 100.0f && g_mock.lastTeleport.y == 300.0f &&
+                g_mock.lastTeleport.z == 300.0f,
+            "Axis adjustment did not submit the expected XYZ coordinates");
+
+    // Dirty Z, then refill without closing/reopening the overlay. Opening also
+    // initializes XYZ, so testing only the initial fill misses a stale Z value.
+    debug_menu::HandleInput(debug_menu::InputAction::Up); // Row 3, Y selected
+    debug_menu::HandleInput(debug_menu::InputAction::Confirm); // Switch to Z
+    debug_menu::HandleInput(debug_menu::InputAction::Right); // Z = 400
+    debug_menu::HandleInput(debug_menu::InputAction::Up); // Row 2: Fill
+    g_mock.snapshot.current = {-125.0f, 450.0f, 875.0f};
+    debug_menu::HandleInput(debug_menu::InputAction::Confirm);
+    debug_menu::HandleInput(debug_menu::InputAction::Down);
+    debug_menu::HandleInput(debug_menu::InputAction::Down); // Row 4: Teleport
+    debug_menu::HandleInput(debug_menu::InputAction::Confirm);
+    Require(g_mock.teleportCalls == 2, "Teleport after refilling coordinates was not called");
+    Require(g_mock.lastTeleport.x == -125.0f && g_mock.lastTeleport.y == 450.0f &&
+                g_mock.lastTeleport.z == 875.0f,
+            "Fill Coordinates did not replace every edited axis with the current position");
+
+    // An unavailable snapshot must preserve the user's target, not partially
+    // replace it with invalid coordinates.
+    debug_menu::HandleInput(debug_menu::InputAction::Up);
+    debug_menu::HandleInput(debug_menu::InputAction::Up); // Row 2: Fill
+    g_mock.snapshot.available = false;
+    g_mock.snapshot.current = {1.0f, 2.0f, 3.0f};
+    debug_menu::HandleInput(debug_menu::InputAction::Confirm);
+    debug_menu::HandleInput(debug_menu::InputAction::Down);
+    debug_menu::HandleInput(debug_menu::InputAction::Down);
+    debug_menu::HandleInput(debug_menu::InputAction::Confirm);
+    Require(g_mock.teleportCalls == 3, "Teleport after an unavailable fill was not called");
+    Require(g_mock.lastTeleport.x == -125.0f && g_mock.lastTeleport.y == 450.0f &&
+                g_mock.lastTeleport.z == 875.0f,
+            "An unavailable Fill Coordinates request changed the target");
+    g_mock.snapshot.available = true;
 
     g_mock.allowTeleport = false;
     debug_menu::HandleInput(debug_menu::InputAction::Confirm);
-    Require(g_mock.teleportCalls == 1, "Teleport XYZ should be rejected without increment");
+    Require(g_mock.teleportCalls == 3, "Teleport XYZ should be rejected without increment");
 
     // Row 5: Step Size Switch
     debug_menu::HandleInput(debug_menu::InputAction::Down);
