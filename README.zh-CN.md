@@ -120,7 +120,7 @@ Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flat
 | 设置菜单 | 原版字体与菜单风格；图形设置单击保存并应用，需要重启时选择 Now/Later |
 | 着色器预编译 | 内置资源索引、多线程编译、缓存复用 |
 | CPU 使用率 | 减少不必要的轮询，复用渲染计算 |
-| 输入与调试 | 手柄和键盘输入；英文／简体中文 F1 菜单提供捕获、地图信息与同地图 POI 传送 |
+| 输入与调试 | 手柄和键盘输入；英文／简体中文游戏内浮层调试菜单（F1 或手柄 LB+RB）提供捕获、地图信息与同地图 POI 传送 |
 
 发布包通过 `LostOdysseyRecomp.exe` 的 **Files** 或 **Folder** 导入游戏光盘和受支持的 DLC。资源缺失时可再次打开同一内置导入器。验证边界见[安装说明](docs/INSTALLING.md#automatic-content-import)和[开发状态](docs/STATUS.md)。
 
@@ -165,7 +165,7 @@ Pop-Location
 | 十字键 / 左摇杆 | 方向键 / I、J、K、L |
 | 左 / 右肩键 | Q / W |
 | 左 / 右扳机 | E / R |
-| 调试菜单 | F1 |
+| 调试菜单 | F1 / 手柄 LB+RB |
 
 SDL 已映射手柄与键盘可同时用于玩家 1。未映射摇杆需要 SDL 手柄映射。见[输入说明](docs/notes/controller-input.md)。
 

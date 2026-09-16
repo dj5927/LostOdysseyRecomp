@@ -8,6 +8,14 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- In-game debug overlay and cross-platform settings rasterizer (unpublished development):
+  - Replace standalone Win32 debug dialog window with cross-platform in-game UI overlay rendered directly via swapchain blending, toggled with keyboard F1 or gamepad shoulder chord LB+RB.
+  - Automatically pause guest simulation while overlay is visible: freeze `KeTimeStampBundle` timestamp advances and pause audio streaming (`apu::SetPaused`), avoiding GPU CP synchronization deadlocks caused by suspended waiting threads.
+  - Full keyboard and gamepad navigation support: D-pad / left stick, A/Enter confirm, B/Escape return, LB/RB/Tab page switching between Overview and Teleport tabs.
+  - Settings menu completely removes Windows GDI dependencies, implementing a pure software 1280x720 cross-platform rasterizer rendered via the GPU swapchain, eliminating high-resolution (4K+) CPU rasterization slowdown and frame drops.
+  - Extract `host_ui` shared module providing software rasterization primitives, pixel buffer blending, and Unifont bitmap font decoding.
+  - Bounded verification: verified on Windows and Linux (RADV Vulkan) native builds with screenshot evidence retained.
+
 - Linux installer, importer, updater, and packaging support (unpublished development):
   - Retain embedded SDL installer UI (`ShowInstallerUI`) and built-in file browser on Linux without requiring desktop document portal integrations; missing `default.xex` or `--install` invokes host installer.
   - Add writable user paths via `os/user_paths.h` following XDG conventions (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`) when running in non-portable mode. Support read-only installation layouts, suppress `chdir` into read-only executable directories on Linux, and map Flatpak data directory to `/var/data`. Resolution of `game-path.txt` and default directories uses `ConfigDir`/`DataDir` when `!UsePortableLayout()`.
@@ -41,6 +49,14 @@ One record of completed changes, with unpublished work separated from verified r
 - Deploy the GitHub Issue triage workflow update at `600b08e` with authorized human `@codex` comment requests, per-comment deduplication, recent human discussion and bounded first-party code retrieval. Nineteen triage/mention checks and seven retrieval checks pass; a real public `@codex` reply remains to be observed.
 
 ### 简体中文
+
+- 游戏内调试浮层与跨平台设置菜单光栅化（未发布开发内容）：
+  - 调试菜单从独立 Win32 窗口改为通过交换链混合渲染的跨平台游戏内 UI 浮层（Overlay），支持键盘 F1 与手柄双肩键组合（LB+RB 同时按下）随时呼出与隐藏。
+  - 菜单呼出时自动暂停客户机模拟：冻结 `KeTimeStampBundle` 时间戳递增并暂停音频流（`apu::SetPaused`），避免挂起等待线程导致的 GPU CP 同步死锁。
+  - 支持全功能键盘及手柄导航：十字键／左摇杆导航、A/Enter 确认、B/Esc 返回、LB/RB/Tab 切换 Overview 与 Teleport 分页。
+  - 设置菜单彻底去除 Windows GDI 依赖，实现纯软件 1280x720 跨平台光栅化，并经由 GPU 交换链呈现，解决 4K 等高分辨率 CPU 渲染导致的菜单卡顿与掉帧。
+  - 提取 `host_ui` 共享模块，共用纯 CPU 光栅化基础原语、像素缓冲区混合与 Unifont 点阵字体解码。
+  - 定向验证：在 Windows 与 Linux（RADV Vulkan）原生构建下验证通过，并保留实机截图证据。
 
 - Linux 安装器、导入器、更新器与打包支持（未发布开发内容）：
   - Linux 保留内置 SDL 安装器界面（`ShowInstallerUI`）和内建文件浏览器，无需依赖桌面文档门户（portal）；缺少 `default.xex` 或指定 `--install` 时启动宿主安装器。

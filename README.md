@@ -120,7 +120,7 @@ See the [installation guide](docs/INSTALLING.md) for accepted disc versions, fil
 | Settings menu | Original game fonts and menu styling; one-click Graphics save/apply and Now/Later restart choices |
 | Shader preparation | Built-in resource index, parallel compilation and cache reuse |
 | CPU use | Reduced unnecessary polling and reuse of rendering work |
-| Input and debug | Controller and keyboard input; English/Simplified Chinese F1 menu with capture, map information and same-map POI teleport |
+| Input and debug | Controller and keyboard input; English/Simplified Chinese in-game overlay debug menu (F1 or LB+RB) with capture, map information and same-map POI teleport |
 
 Published packages import game discs and supported DLC with **Files** or **Folder** in `LostOdysseyRecomp.exe`. The same built-in importer can be reopened when assets are missing. See the [installation guide](docs/INSTALLING.md#automatic-content-import) and [development status](docs/STATUS.md) for validation limits.
 
@@ -165,7 +165,7 @@ Keep the working directory consistent so the intended save/profile folders are u
 | D-pad / left stick | Arrow keys / I, J, K, L |
 | Left / right shoulder | Q / W |
 | Left / right trigger | E / R |
-| Debug menu | F1 |
+| Debug menu | F1 / Gamepad LB+RB |
 
 SDL-mapped controllers and the keyboard can be used together for player 1. Unmapped joysticks need an SDL controller mapping. See [input details](docs/notes/controller-input.md).
 
