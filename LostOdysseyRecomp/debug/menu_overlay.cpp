@@ -98,12 +98,19 @@ namespace debug_menu
         auto snapshot = debug_menu::GetTeleportSnapshot();
         {
             std::lock_guard lock(g_overlayStateMutex);
-            if (g_overlayState.visible && snapshot.available && snapshot.poiRevision != g_overlayState.poiRevision)
+            if (g_overlayState.visible)
             {
-                g_overlayState.pois = std::move(snapshot.pois);
-                g_overlayState.poiRevision = snapshot.poiRevision;
-                if (g_overlayState.selectedPoi >= int(g_overlayState.pois.size()))
-                    g_overlayState.selectedPoi = 0;
+                if (!snapshot.status.empty() && g_overlayState.activeTab == 1)
+                {
+                    g_overlayState.statusMessage = snapshot.status;
+                }
+                if (snapshot.available && snapshot.poiRevision != g_overlayState.poiRevision)
+                {
+                    g_overlayState.pois = std::move(snapshot.pois);
+                    g_overlayState.poiRevision = snapshot.poiRevision;
+                    if (g_overlayState.selectedPoi >= int(g_overlayState.pois.size()))
+                        g_overlayState.selectedPoi = 0;
+                }
             }
         }
     }
@@ -164,29 +171,39 @@ namespace debug_menu
                     g_overlayState.chinese = !g_overlayState.chinese;
                     {
                         const int language = g_overlayState.chinese ? 1 : 0;
+                        const bool zh = g_overlayState.chinese;
                         stateLock.unlock();
-                        settings::SaveDebugLanguage(language);
+                        if (!settings::SaveDebugLanguage(language))
+                            SetOverlayStatus(zh ? L"保存语言配置失败" : L"Failed to save language setting");
                     }
                     return;
                 case 1:
                     stateLock.unlock();
                     gpu::renderer::RequestDebugCapture();
-                    SetOverlayStatus(L"Capture requested");
+                    SetOverlayStatus(g_overlayState.chinese ? L"已请求截取渲染状态" : L"Capture requested");
                     return;
                 case 2:
                     stateLock.unlock();
                     debug_menu::SetSaveAnywhereEnabled(!debug_menu::SaveAnywhereEnabled());
                     return;
                 case 3:
+                {
+                    const bool zh = g_overlayState.chinese;
                     stateLock.unlock();
-                    debug_menu::RequestVictory();
-                    SetOverlayStatus(L"Victory requested");
+                    const bool accepted = debug_menu::RequestVictory();
+                    SetOverlayStatus(accepted
+                        ? (zh ? L"已提交判胜请求（等待安全阶段生效）" : L"Victory requested (pending)")
+                        : (zh ? L"无法请求判胜（当前无活跃战斗）" : L"Cannot request victory (no active battle)"));
                     return;
+                }
                 case 4:
+                {
+                    const bool zh = g_overlayState.chinese;
                     stateLock.unlock();
                     debug_menu::CancelVictory();
-                    SetOverlayStatus(L"Victory cancelled");
+                    SetOverlayStatus(zh ? L"已取消判胜请求" : L"Victory cancelled");
                     return;
+                }
                 }
             }
         }
@@ -206,18 +223,24 @@ namespace debug_menu
             case 0:
                 if (action == InputAction::Confirm)
                 {
+                    const bool zh = g_overlayState.chinese;
                     stateLock.unlock();
-                    debug_menu::RequestSavePosition();
-                    SetOverlayStatus(L"Position saved");
+                    const bool accepted = debug_menu::RequestSavePosition();
+                    SetOverlayStatus(accepted
+                        ? (zh ? L"已提交记录坐标请求（等待生效）" : L"Save position requested (pending)")
+                        : (zh ? L"无法记录坐标（当前不可用）" : L"Cannot save position (unavailable)"));
                     return;
                 }
                 break;
             case 1:
                 if (action == InputAction::Confirm)
                 {
+                    const bool zh = g_overlayState.chinese;
                     stateLock.unlock();
-                    debug_menu::RequestRestorePosition();
-                    SetOverlayStatus(L"Position restored");
+                    const bool accepted = debug_menu::RequestRestorePosition();
+                    SetOverlayStatus(accepted
+                        ? (zh ? L"已提交恢复坐标请求（等待生效）" : L"Restore position requested (pending)")
+                        : (zh ? L"无法恢复坐标（未记录或不可用）" : L"Cannot restore position (no bookmark or unavailable)"));
                     return;
                 }
                 break;
@@ -232,7 +255,11 @@ namespace debug_menu
                         g_overlayState.editCoordinates[0] = s.current.x;
                         g_overlayState.editCoordinates[1] = s.current.y;
                         g_overlayState.editCoordinates[2] = s.current.z;
-                        g_overlayState.statusMessage = L"Position filled";
+                        g_overlayState.statusMessage = g_overlayState.chinese ? L"已填入当前角色坐标" : L"Position filled";
+                    }
+                    else
+                    {
+                        SetOverlayStatus(g_overlayState.chinese ? L"无法获取当前角色坐标" : L"Cannot fill position (unavailable)");
                     }
                     return;
                 }
@@ -259,9 +286,12 @@ namespace debug_menu
                         g_overlayState.editCoordinates[1],
                         g_overlayState.editCoordinates[2]
                     };
+                    const bool zh = g_overlayState.chinese;
                     stateLock.unlock();
-                    debug_menu::RequestTeleport(p);
-                    SetOverlayStatus(L"Teleported to XYZ");
+                    const bool accepted = debug_menu::RequestTeleport(p);
+                    SetOverlayStatus(accepted
+                        ? (zh ? L"已提交传送请求（等待生效）" : L"Teleport requested (pending)")
+                        : (zh ? L"传送请求被拒绝（坐标无效或不可用）" : L"Teleport request rejected (invalid or unavailable)"));
                     return;
                 }
                 break;
@@ -294,9 +324,12 @@ namespace debug_menu
                     if (size_t(g_overlayState.selectedPoi) < g_overlayState.pois.size())
                     {
                         const auto id = g_overlayState.pois[g_overlayState.selectedPoi].id;
+                        const bool zh = g_overlayState.chinese;
                         stateLock.unlock();
-                        debug_menu::RequestPoiTeleport(id);
-                        SetOverlayStatus(L"Teleported to POI");
+                        const bool accepted = debug_menu::RequestPoiTeleport(id);
+                        SetOverlayStatus(accepted
+                            ? (zh ? L"已提交 POI 传送请求（等待生效）" : L"POI teleport requested (pending)")
+                            : (zh ? L"POI 传送请求被拒绝（不可用）" : L"POI teleport request rejected (unavailable)"));
                         return;
                     }
                 }
