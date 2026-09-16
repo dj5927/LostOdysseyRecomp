@@ -350,61 +350,72 @@ namespace debug_menu
         if (!state.visible) return;
 
         bool zh = state.chinese;
-        auto tr = [zh](const wchar_t* key) { return debug_menu::translations::Text(key, zh); };
 
         // Dim background slightly to focus attention on debug overlay
         r.FillRect(0, 0, r.width, r.height, host_ui::MakeColor(140, 0, 0, 0));
 
         // Draw Main Dialog Panel (Centered: 760 x 540)
-        int panelX = (1280 - 760) / 2;
-        int panelY = (720 - 540) / 2;
         int panelW = 760;
         int panelH = 540;
+        int panelX = (1280 - panelW) / 2;
+        int panelY = (720 - panelH) / 2;
 
         host_ui::DrawPanel(r, panelX, panelY, panelW, panelH, host_ui::MakeColor(235, 20, 22, 26), host_ui::MakeColor(255, 75, 85, 95));
 
-        // Header Title
+        // Header Title (Centered in header bar by DrawHeader)
         std::wstring headerTitle = zh ? L"Lost Odyssey — 调试菜单 (F1 / LB+RB)" : L"Lost Odyssey — Debug Menu (F1 / LB+RB)";
         host_ui::DrawHeader(r, panelX, panelY, panelW, 36, headerTitle);
 
-        // Tab buttons
+        // Centered Tab buttons
+        int tabW = 160;
+        int tabGap = 20;
+        int totalTabsW = tabW * 2 + tabGap;
+        int tabStartX = panelX + (panelW - totalTabsW) / 2;
         int tabY = panelY + 44;
-        host_ui::DrawButton(r, panelX + 20, tabY, 140, 30, zh ? L"常用 / Overview" : L"Overview", state.activeTab == 0, state.activeTab == 0);
-        host_ui::DrawButton(r, panelX + 170, tabY, 140, 30, zh ? L"传送 / Teleport" : L"Teleport", state.activeTab == 1, state.activeTab == 1);
+        host_ui::DrawButton(r, tabStartX, tabY, tabW, 30, zh ? L"常规" : L"Overview", state.activeTab == 0, state.activeTab == 0);
+        host_ui::DrawButton(r, tabStartX + tabW + tabGap, tabY, tabW, 30, zh ? L"传送" : L"Teleport", state.activeTab == 1, state.activeTab == 1);
 
-        // Status message at bottom of panel
+        // Footer at bottom of panel
         int footerY = panelY + panelH - 32;
         r.DrawHLine(panelX, footerY - 6, panelW, host_ui::MakeColor(255, 60, 65, 75));
         std::wstring help = zh ? L"方向键/左摇杆: 导航   A/Enter: 确定   B/Esc: 关闭   LB/RB: 切页"
                                : L"D-Pad/Stick: Nav   A/Enter: Confirm   B/Esc: Close   LB/RB: Tab";
-        r.DrawWString(panelX + 20, footerY, help, host_ui::MakeColor(255, 170, 175, 185));
+        int helpW = r.MeasureWString(help);
+        r.DrawWString(panelX + (panelW - helpW) / 2, footerY, help, host_ui::MakeColor(255, 170, 175, 185));
 
-        int contentX = panelX + 25;
         int contentY = tabY + 42;
-        int rowH = 34;
 
         if (state.activeTab == 0)
         {
-            // Overview Content:
+            // Overview Content (Centered: 520px column width)
+            int btnW = 520;
+            int btnX = panelX + (panelW - btnW) / 2;
+            int rowH = 38;
+
             // 0: Language
-            std::wstring langText = std::wstring(zh ? L"界面语言: 简体中文" : L"Language: English");
-            host_ui::DrawButton(r, contentX, contentY + 0 * rowH, 360, 28, langText, state.selectedRow == 0);
+            std::wstring langText = zh ? L"界面语言: 简体中文" : L"Language: English";
+            host_ui::DrawButton(r, btnX, contentY + 0 * rowH, btnW, 30, langText, state.selectedRow == 0);
 
             // 1: Render Capture
-            std::wstring capText = zh ? L"截取渲染状态 (Capture)" : L"Capture render state";
-            host_ui::DrawButton(r, contentX, contentY + 1 * rowH, 360, 28, capText, state.selectedRow == 1);
+            std::wstring capText = zh ? L"截取渲染状态" : L"Capture Render State";
+            host_ui::DrawButton(r, btnX, contentY + 1 * rowH, btnW, 30, capText, state.selectedRow == 1);
 
-            // Status of capture
-            std::wstring capStat = gpu::renderer::DebugCaptureStatus();
-            if (!capStat.empty())
-                r.DrawWString(contentX + 375, contentY + 1 * rowH + 6, capStat, host_ui::MakeColor(255, 200, 200, 100));
+            // Status of capture (Centered under capture button if active)
+            std::wstring rawCapStat = gpu::renderer::DebugCaptureStatus();
+            if (!rawCapStat.empty())
+            {
+                std::wstring capStat = debug_menu::translations::Capture(rawCapStat, zh);
+                int capStatW = r.MeasureWString(capStat);
+                r.DrawWString(panelX + (panelW - capStatW) / 2, contentY + 1 * rowH + 34, capStat, host_ui::MakeColor(255, 200, 200, 100));
+            }
 
             // 2: Save Anywhere
             bool saveOn = debug_menu::SaveAnywhereEnabled();
-            std::wstring saveText = (zh ? L"随时存档: " : L"Save Anywhere: ") + std::wstring(saveOn ? (zh ? L"【已启用】" : L"[ON]") : (zh ? L"【已关闭】" : L"[OFF]"));
-            host_ui::DrawButton(r, contentX, contentY + 2 * rowH, 360, 28, saveText, state.selectedRow == 2);
+            std::wstring saveText = zh ? (saveOn ? L"随时存档: 开启" : L"随时存档: 关闭")
+                                       : (saveOn ? L"Save Anywhere: ON" : L"Save Anywhere: OFF");
+            host_ui::DrawButton(r, btnX, contentY + 2 * rowH + 8, btnW, 30, saveText, state.selectedRow == 2);
 
-            // Map info display
+            // Map info display (Centered)
             auto mapInfo = debug_menu::GetMapInfo();
             std::wstring mapText = zh ? L"当前地图: " : L"Current Map: ";
             if (mapInfo.available)
@@ -415,29 +426,40 @@ namespace debug_menu
             {
                 mapText += zh ? L"未知" : L"Unknown";
             }
-            r.DrawWString(contentX, contentY + 3 * rowH + 6, mapText, host_ui::MakeColor(255, 180, 210, 240));
+            int mapTextW = r.MeasureWString(mapText);
+            r.DrawWString(panelX + (panelW - mapTextW) / 2, contentY + 3 * rowH + 12, mapText, host_ui::MakeColor(255, 180, 210, 240));
 
-            // 3: Win Battle
-            std::wstring winText = zh ? L"当前战斗判胜 (Win Battle)" : L"Win Battle";
-            host_ui::DrawButton(r, contentX, contentY + 4 * rowH, 240, 28, winText, state.selectedRow == 3);
+            // 3: Win Battle & 4: Cancel Victory (Side by side, centered total 520px)
+            int battleGap = 16;
+            int battleBtnW = (btnW - battleGap) / 2; // 252
+            std::wstring winText = zh ? L"当前战斗判胜" : L"Win Current Battle";
+            host_ui::DrawButton(r, btnX, contentY + 4 * rowH + 12, battleBtnW, 30, winText, state.selectedRow == 3);
 
-            // 4: Cancel Victory
             std::wstring cancelWinText = zh ? L"取消判胜请求" : L"Cancel Victory Request";
-            host_ui::DrawButton(r, contentX + 255, contentY + 4 * rowH, 200, 28, cancelWinText, state.selectedRow == 4);
+            host_ui::DrawButton(r, btnX + battleBtnW + battleGap, contentY + 4 * rowH + 12, battleBtnW, 30, cancelWinText, state.selectedRow == 4);
 
-            const wchar_t* bStat = debug_menu::Status();
-            if (bStat && *bStat)
-                r.DrawWString(contentX, contentY + 5 * rowH + 6, bStat, host_ui::MakeColor(255, 220, 180, 120));
+            const wchar_t* rawBStat = debug_menu::Status();
+            if (rawBStat && *rawBStat)
+            {
+                std::wstring bStat = debug_menu::translations::Text(rawBStat, zh);
+                int bStatW = r.MeasureWString(bStat);
+                r.DrawWString(panelX + (panelW - bStatW) / 2, contentY + 5 * rowH + 18, bStat, host_ui::MakeColor(255, 220, 180, 120));
+            }
         }
         else if (state.activeTab == 1)
         {
-            // Teleport Content
-            // 0: Save Pos, 1: Restore Pos, 2: Fill Pos
-            host_ui::DrawButton(r, contentX, contentY + 0 * rowH, 220, 28, zh ? L"记住当前位置" : L"Remember Position", state.selectedRow == 0);
-            host_ui::DrawButton(r, contentX + 235, contentY + 0 * rowH, 220, 28, zh ? L"返回记录位置" : L"Restore Position", state.selectedRow == 1);
-            host_ui::DrawButton(r, contentX + 470, contentY + 0 * rowH, 220, 28, zh ? L"填入当前坐标" : L"Fill Coordinates", state.selectedRow == 2);
+            // Teleport Content (Centered 700px grid)
+            int gridW = 700;
+            int gridX = panelX + (panelW - gridW) / 2; // panelX + 30
+            int colGap = 14;
 
-            // Current coordinates display
+            // Line 0 (Rows 0, 1, 2: Save, Restore, Fill)
+            int colW = (gridW - colGap * 2) / 3; // 224
+            host_ui::DrawButton(r, gridX, contentY + 0, colW, 30, zh ? L"记住当前位置" : L"Remember Position", state.selectedRow == 0);
+            host_ui::DrawButton(r, gridX + colW + colGap, contentY + 0, colW, 30, zh ? L"返回记录位置" : L"Restore Position", state.selectedRow == 1);
+            host_ui::DrawButton(r, gridX + (colW + colGap) * 2, contentY + 0, colW, 30, zh ? L"填入当前坐标" : L"Fill Coordinates", state.selectedRow == 2);
+
+            // Line 1: Current coordinates display (Centered)
             auto posSnap = debug_menu::GetTeleportSnapshot();
             std::wstring curPosStr = zh ? L"角色实时坐标: " : L"Player Position: ";
             if (posSnap.available)
@@ -450,46 +472,68 @@ namespace debug_menu
             {
                 curPosStr += zh ? L"不可用" : L"Unavailable";
             }
-            r.DrawWString(contentX, contentY + 1 * rowH + 6, curPosStr, host_ui::MakeColor(255, 180, 220, 180));
+            int curPosW = r.MeasureWString(curPosStr);
+            r.DrawWString(panelX + (panelW - curPosW) / 2, contentY + 42, curPosStr, host_ui::MakeColor(255, 180, 220, 180));
 
-            // 3: Editable XYZ
+            // Line 2 (Row 3: Editable XYZ, Row 4: Teleport to Target)
             wchar_t coordBuf[128];
             const wchar_t* axisNames[] = {L"X", L"Y", L"Z"};
-            swprintf(coordBuf, 128, L"目标坐标 [%ls]: X: %.1f,  Y: %.1f,  Z: %.1f  (◄/► 微调)",
-                     axisNames[state.selectedAxis],
-                     state.editCoordinates[0],
-                     state.editCoordinates[1],
-                     state.editCoordinates[2]);
-            host_ui::DrawButton(r, contentX, contentY + 2 * rowH, 500, 28, coordBuf, state.selectedRow == 3);
+            if (zh)
+            {
+                swprintf(coordBuf, 128, L"目标坐标 [%ls]: X: %.1f  Y: %.1f  Z: %.1f  (◄/► 微调)",
+                         axisNames[state.selectedAxis],
+                         state.editCoordinates[0],
+                         state.editCoordinates[1],
+                         state.editCoordinates[2]);
+            }
+            else
+            {
+                swprintf(coordBuf, 128, L"Target [%ls]: X: %.1f  Y: %.1f  Z: %.1f  (◄/► Adjust)",
+                         axisNames[state.selectedAxis],
+                         state.editCoordinates[0],
+                         state.editCoordinates[1],
+                         state.editCoordinates[2]);
+            }
+            int editW = 510;
+            int actionW = gridW - editW - colGap; // 176
+            host_ui::DrawButton(r, gridX, contentY + 70, editW, 30, coordBuf, state.selectedRow == 3);
+            host_ui::DrawButton(r, gridX + editW + colGap, contentY + 70, actionW, 30, zh ? L"传送到目标坐标" : L"Teleport to Target", state.selectedRow == 4);
 
-            // 4: Teleport to XYZ
-            host_ui::DrawButton(r, contentX + 515, contentY + 2 * rowH, 180, 28, zh ? L"传送到目标坐标" : L"Teleport to XYZ", state.selectedRow == 4);
-
-            // 5: Step Size
+            // Line 3 (Row 5: Step Size, spanning grid width centered)
             wchar_t stepBuf[64];
-            swprintf(stepBuf, 64, zh ? L"微调步长: ±%.0f (◄/► 切换)" : L"Step Size: ±%.0f (◄/► Switch)", state.stepSize);
-            host_ui::DrawButton(r, contentX, contentY + 3 * rowH, 300, 28, stepBuf, state.selectedRow == 5);
+            if (zh)
+                swprintf(stepBuf, 64, L"微调步长: ±%.0f (◄/► 切换)", state.stepSize);
+            else
+                swprintf(stepBuf, 64, L"Step Size: ±%.0f (◄/► Switch)", state.stepSize);
+            host_ui::DrawButton(r, gridX, contentY + 112, gridW, 30, stepBuf, state.selectedRow == 5);
 
-            // 6 & 7: POI
-            r.DrawWString(contentX, contentY + 4 * rowH + 4, zh ? L"地图兴趣点 (POI):" : L"Points of Interest (POI):", host_ui::MakeColor(255, 230, 230, 230));
+            // Line 4: POI Header (Centered)
+            std::wstring poiHdr = zh ? L"地图兴趣点:" : L"Points of Interest (POI):";
+            int poiHdrW = r.MeasureWString(poiHdr);
+            r.DrawWString(panelX + (panelW - poiHdrW) / 2, contentY + 154, poiHdr, host_ui::MakeColor(255, 230, 230, 230));
 
-            std::wstring poiName = zh ? L"无可用 POI" : L"No POIs available";
+            // Line 5 (Row 6: POI Selection, Row 7: Teleport to POI)
+            std::wstring poiName = zh ? L"无可用兴趣点" : L"No POIs available";
             if (!state.pois.empty() && size_t(state.selectedPoi) < state.pois.size())
             {
                 const auto& p = state.pois[state.selectedPoi];
+                std::wstring pLabel = debug_menu::translations::Poi(p.label, zh);
                 wchar_t pBuf[128];
                 swprintf(pBuf, 128, L"[%d/%d] %ls (%.0f, %.0f, %.0f)",
                          state.selectedPoi + 1, int(state.pois.size()),
-                         p.label.c_str(), p.position.x, p.position.y, p.position.z);
+                         pLabel.c_str(), p.position.x, p.position.y, p.position.z);
                 poiName = pBuf;
             }
-            host_ui::DrawButton(r, contentX, contentY + 5 * rowH, 500, 28, poiName, state.selectedRow == 6);
-            host_ui::DrawButton(r, contentX + 515, contentY + 5 * rowH, 180, 28, zh ? L"传送到此 POI" : L"Teleport to POI", state.selectedRow == 7);
+            host_ui::DrawButton(r, gridX, contentY + 182, editW, 30, poiName, state.selectedRow == 6);
+            host_ui::DrawButton(r, gridX + editW + colGap, contentY + 182, actionW, 30, zh ? L"传送到此兴趣点" : L"Teleport to POI", state.selectedRow == 7);
         }
 
+        // Status message at bottom of panel (Centered)
         if (!state.statusMessage.empty())
         {
-            r.DrawWString(contentX, footerY - 24, state.statusMessage, host_ui::MakeColor(255, 120, 220, 150));
+            std::wstring dispMsg = debug_menu::translations::Text(state.statusMessage.c_str(), zh);
+            int msgW = r.MeasureWString(dispMsg);
+            r.DrawWString(panelX + (panelW - msgW) / 2, footerY - 26, dispMsg, host_ui::MakeColor(255, 120, 220, 150));
         }
     }
 }

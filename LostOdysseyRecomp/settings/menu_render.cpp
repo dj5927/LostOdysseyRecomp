@@ -278,17 +278,40 @@ bool settings::RasterizeMenu(const MenuSnapshot &current, uint32_t width, uint32
 #endif
         // Unifont-based fallback text
         host_ui::Rasterizer r(dib, width, height);
+
+        // Auto-scale font down to fit available width w without overflowing
         float fontScale = float(scale * (size / 16.0f));
-        int totalWidth = 0;
-        for (wchar_t c : value)
+        auto measureWidth = [&](float fscale) {
+            int tw = 0;
+            for (wchar_t c : value)
+            {
+                auto g = host_ui::font::GetGlyph(uint32_t(c));
+                tw += int((g.width + 1) * fscale);
+            }
+            return tw;
+        };
+
+        int totalWidth = measureWidth(fontScale);
+        const double maxAllowedWidth = std::max(8.0, double(w - 4) * scale);
+        if (totalWidth > maxAllowedWidth)
         {
-            auto g = host_ui::font::GetGlyph(uint32_t(c));
-            totalWidth += int((g.width + 1) * fontScale);
+            float shrinkRatio = float(maxAllowedWidth / totalWidth);
+            fontScale *= shrinkRatio;
+            totalWidth = measureWidth(fontScale);
         }
-        int left = int(std::lround(offsetX + x * scale));
-        if (alignment == 1) left = int(std::lround(offsetX + (x + (w - totalWidth / scale) * 0.5) * scale));
-        else if (alignment == 2) left = int(std::lround(offsetX + (x + w - totalWidth / scale) * scale));
-        int top = int(std::lround(offsetY + (y + (h - 16 * fontScale) * 0.5) * scale));
+
+        const double screenX = offsetX + x * scale;
+        const double screenY = offsetY + y * scale;
+        const double screenW = w * scale;
+        const double screenH = h * scale;
+
+        int left = int(std::lround(screenX));
+        if (alignment == 1) left = int(std::lround(screenX + (screenW - totalWidth) * 0.5));
+        else if (alignment == 2) left = int(std::lround(screenX + screenW - totalWidth));
+
+        // Exact vertical centering inside button height
+        const double glyphHeight = 16.0 * fontScale;
+        int top = int(std::lround(screenY + (screenH - glyphHeight) * 0.5));
 
         // Draw outline if edge requested
         if (edge != 0)

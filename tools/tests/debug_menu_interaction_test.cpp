@@ -5,6 +5,7 @@
 #include <debug/save_anywhere.h>
 #include <host_ui/host_ui.h>
 #include <host_ui/rasterizer.h>
+#include <debug/translations.h>
 #include <settings/config.h>
 
 #include <cstdio>
@@ -287,6 +288,17 @@ int main()
         if (px != 0) { hasNonZeroPixel = true; break; }
     }
     Require(hasNonZeroPixel, "RenderOverlay produced completely blank frame");
+
+    // Verify accurate text measurement (ASCII 9px, CJK 17px)
+    Require(rasterizer.MeasureWString(L"A") == 9, "MeasureWString ASCII glyph width should be 9px");
+    Require(rasterizer.MeasureWString(L"中") == 17, "MeasureWString CJK glyph width should be 17px");
+    Require(rasterizer.MeasureWString(L"中文测试") == 17 * 4, "MeasureWString 4 CJK glyphs width should be 68px");
+
+    // Verify translations bidirectional clean mapping
+    Require(std::wstring(debug_menu::translations::Text(L"当前战斗判胜", false)) == L"Win Current Battle", "Win battle translation to English");
+    Require(std::wstring(debug_menu::translations::Text(L"Win Current Battle", true)) == L"当前战斗判胜", "Win battle translation to Chinese");
+    Require(std::wstring(debug_menu::translations::Poi(L"存档点 1", false)) == L"Save point 1", "POI translation to English");
+    Require(std::wstring(debug_menu::translations::Poi(L"Save Point 1", true)) == L"存档点 1", "POI translation to Chinese");
 
     // 6. Dismiss overlay with Cancel (B / Esc)
     debug_menu::HandleInput(debug_menu::InputAction::Cancel);

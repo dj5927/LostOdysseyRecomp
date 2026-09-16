@@ -2,7 +2,7 @@
 
 `unifont_packed.inl` is a packed subset of GNU Unifont 13.0.06 from the
 repository's pinned SDL dependency, not an original Lost Odyssey game font.
-The local provenance review compared all 21,952 glyphs and 694,080 bitmap bytes
+The local provenance review compared all 33,142 glyphs and 1,052,064 bitmap bytes
 against [SDL's source hex file](../../thirdparty/SDL/test/unifont-13.0.06.hex):
 every glyph, width and byte matched, and codepoints were strictly increasing.
 

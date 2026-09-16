@@ -185,5 +185,24 @@ int main(int argc, char **argv)
         for(auto p:pixels) { const char rgb[]={char(p),char(p>>8),char(p>>16)};f.write(rgb,3); }
     }
     std::puts("restart dialog: restart now/later/cancel surface passed");
+
+    snapshot.tab = 3;
+    snapshot.row = 0;
+    snapshot.dialogTitle.clear();
+    snapshot.dialogMessage.clear();
+    snapshot.dialogChoices.clear();
+    snapshot.rows = {
+        {L"設定界面語言", L"한국어", true, {L"English", L"繁體中文", L"日本語", L"한국어", L"简体中文"}, 3},
+        {L"遊戲語言", L"한국어", true, {L"English", L"日本語", L"한국어", L"繁體中文", L"简体中文"}, 2},
+        {L"自動更新", L"開", true, {L"開", L"關"}, 0},
+        {L"儲存設定", L"儲存", true, {L"儲存"}, 0}};
+    snapshot.help = L"設定界面語言立即生效。";
+    Require(settings::RasterizeMenu(snapshot, 1280, 720, pixels), "language tab rasterization failed");
+    if (argc > 1) {
+        std::ofstream f(std::filesystem::path(argv[1]) / "language-reference.ppm", std::ios::binary);
+        f << "P6\n1280 720\n255\n";
+        for (auto p : pixels) { const char rgb[] = {char(p), char(p >> 8), char(p >> 16)}; f.write(rgb, 3); }
+    }
+    std::puts("Language reference (with Korean 한국어) rendered at 1280x720");
     return 0;
 }

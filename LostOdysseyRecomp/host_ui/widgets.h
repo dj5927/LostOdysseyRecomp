@@ -17,7 +17,9 @@ namespace host_ui
     {
         r.FillRect(x, y, w, h, bg);
         r.DrawHLine(x, y + h, w, MakeColor(255, 70, 80, 95), 1);
-        r.DrawWString(x + 12, y + (h - 16) / 2, title, textCol, 1.0f);
+        int titleW = r.MeasureWString(title);
+        int textX = (titleW < w) ? (x + (w - titleW) / 2) : (x + 12);
+        r.DrawWString(textX, y + (h - 16) / 2, title, textCol, 1.0f);
     }
 
     inline void DrawButton(Rasterizer& r, int x, int y, int w, int h, const std::wstring& text, bool focused, bool active = false)
@@ -28,7 +30,8 @@ namespace host_ui
 
         r.FillRect(x, y, w, h, bg);
         r.DrawRect(x, y, w, h, border, focused ? 2 : 1);
-        int textW = int(text.size() * 9); // approximate
-        r.DrawWString(x + std::max(6, (w - textW) / 2), y + (h - 16) / 2, text, textCol, 1.0f);
+        int textW = r.MeasureWString(text);
+        int textX = (textW < w) ? (x + (w - textW) / 2) : (x + 6);
+        r.DrawWString(textX, y + (h - 16) / 2, text, textCol, 1.0f);
     }
 }

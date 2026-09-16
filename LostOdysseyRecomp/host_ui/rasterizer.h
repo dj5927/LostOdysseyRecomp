@@ -231,5 +231,45 @@ namespace host_ui
             }
             return cx - x;
         }
+
+        // Text measurement helpers
+        int MeasureWString(const std::wstring& wtext, float scale = 1.0f) const
+        {
+            int cx = 0;
+            int maxW = 0;
+            for (wchar_t wc : wtext)
+            {
+                if (wc == L'\n')
+                {
+                    maxW = std::max(maxW, cx);
+                    cx = 0;
+                    continue;
+                }
+                auto glyph = host_ui::font::GetGlyph(uint32_t(wc));
+                cx += glyph.bitmap ? int((glyph.width + 1) * scale) : int(8 * scale);
+            }
+            return std::max(maxW, cx);
+        }
+
+        int MeasureString(const std::string& utf8Text, float scale = 1.0f) const
+        {
+            int cx = 0;
+            int maxW = 0;
+            size_t offset = 0;
+            while (offset < utf8Text.size())
+            {
+                uint32_t cp = host_ui::font::DecodeUtf8(utf8Text, offset);
+                if (cp == 0) break;
+                if (cp == '\n')
+                {
+                    maxW = std::max(maxW, cx);
+                    cx = 0;
+                    continue;
+                }
+                auto glyph = host_ui::font::GetGlyph(cp);
+                cx += glyph.bitmap ? int((glyph.width + 1) * scale) : int(8 * scale);
+            }
+            return std::max(maxW, cx);
+        }
     };
 }
