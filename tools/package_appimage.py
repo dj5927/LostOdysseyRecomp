@@ -68,12 +68,13 @@ def main():
         # out/tools/linuxdeploy/linuxdeploy is looked up in the temp dir.
         deploy = str(Path(deploy).resolve())
         subprocess.run(
-            [deploy, "--appdir", str(appdir), "--output", "appimage"],
+            # Exclude host display libraries during deployment, before the
+            # output plugin seals the AppDir into an AppImage.
+            [deploy, "--appdir", str(appdir), "--exclude-library", "libwayland*",
+             "--output", "appimage"],
             cwd=temporary,
             check=True,
         )
-        for wayland in (appdir / "usr/lib").glob("libwayland*"):
-            wayland.unlink()
         produced = next(Path(temporary).glob("*.AppImage"), None)
         if produced is None:
             raise SystemExit("linuxdeploy did not produce an AppImage")

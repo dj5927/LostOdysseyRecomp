@@ -59,7 +59,27 @@ std::map<uint32_t, std::string> g_testSha256Asia;
 std::map<uint32_t, std::string> g_testSha256Europe;
 std::map<uint32_t, std::string> g_testMd5Asia;
 std::map<uint32_t, std::string> g_testMd5Europe;
+std::string g_testDlcFailureFile;
+std::string g_testDlcFailureStage;
 #endif
+
+void CheckDlcOutput(std::ofstream& out, const std::filesystem::path& path, std::string_view stage)
+{
+#ifdef LO_IMPORT_TESTING
+    if (path.filename().string() == g_testDlcFailureFile && stage == g_testDlcFailureStage)
+        out.setstate(std::ios::badbit);
+#endif
+    if (!out) throw Error("DLC " + std::string(stage) + " failed: " + path.string());
+}
+
+void FinishDlcOutput(std::ofstream& out, const std::filesystem::path& path)
+{
+    CheckDlcOutput(out, path, "write");
+    out.flush();
+    CheckDlcOutput(out, path, "flush");
+    out.close();
+    CheckDlcOutput(out, path, "close");
+}
 
 std::string ToLower(std::string_view str)
 {
@@ -530,8 +550,12 @@ ExtractedDlc ReadExtractedDlc(const std::filesystem::path& dir, const Cancelled&
         for (const auto& component : rel)
             if (component.empty() || component.string().front() == '.') throw Error("Unsafe extracted DLC path component");
         auto file = dir / rel;
-        for (auto ancestor = file; ancestor != dir; ancestor = ancestor.parent_path())
+        for (auto ancestor = file; !ancestor.empty(); ancestor = ancestor.parent_path())
+        {
+            checkCancelled();
             if (IsSymlinkOrReparse(ancestor)) throw Error("Links are not supported as DLC payloads");
+            if (ancestor == ancestor.parent_path()) break;
+        }
         auto expected = item.value("size", uint64_t(0)); auto hash = item.value("sha256", "");
         if (!IsHexSha256(hash)) throw Error("Invalid extracted DLC file hash");
         std::error_code ec;
@@ -882,6 +906,12 @@ void ClearTestOverrides()
     g_testSha256Europe.clear();
     g_testMd5Asia.clear();
     g_testMd5Europe.clear();
+}
+
+void SetTestDlcWriteFailure(std::string_view filename, std::string_view stage)
+{
+    g_testDlcFailureFile = filename;
+    g_testDlcFailureStage = stage;
 }
 #endif
 
@@ -1461,7 +1491,7 @@ InstallResult InstallContent(const ContentScan& selection,
 
                         std::filesystem::create_directories(outPath.parent_path(), ec);
                         std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
-                        if (!out) throw Error("Could not create DLC file: " + outPath.string());
+                        CheckDlcOutput(out, outPath, "open");
 
                         crypto::Sha256 fileSha;
                         uint32_t remaining = entry.size;
@@ -1473,6 +1503,7 @@ InstallResult InstallContent(const ContentScan& selection,
                             if (take > 0)
                             {
                                 out.write(reinterpret_cast<const char*>(blockBuf.data()), take);
+                                CheckDlcOutput(out, outPath, "write");
                                 fileSha.Update(blockBuf.data(), take);
                                 remaining -= take;
                                 dlcDone += take;
@@ -1480,7 +1511,7 @@ InstallResult InstallContent(const ContentScan& selection,
                             }
                         }
 
-                        out.flush();
+                        FinishDlcOutput(out, outPath);
                         if (remaining != 0)
                             throw Error("DLC file chain is shorter than its declared size");
 
@@ -1518,18 +1549,23 @@ InstallResult InstallContent(const ContentScan& selection,
                     // 1. .lo-content
                     std::filesystem::path contentPath = targetDir / ".lo-content";
                     std::ofstream contentOut(contentPath, std::ios::binary);
+                    CheckDlcOutput(contentOut, contentPath, "open");
                     auto rec = MakeContentRecord(info);
                     contentOut.write(reinterpret_cast<const char*>(rec.data()), rec.size());
+                    FinishDlcOutput(contentOut, contentPath);
 
                     // 2. .lo-dlc-header
                     std::filesystem::path headerPath = targetDir / ".lo-dlc-header";
                     std::ofstream headerOut(headerPath, std::ios::binary);
+                    CheckDlcOutput(headerOut, headerPath, "open");
                     if (pkg.stfs) headerOut.write(reinterpret_cast<const char*>(pkg.stfs->GetHeader().data()), pkg.stfs->GetHeader().size());
                     else { std::ifstream in(info.path / ".lo-dlc-header", std::ios::binary); headerOut << in.rdbuf(); }
+                    FinishDlcOutput(headerOut, headerPath);
 
                     // 3. .lo-dlc.json
                     std::filesystem::path jsonPath = targetDir / ".lo-dlc.json";
                     std::ofstream jsonOut(jsonPath);
+                    CheckDlcOutput(jsonOut, jsonPath, "open");
                     jsonOut << "{\n"
                             << "  \"schema\": 1,\n"
                             << "  \"title_id\": \"4D5307FA\",\n"
@@ -1546,6 +1582,7 @@ InstallResult InstallContent(const ContentScan& selection,
                         jsonOut << "\n";
                     }
                     jsonOut << "  ]\n}\n";
+                    FinishDlcOutput(jsonOut, jsonPath);
                 }
 
                 if (checkCancelled())

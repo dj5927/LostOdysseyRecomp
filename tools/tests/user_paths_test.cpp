@@ -33,11 +33,27 @@ int main()
     setenv("XDG_DATA_HOME", (root / "xdg/data").c_str(), 1);
     setenv("XDG_STATE_HOME", (root / "xdg/state").c_str(), 1);
     unsetenv("FLATPAK_ID");
+    unsetenv("LO_PROFILE_DIR");
     Check(os::user_paths::ConfigDir() == root / "xdg/config/lost-odyssey-recomp", "XDG config path mismatch");
     Check(os::user_paths::DataDir() == root / "xdg/data/lost-odyssey-recomp", "XDG data path mismatch");
     Check(os::user_paths::StateDir() == root / "xdg/state/lost-odyssey-recomp", "XDG state path mismatch");
+    os::user_paths::Initialize(root);
+    Check(os::user_paths::ProfileDir() == "profile", "portable profile path changed");
+    // A missing executable directory selects the same non-portable branch as
+    // an AppImage's read-only mount, without relying on root permission checks.
+    os::user_paths::Initialize(root / "missing");
+    const auto profile = root / "xdg/data/lost-odyssey-recomp/profile";
+    Check(os::user_paths::ProfileDir() == profile, "non-portable profile is not in XDG data");
+    const auto previousDirectory = fs::current_path();
+    fs::current_path(root / "xdg/config");
+    Check(os::user_paths::ProfileDir() == profile, "profile changed with launch directory");
+    fs::current_path(previousDirectory);
+    setenv("LO_PROFILE_DIR", (root / "custom-profile").c_str(), 1);
+    Check(os::user_paths::ProfileDir() == root / "custom-profile", "profile override ignored");
+    unsetenv("LO_PROFILE_DIR");
     setenv("FLATPAK_ID", "com.example.LostOdyssey", 1);
     Check(os::user_paths::DataDir() == "/var/data", "Flatpak data path mismatch");
+    Check(os::user_paths::ProfileDir() == "/var/data/profile", "Flatpak profile path mismatch");
     Check(os::user_paths::IsExecutableDirWritable(root), "existing temporary directory is not writable");
     Check(!os::user_paths::IsExecutableDirWritable(root / "missing"), "missing directory reported writable");
     fs::remove_all(root, error);

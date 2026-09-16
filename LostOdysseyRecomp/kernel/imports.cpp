@@ -23,6 +23,7 @@
 #include <apu/xma.h>
 #include <os/logger.h>
 #include <os/shader_log.h>
+#include <os/user_paths.h>
 #include <csetjmp>
 
 // Kernel HLE for xboxkrnl.exe / xam.xex imports. Reference behaviour: Xenia
@@ -1648,8 +1649,7 @@ static std::mutex g_profileMutex;
 
 static std::string ProfileSettingPath(uint32_t id)
 {
-    const char* dir = getenv("LO_PROFILE_DIR");
-    return fmt::format("{}/setting_{:08x}.bin", dir ? dir : "profile", id);
+    return FileSystem::PathUtf8(os::user_paths::ProfileDir() / fmt::format("setting_{:08x}.bin", id));
 }
 
 static ProfileSetting* FindProfileSetting(uint32_t id)
@@ -1679,8 +1679,13 @@ static void StoreProfileSetting(uint32_t id, uint8_t type, const uint8_t* data, 
     ProfileSetting& entry = g_profileSettings[id];
     entry.type = type;
     entry.data.assign(data, data + size);
-    const char* dir = getenv("LO_PROFILE_DIR");
-    std::filesystem::create_directories(dir ? dir : "profile");
+    std::error_code error;
+    std::filesystem::create_directories(os::user_paths::ProfileDir(), error);
+    if (error)
+    {
+        LOG_WARNING("could not create profile directory: {}", error.message());
+        return;
+    }
     if (FILE* f = fopen(ProfileSettingPath(id).c_str(), "wb"))
     {
         fwrite(&type, 1, 1, f);

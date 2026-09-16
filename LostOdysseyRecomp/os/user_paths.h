@@ -74,4 +74,10 @@ namespace os::user_paths
 #endif
     }
     inline bool UsePortableLayout() { return g_usePortableLayout; }
+
+    inline std::filesystem::path ProfileDir()
+    {
+        return detail::EnvironmentPath("LO_PROFILE_DIR",
+            UsePortableLayout() ? std::filesystem::path("profile") : DataDir() / "profile");
+    }
 }

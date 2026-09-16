@@ -131,7 +131,7 @@ enum class ScreenState
     Error
 };
 
-struct UIState
+struct UIState : InstallerSessionState
 {
     ScreenState screen = ScreenState::BrowseSource;
 
@@ -146,8 +146,6 @@ struct UIState
 
     // Scan result
     std::filesystem::path selectedSource;
-    ContentScan scanResult;
-    std::string scanError;
     std::atomic<bool> isScanning{ false };
     int reviewSelectedIndex = 0;
 
@@ -183,8 +181,6 @@ struct UIState
 
     // UI flags
     bool quit = false;
-    bool userCancelled = false;
-    bool installSuccess = false;
 };
 
 } // namespace
@@ -335,7 +331,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         state.isScanning = true;
         state.cancelRequested = false;
         state.selectedSource = srcPath;
-        state.scanError.clear();
+        state.BeginScan();
 
         if (workerThread.joinable()) workerThread.join();
 
@@ -361,7 +357,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
     };
 
     auto startImport = [&]() {
-        if (state.isImporting.load()) return;
+        if (state.isScanning.load() || state.isImporting.load() || !state.BeginImport()) return;
         state.isImporting = true;
         state.cancelRequested = false;
         state.progressDone = 0;
@@ -422,13 +418,13 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         {
             if (event.type == UIState::WorkerEvent::Type::ScanFinished)
             {
-                state.scanResult = std::move(event.scan);
+                state.FinishScan(std::move(event.scan));
                 state.reviewSelectedIndex = ReviewActionStart(state.scanResult);
                 state.isScanning = false;
             }
             else if (event.type == UIState::WorkerEvent::Type::ScanFailed)
             {
-                state.scanError = std::move(event.error);
+                state.FailScan(std::move(event.error));
                 state.isScanning = false;
             }
             else if (event.type == UIState::WorkerEvent::Type::ImportFinished)

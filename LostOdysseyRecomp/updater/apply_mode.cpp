@@ -1,6 +1,7 @@
 #include "apply_mode.h"
 
 #ifdef _WIN32
+#include "apply_arguments.h"
 #include "settings/restart.h"
 #include "updater/update.h"
 
@@ -64,7 +65,7 @@ bool ParseApplyArguments(std::filesystem::path &planPath, DWORD &parentId, std::
     for (int i = 1; arguments && i < count; ++i)
     {
         const std::wstring_view argument(arguments[i]);
-        if (argument == L"--apply-plan" && planPath.empty())
+        if (IsApplyPlanArgument(argument) && planPath.empty())
         {
             applyRequested = true;
             if (i + 1 < count) planPath = arguments[++i];

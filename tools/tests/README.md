@@ -120,11 +120,17 @@ tools\test.bat shaders pipeline
 
 Current importer coverage is the native `LoImportGameTest` and `LoInstallerControllerTest` targets. The Python/Tk `tools/installer` sources and `test_installer_ui.py` / `test_import_game.py` fixtures have been removed. Historical Tk window and drag-dispatch evidence remains in [desktop UI validation](../../docs/notes/desktop-ui-modernization.md) and `out/v0.5.0/ui-modernization/installer/REPORT.md`; those checks no longer have a runnable Python entry point.
 
+The user accepted the 2026-09-16 installer audit batch for commit. Repeated focused checks passed with exit 0: `LoInstallerControllerTest` and `LoImportGameTest --dlc-io`. The importer run covered 16 synthetic STFS payload/sidecar I/O failure points, publication failure handling, cleanup, retry state, and extracted-DLC trailing-separator scanning, using a 52 KiB STFS without a ROM. These are focused synthetic checks; they do not establish a complete interactive import, real disk-failure recovery or gameplay acceptance. Explicit close-result coverage for extracted DLC remains a non-blocking follow-up.
+
 ## Updater window checks
 
 The focused updater fixture is recorded in `out/v0.5.0/ui-modernization/updater/fixture.log` and `manifest.json`. It passed native window/control creation, native styles, known and unknown progress, unchanged-value redraw caching, verification cancellation boundaries, ready-state controls, minimize, teardown, Chinese narrow layout, download close cancellation and late-progress handling. Final normal, unknown-total and narrow Chinese renders were refreshed separately and reviewed; those captures do not repeat the functional fixture. No game, network download, package transaction or updater helper was run, and physical monitor moves and live user-desktop gestures remain untested.
 
 The separate `LoUpdaterTest --version-policy` run from `out/build/windows-clang/LostOdysseyRecomp/LoUpdaterTest.exe` passed 14/14 cases. It covers numeric ordering, differing or identical suffixes, `v` prefixes and ignored build metadata. It is a focused policy check only; no network request, download, package transaction, helper, game launch or publication check was performed. Existing clients require a build containing the updated updater code.
+
+The 2026-09-16 `LoUpdaterApplyArgumentsTest` fixture passed 8 checks on rerun. The CMake target was registered in this change; the fixture verifies that `--apply-plan` is recognized as an independent Windows argument and cannot be triggered by an installation directory name or another command-line substring. This does not run a real updater transaction, replacement, helper handoff or game launch.
+
+The same audit's packaging and path fixtures passed `package_appimage.py` 3/3 checks and the WSL Manjaro `user_paths` fixture for portable, XDG, changed-CWD, `LO_PROFILE_DIR` override and Flatpak paths. The AppImage check is layout/script coverage and did not create a real AppImage; the path fixture does not establish a complete Linux package or game run.
 
 The archive staging check uses the same `shutil.make_archive` ZIP writer as the release packager. After building `LoUpdaterTest`, run:
 

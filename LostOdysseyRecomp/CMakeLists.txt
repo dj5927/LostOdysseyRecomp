@@ -152,6 +152,9 @@ endif()
 if(WIN32)
     target_link_libraries(LostOdysseyRecomp PRIVATE winmm onecore bcrypt winhttp ole32 shell32)
 
+    lo_add_header_test(LoUpdaterApplyArgumentsTest ${CMAKE_SOURCE_DIR}/tools/tests/updater_apply_arguments_test.cpp)
+    target_link_libraries(LoUpdaterApplyArgumentsTest PRIVATE shell32)
+
     set(LO_UPDATER_TRANSACTION_SOURCES
         ${LO_RUNTIME_ROOT}/updater/update.cpp
         ${LO_RUNTIME_ROOT}/updater/sha256.cpp

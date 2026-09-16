@@ -45,5 +45,34 @@ int main()
     mixed.packages.resize(2);
     assert(install::ReviewActionStart(mixed) == 6);
 
+    // Scan A, switch to invalid B, then press Import: never reuse A.
+    install::InstallerSessionState session;
+    if (session.BeginImport()) return 15;
+    session.BeginScan();
+    session.FinishScan(mixed);
+    if (!session.CanImport()) return 16;
+    session.BeginScan();
+    if (session.BeginImport() || !session.scanResult.discs.empty()) return 17;
+    session.FailScan("No supported sources in B");
+    if (session.BeginImport() || !session.scanResult.packages.empty()) return 18;
+
+    // Retry after cancellation must clear the result consumed by RunHost.
+    session.BeginScan();
+    session.FinishScan(mixed);
+    if (!session.BeginImport()) return 19;
+    session.userCancelled = true;
+    if (!session.BeginImport() || session.userCancelled) return 20;
+    session.installSuccess = true;
+    if (!session.installSuccess || session.userCancelled) return 21;
+
+    // Empty scans stay disabled, but DLC-only imports remain supported.
+    session.BeginScan();
+    session.FinishScan({});
+    if (session.BeginImport()) return 22;
+    install::ContentScan dlcScan;
+    dlcScan.packages.resize(1);
+    session.FinishScan(std::move(dlcScan));
+    if (!session.BeginImport() || session.installSuccess) return 23;
+
     return 0;
 }

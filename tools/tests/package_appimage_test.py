@@ -36,6 +36,10 @@ class PackageAppImageTests(unittest.TestCase):
                 self.assertTrue(produced.exists())
                 self.assertIn('--appdir', cmd)
                 self.assertEqual(cmd[cmd.index('--output') + 1], 'appimage')
+                # Exclusion must be requested while linuxdeploy resolves
+                # dependencies, before this call emits the sealed image.
+                self.assertIn('--exclude-library', cmd)
+                self.assertEqual(cmd[cmd.index('--exclude-library') + 1], 'libwayland*')
 
             argv = [
                 'package_appimage.py',
@@ -125,7 +129,7 @@ class PackageAppImageTests(unittest.TestCase):
                 relative = r'out\tools\linuxdeploy\linuxdeploy.cmd'
             else:
                 tool = tool_dir / 'linuxdeploy'
-                tool.write_text('#!/bin/sh\nprintf package > LostOdysseyRecomp-x86_64.AppImage\n')
+                tool.write_text("#!/bin/sh\nprintf '%s' 'successful mock package' > LostOdysseyRecomp-x86_64.AppImage\n")
                 tool.chmod(0o755)
                 relative = 'out/tools/linuxdeploy/linuxdeploy'
 

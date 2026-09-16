@@ -36,6 +36,89 @@ void RequireTreeEqual(const std::filesystem::path& expected, const std::filesyst
     }
 }
 
+// One STFS directory block and one payload block, with a valid hash table.
+void WriteTinyStfs(const std::filesystem::path& path)
+{
+    std::vector<uint8_t> bytes(0xd000, 0);
+    auto be32 = [&](size_t offset, uint32_t value) {
+        for (int i = 0; i < 4; ++i) bytes[offset + i] = static_cast<uint8_t>(value >> (24 - i * 8));
+    };
+    std::memcpy(bytes.data(), "LIVE", 4);
+    bytes[0x32c] = 1;
+    be32(0x340, 0xa000);
+    be32(0x344, 2);
+    be32(0x360, 0x4D5307FA);
+    bytes[0x379] = 0x24;
+    bytes[0x37b] = 1; // one hash table copy
+    bytes[0x37c] = 1; // one directory block, starting at block zero
+    be32(0x395, 2);
+    bytes[0x412] = 'T';
+    const size_t directory = 0xb000;
+    std::memcpy(bytes.data() + directory, "payload.bin", 11);
+    bytes[directory + 40] = 11;
+    bytes[directory + 41] = bytes[directory + 44] = 1;
+    bytes[directory + 47] = 1;
+    bytes[directory + 50] = bytes[directory + 51] = 0xff;
+    be32(directory + 52, 4);
+    std::memcpy(bytes.data() + 0xc000, "data", 4);
+    for (size_t block = 0; block < 2; ++block)
+    {
+        const auto digest = install::crypto::ComputeSha1(bytes.data() + 0xb000 + block * 4096, 4096);
+        const size_t record = 0xa000 + block * 24;
+        std::copy(digest.begin(), digest.end(), bytes.begin() + record);
+        bytes[record + 20] = 0x80;
+        bytes[record + 21] = bytes[record + 22] = bytes[record + 23] = 0xff;
+    }
+    const auto digest = install::crypto::ComputeSha1(bytes.data() + 0xa000, 4096);
+    std::copy(digest.begin(), digest.end(), bytes.begin() + 0x381);
+    std::ofstream output(path, std::ios::binary);
+    output.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
+void RunDlcIoTest()
+{
+    const auto root = std::filesystem::temp_directory_path() /
+        ("lo-dlc-io-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    struct Cleanup {
+        std::filesystem::path path;
+        ~Cleanup() { install::SetTestDlcWriteFailure({}, {}); std::error_code ec; std::filesystem::remove_all(path, ec); }
+    } cleanup{root};
+    std::filesystem::create_directories(root);
+    WriteTinyStfs(root / "source.stfs");
+    const auto scan = install::ScanContent(root / "source.stfs");
+    Require(scan.packages.size() == 1, "tiny STFS fixture was rejected");
+    const auto destination = root / "game";
+    const auto installed = destination / "dlc" / scan.packages.front().contentId;
+    for (const auto* filename : {"payload.bin", ".lo-content", ".lo-dlc-header", ".lo-dlc.json"})
+    {
+        for (const auto* stage : {"open", "write", "flush", "close"})
+        {
+            install::SetTestDlcWriteFailure(filename, stage);
+            bool failed = false, completed = false;
+            try {
+                install::InstallContent(scan, destination, [&](uint64_t, uint64_t, std::string_view label) {
+                    if (label == "Import complete") completed = true;
+                });
+            }
+            catch (const install::Error& error) {
+                failed = std::string(error.what()).find(std::string("DLC ") + stage + " failed") != std::string::npos;
+            }
+            Require(failed && !completed, std::string(filename) + " " + stage + " failure was not reported");
+            Require(!std::filesystem::exists(installed), "I/O failure published DLC");
+            Require(!std::filesystem::exists(destination / ".import.lock"), "I/O failure retained lock");
+            for (const auto& entry : std::filesystem::directory_iterator(destination))
+                Require(entry.path().filename().string().find(".dlc-import-") != 0, "I/O failure retained staging");
+        }
+    }
+    install::SetTestDlcWriteFailure({}, {});
+    Require(install::InstallContent(scan, destination).dlcImported.size() == 1, "retry after I/O failures did not succeed");
+    Require(ReadBytes(installed / "payload.bin") == std::vector<uint8_t>({'d', 'a', 't', 'a'}), "installed payload changed");
+    // lexically_normal retains the final separator; scanning must still terminate.
+    const auto trailingPath = installed / "";
+    Require(install::ScanContent(trailingPath).packages.size() == 1, "trailing-separator DLC scan failed");
+    std::cout << "[PASS] STFS open/write/flush/close failures, cleanup, retry and trailing-separator scan" << std::endl;
+}
+
 void RunExtractedDlcTest()
 {
     const std::filesystem::path source("D:/Mihoyo/LostOdysseyRecomp-windows-x64/game/dlc");
@@ -177,12 +260,18 @@ void WriteDiscFiles(const std::filesystem::path& dir, uint32_t disc, bool includ
 
 int main(int argc, char** argv)
 {
+    if (argc > 1 && std::string(argv[1]) == "--dlc-io")
+    {
+        try { RunDlcIoTest(); return 0; }
+        catch (const std::exception& error) { std::cerr << error.what() << std::endl; return 1; }
+    }
     if (argc > 1 && std::string(argv[1]) == "--extracted-dlc")
     {
         try { RunExtractedDlcTest(); return 0; }
         catch (const std::exception& error) { std::cerr << error.what() << std::endl; return 1; }
     }
     std::cout << "Starting LoImportGameTest..." << std::endl;
+    RunDlcIoTest();
 
     const auto uniqueId = std::chrono::steady_clock::now().time_since_epoch().count();
     std::filesystem::path tempDir = std::filesystem::temp_directory_path() /

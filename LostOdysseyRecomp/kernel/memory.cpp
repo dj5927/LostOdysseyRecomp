@@ -1,6 +1,7 @@
 #include <stdafx.h>
 #include "memory.h"
 #include "guest_address_space.h"
+#include "updater/apply_arguments.h"
 #include <os/logger.h>
 #include <set>
 #include <utility>
@@ -69,8 +70,7 @@ void Memory::InstallFunctionTracers()
 Memory::Memory()
 {
 #ifdef _WIN32
-    const std::wstring commandLine = GetCommandLineW();
-    if (commandLine.find(L"--apply-plan") != std::wstring::npos)
+    if (updater::RequestsApplyMode(GetCommandLineW()))
         return;
 #endif
     base = GuestAddressSpace::Allocate();

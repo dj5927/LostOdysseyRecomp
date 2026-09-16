@@ -84,6 +84,16 @@ Validation limits and open boundaries:
 - First-run settings GUI and F1 debug menu remain Win32-specific.
 - This checkpoint is unpublished development; no release exists for it.
 
+## Installer/updater audit fixes — unpublished development — 2026-09-16
+
+The follow-up audit fixes the main binary's installer and updater failure paths while source version remains `0.5.13`. STFS DLC imports now require successful open/write/flush/close results for the payload and all three sidecars before publication. Installer scans clear stale selections and reject failed or empty results; a retry clears the prior cancellation state. Windows apply mode recognizes `--apply-plan` as an independent argument. Linux resolves `ProfileDir` under the XDG data directory, retains the `LO_PROFILE_DIR` override, and handles profile-directory creation failure without throwing. AppImage packaging excludes `libwayland*` during linuxdeploy dependency deployment before AppImage output generation; extracted DLC ancestor traversal now tolerates trailing separators and supports cancellation.
+
+The user accepted this development batch for commit. Repeated focused verification passed with exit 0: `LoInstallerControllerTest`, `LoUpdaterApplyArgumentsTest` (8 checks), `LoImportGameTest --dlc-io`, and the AppImage script checks (3/3). The Windows `LoUserPathsTest` cannot cover Linux behavior; the separate WSL Manjaro fixture already passed portable, XDG, changed-CWD, `LO_PROFILE_DIR` override and Flatpak paths. The Windows main target incremental build completed successfully; existing deprecated compiler warnings remain.
+
+Non-blocking follow-up remains: add a root guard for the `ExistingDlcPayloadMatches` ancestor walk (the only current caller generates `dest/dlc/<hexID>`, so trailing-slash reachability is unconfirmed), and add explicit close-result coverage for extracted DLC. No repeated-import hang is established.
+
+Acceptance is limited to this development batch and its focused checks. No real AppImage package, live network or in-place update, complete interactive import or full-game playthrough has been performed, and no release has been published.
+
 ## Published v0.5.13 — Alt+Enter window/fullscreen toggle — 2026-09-14
 
 The source change adds an **Alt+Enter** presentation toggle between **Windowed** and **Borderless**. It does not select DXGI exclusive fullscreen, and `DXGI_MWA_NO_ALT_ENTER` remains set. The chord accepts SYSKEY scancode-only `RETURN`, `windowID=0`, left Alt, right Alt and AltGr (`KMOD_RALT|KMOD_CTRL` or `KMOD_MODE`). On Win32, `GetAsyncKeyState(VK_MENU)` is combined with left/right Alt handling because both Alt keys report key code 18 and right Alt may arrive as Ctrl without `KMOD_ALT`. `FitBorderless` is best-effort and cannot roll a successful toggle back to Windowed; Shift/GUI rejection, placement and debounce remain unchanged.
