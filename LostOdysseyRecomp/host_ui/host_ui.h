@@ -13,35 +13,91 @@ namespace host_ui
 {
     // Global pause state for host in-game overlay menus (e.g. F1 Debug Menu)
     inline std::atomic<bool> g_gamePaused{false};
+    inline std::atomic<bool> g_stopping{false};
     inline std::mutex g_pauseMutex;
     inline std::condition_variable g_pauseCv;
+    inline std::chrono::steady_clock::time_point g_pauseStartTime{};
+    inline std::chrono::steady_clock::duration g_accumulatedPausedDuration{0};
 
     inline bool IsGamePaused()
     {
         return g_gamePaused.load(std::memory_order_relaxed);
     }
 
+    inline bool IsStopping()
+    {
+        return g_stopping.load(std::memory_order_relaxed);
+    }
+
+    inline void RequestStop()
+    {
+        {
+            std::lock_guard<std::mutex> lock(g_pauseMutex);
+            g_stopping.store(true, std::memory_order_release);
+            if (g_gamePaused.load(std::memory_order_relaxed))
+            {
+                if (g_pauseStartTime != std::chrono::steady_clock::time_point{})
+                {
+                    g_accumulatedPausedDuration += std::chrono::steady_clock::now() - g_pauseStartTime;
+                    g_pauseStartTime = {};
+                }
+                g_gamePaused.store(false, std::memory_order_release);
+            }
+        }
+        g_pauseCv.notify_all();
+    }
+
     inline void SetGamePaused(bool paused)
     {
         {
             std::lock_guard<std::mutex> lock(g_pauseMutex);
-            g_gamePaused.store(paused, std::memory_order_release);
+            if (!g_stopping.load(std::memory_order_relaxed))
+            {
+                bool wasPaused = g_gamePaused.load(std::memory_order_relaxed);
+                if (paused && !wasPaused)
+                {
+                    g_pauseStartTime = std::chrono::steady_clock::now();
+                    g_gamePaused.store(true, std::memory_order_release);
+                }
+                else if (!paused && wasPaused)
+                {
+                    if (g_pauseStartTime != std::chrono::steady_clock::time_point{})
+                    {
+                        g_accumulatedPausedDuration += std::chrono::steady_clock::now() - g_pauseStartTime;
+                        g_pauseStartTime = {};
+                    }
+                    g_gamePaused.store(false, std::memory_order_release);
+                }
+            }
         }
-        if (!paused)
+        if (!paused || g_stopping.load(std::memory_order_relaxed))
         {
             g_pauseCv.notify_all();
         }
     }
 
+    inline uint64_t GetActiveGameTimeMs()
+    {
+        std::lock_guard<std::mutex> lock(g_pauseMutex);
+        const auto now = std::chrono::steady_clock::now();
+        auto pausedDuration = g_accumulatedPausedDuration;
+        if (g_gamePaused.load(std::memory_order_relaxed) && g_pauseStartTime != std::chrono::steady_clock::time_point{})
+        {
+            pausedDuration += (now - g_pauseStartTime);
+        }
+        const auto activeTime = now - pausedDuration;
+        return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(activeTime.time_since_epoch()).count());
+    }
+
     // Called by guest threads or wait routines to block while paused
     inline void WaitIfPaused()
     {
-        if (!g_gamePaused.load(std::memory_order_relaxed))
+        if (!g_gamePaused.load(std::memory_order_relaxed) || g_stopping.load(std::memory_order_relaxed))
             return;
 
         std::unique_lock<std::mutex> lock(g_pauseMutex);
         g_pauseCv.wait(lock, [] {
-            return !g_gamePaused.load(std::memory_order_relaxed);
+            return !g_gamePaused.load(std::memory_order_relaxed) || g_stopping.load(std::memory_order_relaxed);
         });
     }
 

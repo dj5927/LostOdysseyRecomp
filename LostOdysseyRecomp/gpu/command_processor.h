@@ -105,9 +105,9 @@ namespace gpu
 
         uint32_t m_interruptCallback = 0;
         uint32_t m_interruptUserData = 0;
-        Mutex m_interruptMutex;
+        std::mutex m_interruptMutex;
+        std::condition_variable m_interruptCv;
         std::vector<std::pair<uint32_t, uint32_t>> m_pendingInterrupts; // (source, cpu)
-        std::atomic<uint32_t> m_interruptSignal{ 0 };
         uint64_t m_binMask = 0xFFFFFFFFFFFFFFFFull;
         uint64_t m_binSelect = 0xFFFFFFFFFFFFFFFFull;
 
