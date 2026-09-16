@@ -29,14 +29,28 @@ namespace host_ui
         if (fa == 255) return fg;
 
         uint32_t ba = (bg >> 24) & 0xFF;
+        if (ba == 0) return fg;
+
         uint32_t inv_fa = 255 - fa;
+        uint32_t out_a = fa * 255 + ba * inv_fa;
+        uint32_t a = (out_a + 127) / 255;
 
-        uint32_t r = ((fg & 0xFF) * fa + (bg & 0xFF) * inv_fa) / 255;
-        uint32_t g = (((fg >> 8) & 0xFF) * fa + ((bg >> 8) & 0xFF) * inv_fa) / 255;
-        uint32_t b = (((fg >> 16) & 0xFF) * fa + ((bg >> 16) & 0xFF) * inv_fa) / 255;
-        uint32_t a = fa + (ba * inv_fa) / 255;
+        uint32_t fr = fg & 0xFF;
+        uint32_t fg_col = (fg >> 8) & 0xFF;
+        uint32_t fb = (fg >> 16) & 0xFF;
 
-        return PackRgba(uint8_t(r), uint8_t(g), uint8_t(b), uint8_t(a));
+        uint32_t br = bg & 0xFF;
+        uint32_t bg_col = (bg >> 8) & 0xFF;
+        uint32_t bb = (bg >> 16) & 0xFF;
+
+        uint32_t r = ((fr * fa * 255) + (br * ba * inv_fa) + out_a / 2) / out_a;
+        uint32_t g = ((fg_col * fa * 255) + (bg_col * ba * inv_fa) + out_a / 2) / out_a;
+        uint32_t b = ((fb * fa * 255) + (bb * ba * inv_fa) + out_a / 2) / out_a;
+
+        return PackRgba(uint8_t(std::min(r, 255u)),
+                        uint8_t(std::min(g, 255u)),
+                        uint8_t(std::min(b, 255u)),
+                        uint8_t(std::min(a, 255u)));
     }
 
     inline bool CompositeScaled(const PixelBuffer& source, uint32_t width, uint32_t height,

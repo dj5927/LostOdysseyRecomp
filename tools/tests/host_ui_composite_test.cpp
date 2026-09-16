@@ -27,6 +27,20 @@ int main()
                 host_ui::PackRgba(100, 50, 25, 255),
             "RGBA channel blending is incorrect");
 
+    // Verify straight-alpha source-over consistency across single and intermediate transparent layers (R10)
+    const uint32_t opaqueBlack = host_ui::PackRgba(0, 0, 0, 255);
+    const uint32_t halfWhite = host_ui::PackRgba(255, 255, 255, 128);
+    const uint32_t transparentBlack = host_ui::PackRgba(0, 0, 0, 0);
+
+    const uint32_t directBlend = host_ui::ColorBlend(opaqueBlack, halfWhite);
+    const uint32_t intermediate = host_ui::ColorBlend(transparentBlack, halfWhite);
+    const uint32_t twoPassBlend = host_ui::ColorBlend(opaqueBlack, intermediate);
+
+    Require(directBlend == host_ui::PackRgba(128, 128, 128, 255),
+            "Direct 50% white blend onto black produced unexpected color");
+    Require(twoPassBlend == directBlend,
+            "Intermediate transparent layer caused double-darkening in straight-alpha blending");
+
     host_ui::PixelBuffer overlay;
     Require(overlay.Resize(), "logical overlay allocation failed");
     overlay.Clear(host_ui::MakeColor(128, 220, 40, 20));

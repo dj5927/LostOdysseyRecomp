@@ -347,7 +347,7 @@ PPC_FUNC(sub_82481BE8)
 
 PPC_FUNC(sub_822F19B0)
 {
-#if !defined(_WIN32) || !defined(LO_GPU_PLUME)
+#if !defined(LO_GPU_PLUME)
     __imp__sub_822F19B0(ctx, base);
     return;
 #else
