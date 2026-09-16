@@ -19,7 +19,7 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
-Linux 首可玩支持目前仅限从源码构建的 Vulkan ELF；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。目前没有发布 Linux 软件包。
+Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flatpak 清单构建，支持通过 `tools/package_appimage.py` 打包 AppImage；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。目前尚未发布预编译的 Linux 软件包。
 
 ## v0.5.13 新增
 

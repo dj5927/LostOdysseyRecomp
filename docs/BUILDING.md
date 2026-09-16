@@ -116,10 +116,12 @@ Building the native Linux ELF works on Linux distributions (such as Ubuntu or Ma
 ### Linux host prerequisites
 
 - Clang / Clang++ (LLVM toolchain)
+- LLD linker
 - Ninja
 - CMake 3.28+
 - Python 3.11+ (needs standard-library `tomllib`)
 - Vulkan loader and Mesa (or another Vulkan ICD compatible with your hardware)
+- libcurl development package (`libcurl4-openssl-dev` on Debian/Ubuntu) for updater HTTP support on UNIX
 - Typical C++ build development packages
 - Running `vulkaninfo` is useful for verifying your driver setup, though not strictly required by CMake
 
@@ -127,7 +129,7 @@ SDL2 build dependencies are already vendored in the repository tree.
 
 ### Linux PowerPC source generation
 
-Linux compiles generated PowerPC source code directly from `LostOdysseyRecompLib/ppc/`. The Windows prebuilt static library is not used on Linux.
+Linux compiles generated PowerPC source code directly from `LostOdysseyRecompLib/ppc/`. The Windows prebuilt static library is not used on Linux (`LO_PREBUILT_PPC_DIR` is kept empty, as the Windows `.lib` is built with `clang-cl /MT`). Release CI for Linux also generates PPC sources from repository tools and inputs on Ubuntu 24.04 rather than consuming the Windows prebuilt archive.
 
 If `LostOdysseyRecompLib/ppc/` is empty or missing, generate the sources from the repository root:
 
@@ -158,6 +160,26 @@ out/build/linux-clang/LostOdysseyRecomp/LostOdysseyRecomp
 ### DXC shared library on Linux
 
 CMake automatically copies the Linux DXC shared library from `tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so` into the output folder next to the `LostOdysseyRecomp` ELF during build. If you need a custom DXC location, set the `LO_DXC_PATH` environment variable before running.
+
+### Packaging AppImage
+
+Linux releases can package an AppImage using `tools/package_appimage.py` with `linuxdeploy`:
+
+```bash
+python3 tools/package_appimage.py --build out/build/linux-clang --output out/releases --linuxdeploy /path/to/linuxdeploy
+```
+
+The tool stages the executable, icons, desktop entry, metainfo, vendored DXC library and licenses into an AppDir layout and produces `LostOdysseyRecomp-linux-x64-<tag>.AppImage`.
+
+### Building with Flatpak builder
+
+A source-build Flatpak manifest is provided at `packaging/linux/io.github.freefrank.LostOdysseyRecomp.json` (targeting the `org.freedesktop.Platform 24.08` runtime and SDK). Build locally with:
+
+```bash
+flatpak-builder --user --install --force-clean build-dir packaging/linux/io.github.freefrank.LostOdysseyRecomp.json
+```
+
+This manifest builds from source; it is not a prebuilt Flathub submission.
 
 ## Launch with a consistent working directory
 

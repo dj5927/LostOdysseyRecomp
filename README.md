@@ -19,7 +19,7 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
-Linux first-playable support is currently a source-built Vulkan ELF only; see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides. No Linux package is published.
+Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with AppImage packaging via `tools/package_appimage.py`; see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides. No prebuilt Linux package is published yet.
 
 ## New in v0.5.13
 

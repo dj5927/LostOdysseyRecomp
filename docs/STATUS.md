@@ -56,8 +56,33 @@ Validation limits and open boundaries:
 - No full-game gameplay testing was conducted with the unified binary.
 - Game visual fidelity and actual controller hardware acceptance are NOT established.
 - Residual UI visual state and aesthetic fidelity across all screens remain unverified.
-- Non-Windows updater is not implemented (updater remains Windows-only); macOS is untested; no Linux AppImage/Flatpak package is built.
+- Linux POSIX updater and source packaging support are implemented below; macOS remains untested, and no prebuilt Linux package is published.
 - POSIX lock fix resolves non-Windows compilation in importer only; it does NOT claim the game engine runs or is compatible across all platforms.
+
+## Linux installer/importer/updater and packaging support — unpublished development — 2026-09-15
+
+The source adds Linux installer, importer, updater, and packaging support in an unpublished development checkpoint (source version remains `0.5.13`, not a release).
+- **SDL installer and missing-disc handling**: Linux uses the existing SDL `ShowInstallerUI` and built-in `file_browser` without requiring a desktop document portal. Startup with missing `default.xex` or `--install` invokes `RunHost`.
+- **Writable user paths & Flatpak isolation**: Added `os/user_paths.h` supporting XDG directories (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`) when running in non-portable mode. Detects read-only install directories (`!IsExecutableDirWritable`), suppresses `chdir` into read-only executable paths on Linux, and maps Flatpak `DataDir` to `/var/data`. Game path discovery (`settings::game_path`) and `game-path.txt` read/write use `ConfigDir`/`DataDir` when `!UsePortableLayout()`.
+- **POSIX updater & AppImage self-update**: Integrated POSIX SHA256 (`import_crypto`), libcurl HTTP transport (`posix_http.cpp`), and POSIX startup check (`posix_startup.cpp`) targeting GitHub asset `LostOdysseyRecomp-linux-x64-<tag>.AppImage`. On update acceptance, executes apply mode via Linux binary rename on `$APPIMAGE` and `execv`.
+- **Flatpak update notification**: In Flatpak environments (`FLATPAK_ID` or `/.flatpak-info`), updater returns `StartupStatus::ExternalUpdateAvailable`, never writes to `/app`, and advises `flatpak update io.github.freefrank.LostOdysseyRecomp`.
+- **Linux SDL UI & process handoff**: Adds SDL confirmation and download progress UI (`posix_ui.cpp`, `progress_posix.inl`), and launches updater helper in `main.cpp` using `posix_spawn` with `--apply-plan` and `--wait-process`.
+- **Linux packaging specifications**: Added desktop file, 256x256 icon, AppStream metainfo, and Flatpak manifest (`packaging/linux/io.github.freefrank.LostOdysseyRecomp.json`, targeting `org.freedesktop.Platform 24.08` with `filesystem=host`). Added `tools/package_appimage.py` generating an AppDir layout with `linuxdeploy`. CMake configures UNIX install rules with `$ORIGIN` RPATH, linking libcurl on UNIX only.
+- **Release CI Linux job**: `.github/workflows/release.yml` adds `release-linux` on `ubuntu-24.04` compiling PPC from source (`LO_PREBUILT_PPC_DIR` empty, as the Windows prebuilt `.lib` is `clang-cl /MT` only) and packaging the AppImage. The existing Windows ZIP job is unchanged.
+- **Retained platform boundaries**: The first-run HWND setup wizard remains a Win32 dialog with a stubbed `SaveConfig` on Linux; the F1 in-game debug menu remains a Win32 stub. No Flathub submission has been made, and native Steam Deck sniper runtime build is not packaged.
+
+Focused verification and bounded evidence:
+- Unit test fixtures pass: `LoGamePathTest` PASS, `LoUserPathsTest` PASS, `LoUpdaterPosixSha256Test` compiled cleanly.
+- `LoUpdaterSdlUiTest` fixture coverage verified by worker.
+- AppImage packaging script verified locally with `package_appimage.py --dry-layout` on Windows.
+- No hosted Linux CI execution has run yet for the new `release-linux` job.
+
+Validation limits and open boundaries:
+- Bounded to unit tests, dry layout, and local component checks; no live Linux GitHub Release download or in-place update has been executed.
+- No Flathub submission or package publication has occurred; Flatpak manifest is a source-build specification only.
+- Steam Deck sniper runtime native packaging is not implemented.
+- First-run settings GUI and F1 debug menu remain Win32-specific.
+- This checkpoint is unpublished development; no release exists for it.
 
 ## Published v0.5.13 — Alt+Enter window/fullscreen toggle — 2026-09-14
 

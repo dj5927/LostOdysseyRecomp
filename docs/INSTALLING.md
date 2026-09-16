@@ -104,6 +104,10 @@ This section describes running the native Linux unbundled executable.
 
 There are currently no prebuilt Linux GitHub Releases, installers, AppImage packages, Flatpaks, or Steam Deck packages for this drop. Build the native ELF locally following [BUILDING.md](BUILDING.md).
 
+### Flatpak source manifest
+
+`packaging/linux/io.github.freefrank.LostOdysseyRecomp.json` is a source-build Flatpak manifest; it is not a published Flatpak package. The Flatpak importer defaults to `/var/data` for game files. Its SDL built-in file browser deliberately receives the required real host-path permissions (`host`, `/media`, `/run/media`, and `/mnt`) rather than using a document portal, so select a different writable destination when `/var/data` is unsuitable.
+
 The verified first-playable path is WSL2 Manjaro using Mesa Dozen's Vulkan-on-D3D12 layer. Native Linux NVIDIA/Mesa ICD paths have not been tested; this result does not establish general Linux GPU compatibility.
 
 ### Linux requirements
