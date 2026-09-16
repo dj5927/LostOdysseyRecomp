@@ -265,12 +265,11 @@ if(WIN32)
     target_link_libraries(LoFolderPickerTest PRIVATE user32 ole32 shell32)
 
     add_executable(LoDebugMenuInteractionTest EXCLUDE_FROM_ALL
-        ${CMAKE_SOURCE_DIR}/tools/tests/debug_menu_interaction_test.cpp)
-    target_include_directories(LoDebugMenuInteractionTest PRIVATE
-        ${CMAKE_SOURCE_DIR}/tools/tests/debug_menu_fixture ${LO_RUNTIME_ROOT})
+        ${CMAKE_SOURCE_DIR}/tools/tests/debug_menu_interaction_test.cpp
+        ${LO_RUNTIME_ROOT}/debug/menu_overlay.cpp)
+    target_include_directories(LoDebugMenuInteractionTest PRIVATE ${LO_RUNTIME_ROOT})
     target_compile_features(LoDebugMenuInteractionTest PRIVATE cxx_std_20)
     target_compile_options(LoDebugMenuInteractionTest PRIVATE /utf-8 /UNDEBUG)
-    target_link_libraries(LoDebugMenuInteractionTest PRIVATE user32 gdi32 dwmapi)
 
     add_executable(LoGameWindowPixelsTest EXCLUDE_FROM_ALL
         ${CMAKE_SOURCE_DIR}/tools/tests/game_window_pixels_test.cpp)

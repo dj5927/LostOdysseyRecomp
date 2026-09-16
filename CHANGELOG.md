@@ -9,12 +9,24 @@ One record of completed changes, with unpublished work separated from verified r
 ### English
 
 - Menu branch fixes improve the in-game debug overlay across output resolutions and protect shared overlay state during concurrent access. The software UI now uses the intended RGBA channel order, HID locking covers the complete device operation, and guest pause uses cooperative safe points so overlay interaction does not suspend worker threads indefinitely.
-- Added `LoHostUiCompositeTest` and `LoDebugOverlayTest` while retaining `LoHidTest`. All three focused Windows tests were rebuilt and passed. A complete Clang 22 Linux Release runtime also linked successfully and recognized `game_us/default.xex` during startup. The Linux launch check used `SDL_VIDEODRIVER=dummy`; Vulkan window creation and real scene gameplay therefore remain unverified.
+- Addressed code review report items R1 through R10:
+  - Decoupled host controller input pumping (`PumpHostInput`) and overlay presentation (`PresentHostOverlay`) from guest pause, and added SDL event pumping to GPU `WAIT_REG_MEM` loops (R1, R2).
+  - Replaced atomic wait in `InterruptMain` with `std::condition_variable` and integrated `host_ui::RequestStop()` to guarantee cancellable shutdown without lost wakeups (R5a, R5b).
+  - Implemented pause-aware active game clock (`GetActiveGameTimeMs`) and scene generation tracking for teleport and battle commands, preserving bookmarks and pending states across pauses, and provided accurate asynchronous status feedback in the debug overlay (R3, R9).
+  - Enabled custom settings on Linux via renderer capability check (`LO_GPU_PLUME`), isolated settings buffer caching from debug overlay compositing, guarded mouse click propagation under modal overlays, and corrected straight-alpha source-over blending math (R4, R7, R8, R10).
+  - Migrated `LoDebugMenuInteractionTest` to the host overlay model, covering navigation, state synchronization, and error handling (R6).
+- Maintained and expanded test suite: `LoHidTest`, `LoHostUiCompositeTest`, `LoDebugOverlayTest`, and `LoDebugMenuInteractionTest` all built and passed.
 
 ### 简体中文
 
 - menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
-- 新增 `LoHostUiCompositeTest` 和 `LoDebugOverlayTest`，保留 `LoHidTest`。三个 Windows 定向测试均已重新编译并通过。完整的 Clang 22 Linux Release runtime 也已成功链接，并在启动时识别 `game_us/default.xex`。Linux 启动检查使用了 `SDL_VIDEODRIVER=dummy`，因此 Vulkan 窗口创建和真实场景游戏运行仍未验证。
+- 完整修复代码审查报告 R1 至 R10 缺陷项：
+  - 将手柄宿主输入泵（`PumpHostInput`）与浮层呈现（`PresentHostOverlay`）与客户机暂停解耦，并在 GPU `WAIT_REG_MEM` 循环中注入事件泵，防止暂停期间卡死（R1, R2）。
+  - 使用 `std::condition_variable` 替换 `InterruptMain` 中的原子变量等待，并在退出流程接入 `host_ui::RequestStop()`，消除漏唤醒并确保可取消销毁（R5a, R5b）。
+  - 引入感知暂停的主动游戏时钟（`GetActiveGameTimeMs`）与场景代数（`sceneGeneration`），防止暂停超时误判失效并保留传送标记与胜负请求；浮层 UI 准确反馈异步命令状态，杜绝虚假成功提示（R3, R9）。
+  - 移除 Linux 设置菜单入口的平台宏限制，改为按渲染器能力启用（`LO_GPU_PLUME`）；拆分独立呈现缓冲隔离设置底图缓存，拦截模态下底层鼠标点击穿透，并修正 `ColorBlend` 的 straight-alpha source-over 混合算法（R4, R7, R8, R10）。
+  - 将废弃的原生窗口测试迁移为浮层交互测试 `LoDebugMenuInteractionTest`，覆盖模态切换、导航、错误反馈及光栅化渲染（R6）。
+- 维持并扩充测试套件：`LoHidTest`、`LoHostUiCompositeTest`、`LoDebugOverlayTest` 与 `LoDebugMenuInteractionTest` 全部重新编译并测试通过。
 
 ## Historical development checkpoints / 历史开发检查点
 
