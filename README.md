@@ -21,6 +21,14 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 
 Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with AppImage packaging via `tools/package_appimage.py`; see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides. No prebuilt Linux package is published yet.
 
+## New in v0.5.14
+
+Release candidate: [v0.5.14](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14) (CI pending; not published).
+
+- Embedded installer and updater improvements, including the accepted DLC I/O, scan/retry, exact apply-argument, Linux XDG profile, extracted-DLC scanning and AppImage dependency fixes.
+- Linux installer/updater XDG and AppImage support is included; the first hosted Linux packaging run is still pending, and Steam Deck compatibility is not complete.
+- Includes the R3 notified-wait CPU modernization. Real updates, AppImage packaging, complete UI import and full-game validation remain unverified.
+
 ## New in v0.5.13
 
 Published Windows x64 package: [v0.5.13](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.13). The ZIP SHA-256 is `a993071c24f7324a3ae3a0dbe24688afc60450d3da9f1a78fbf532c69f65bacd`.

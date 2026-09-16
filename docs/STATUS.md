@@ -1,5 +1,11 @@
 # Project status
 
+## v0.5.14 release candidate — CI pending — 2026-09-16
+
+The current candidate contains the embedded installer/updater work, accepted audit fixes, Linux XDG/AppImage support, and the R3 notified-wait CPU modernization. The user accepted the current fixes for this candidate. The first hosted Linux packaging run is pending; no release or Linux package has been published, and Steam Deck compatibility is not complete.
+
+Validation is bounded to the previously recorded R3 checks and the current focused installer, updater, importer, AppImage script, and WSL path fixtures. Real network updates, AppImage packaging, complete interactive import, and full-game playthrough remain unverified.
+
 ## R3 CPU waiting-path modernization and native Vulkan test — unpublished development — 2026-09-15
 
 The source implements the R3 CPU waiting-path modernization on the local `deck` branch (uncommitted development checkpoint, source version remains `0.5.13`, not a release).

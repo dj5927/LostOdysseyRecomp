@@ -7,6 +7,20 @@ separate `InstallGame.exe` or `LostOdysseyUpdater.exe`; the native importer and
 updater run from the single runtime binary. The CMake `LostOdysseyUpdater`
 target remains available for host-side fixtures.
 
+## v0.5.14 release candidate — 2026-09-16
+
+The candidate release notes are in the matching `v0.5.14` section of
+`CHANGELOG.md` for `extract_release_notes.py`. It includes the embedded
+installer/updater audit fixes, Linux XDG/AppImage support, and the R3
+notified-wait modernization. The user accepted the current fixes. The first
+hosted Linux packaging run is pending, so no Linux package or release
+publication is recorded; Steam Deck compatibility is not complete.
+
+Release checks still need the actual CI result and published asset evidence.
+Reuse the recorded focused fixtures; real network updates, AppImage packaging,
+complete interactive import and full-game validation remain outside this
+candidate's evidence.
+
 ## Current v0.5.0 CI delivery — 2026-09-09
 
 Release CI `34362242667` succeeded for tag/main `28be72f02649cf87126dd9f1a604ada6cdd380c5`. The Windows ZIP is 44,020,136 bytes with SHA256 `e8391a2353a7206398b2dca24a2d73bccdea7b946d55cbfca4e7573648e95312`; source identity is `5038af3b3561ffce579a78158fb088c8d5f27df7705ba140e0e56bd11624e9cc`. See `out/v0.5.0/release-finalization/ci-34362242667/CI-DELIVERY.json` and `REPORT.md`. That CI artifact predates the current shader-priority candidate and remains historical until the parent replaces it. Draft release `385591785` is not public and has no publication timestamp or verified anonymous public download. The current candidate's four capture-confirmed c7 paths and shader-anomaly priority are documented in `out/v0.5.0/performance-fix/shader-priority-0.5.0/REPORT.md`; no game run was performed for it. Publication must wait for final asset/tag/download verification.

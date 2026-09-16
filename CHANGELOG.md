@@ -74,6 +74,22 @@ One record of completed changes, with unpublished work separated from verified r
 - 首个可玩的 Linux Vulkan-only 未打包 ELF 路径仍为源码构建路径（WSL2 Manjaro + Mesa Dozen Vulkan-on-D3D12）；目前没有发布 Linux 包。
 - 已在 `600b08e` 部署 GitHub Issue triage workflow 更新，支持授权协作者的 `@codex` 评论请求、按评论去重、最近人类讨论和有界的 first-party 代码检索。19 项 triage/mention 检查及 7 项 retrieval 检查已通过；首次公开 `@codex` 回复仍待观察。
 
+## v0.5.14 — 2026-09-16 / Release candidate / 未发布
+
+### English
+
+- Integrate the installer and updater into the main binary, with the accepted audit fixes for DLC I/O publication, scan and retry state, exact `--apply-plan` parsing, Linux XDG profile paths, extracted-DLC trailing-separator scanning, and AppImage dependency filtering.
+- Add Linux installer/updater XDG and AppImage support. The first hosted Linux packaging run is still pending; no Linux package or Steam Deck compatibility is claimed.
+- Include the R3 notified-wait CPU modernization, with its previously passed focused verification retained.
+- The user accepted the current fixes for this release candidate. Real network updates, AppImage packaging, complete UI import, and full-game validation remain unverified.
+
+### 简体中文
+
+- 将安装器与更新器整合到主二进制，并包含已验收的审计修复：DLC I/O 发布检查、扫描与重试状态、精确 `--apply-plan` 参数解析、Linux XDG profile 路径、已解包 DLC 尾部分隔符扫描以及 AppImage 依赖过滤。
+- 增加 Linux 安装器／更新器 XDG 与 AppImage 支持。首次托管 Linux 打包运行仍待完成；不宣称已发布 Linux 包或完整 Steam Deck 兼容性。
+- 纳入 R3 notified-wait CPU 等待路径现代化，沿用此前已通过的定向验证。
+- 用户已验收当前修复，当前为 release candidate。真实在线更新、AppImage 封包、UI 完整导入和全游戏验证仍未核验。
+
 ## v0.5.13 — 2026-09-14 / Published / 已发布
 
 ### English
