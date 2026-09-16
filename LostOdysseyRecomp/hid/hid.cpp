@@ -104,7 +104,83 @@ void hid::ClearKeyboardState()
 {
     std::lock_guard lock(g_hidMutex);
     g_keys.fill(0);
+}
 
+static uint16_t ReadRawButtonsLocked()
+{
+    uint16_t buttons = 0;
+    for (auto* controller : g_controllers)
+    {
+        if (!SDL_GameControllerGetAttached(controller)) continue;
+        auto btn = [&](SDL_GameControllerButton b) { return SDL_GameControllerGetButton(controller, b) != 0; };
+
+        if (btn(SDL_CONTROLLER_BUTTON_DPAD_UP)) buttons |= XAMINPUT_GAMEPAD_DPAD_UP;
+        if (btn(SDL_CONTROLLER_BUTTON_DPAD_DOWN)) buttons |= XAMINPUT_GAMEPAD_DPAD_DOWN;
+        if (btn(SDL_CONTROLLER_BUTTON_DPAD_LEFT)) buttons |= XAMINPUT_GAMEPAD_DPAD_LEFT;
+        if (btn(SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) buttons |= XAMINPUT_GAMEPAD_DPAD_RIGHT;
+        if (btn(SDL_CONTROLLER_BUTTON_START)) buttons |= XAMINPUT_GAMEPAD_START;
+        if (btn(SDL_CONTROLLER_BUTTON_BACK)) buttons |= XAMINPUT_GAMEPAD_BACK;
+        if (btn(SDL_CONTROLLER_BUTTON_LEFTSTICK)) buttons |= XAMINPUT_GAMEPAD_LEFT_THUMB;
+        if (btn(SDL_CONTROLLER_BUTTON_RIGHTSTICK)) buttons |= XAMINPUT_GAMEPAD_RIGHT_THUMB;
+        if (btn(SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) buttons |= XAMINPUT_GAMEPAD_LEFT_SHOULDER;
+        if (btn(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) buttons |= XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
+        if (btn(SDL_CONTROLLER_BUTTON_A)) buttons |= XAMINPUT_GAMEPAD_A;
+        if (btn(SDL_CONTROLLER_BUTTON_B)) buttons |= XAMINPUT_GAMEPAD_B;
+        if (btn(SDL_CONTROLLER_BUTTON_X)) buttons |= XAMINPUT_GAMEPAD_X;
+        if (btn(SDL_CONTROLLER_BUTTON_Y)) buttons |= XAMINPUT_GAMEPAD_Y;
+    }
+    const auto& keys = g_keys;
+    if (keys[SDL_SCANCODE_KP_8] || keys[SDL_SCANCODE_UP]) buttons |= XAMINPUT_GAMEPAD_DPAD_UP;
+    if (keys[SDL_SCANCODE_KP_2] || keys[SDL_SCANCODE_DOWN]) buttons |= XAMINPUT_GAMEPAD_DPAD_DOWN;
+    if (keys[SDL_SCANCODE_KP_4] || keys[SDL_SCANCODE_LEFT]) buttons |= XAMINPUT_GAMEPAD_DPAD_LEFT;
+    if (keys[SDL_SCANCODE_KP_6] || keys[SDL_SCANCODE_RIGHT]) buttons |= XAMINPUT_GAMEPAD_DPAD_RIGHT;
+    if (keys[SDL_SCANCODE_RETURN]) buttons |= XAMINPUT_GAMEPAD_START;
+    if (keys[SDL_SCANCODE_BACKSPACE]) buttons |= XAMINPUT_GAMEPAD_BACK;
+    if (keys[SDL_SCANCODE_LEFTBRACKET]) buttons |= XAMINPUT_GAMEPAD_LEFT_THUMB;
+    if (keys[SDL_SCANCODE_RIGHTBRACKET]) buttons |= XAMINPUT_GAMEPAD_RIGHT_THUMB;
+    if (keys[SDL_SCANCODE_Z]) buttons |= XAMINPUT_GAMEPAD_A;
+    if (keys[SDL_SCANCODE_X]) buttons |= XAMINPUT_GAMEPAD_B;
+    if (keys[SDL_SCANCODE_C]) buttons |= XAMINPUT_GAMEPAD_X;
+    if (keys[SDL_SCANCODE_V]) buttons |= XAMINPUT_GAMEPAD_Y;
+    if (keys[SDL_SCANCODE_Q]) buttons |= XAMINPUT_GAMEPAD_LEFT_SHOULDER;
+    if (keys[SDL_SCANCODE_W]) buttons |= XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
+    return buttons;
+}
+
+static void ProcessHostInput(uint16_t buttons)
+{
+    static uint16_t s_prevGamepadButtons = 0;
+    const uint16_t chordMask = XAMINPUT_GAMEPAD_LEFT_SHOULDER | XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
+    const bool prevChord = (s_prevGamepadButtons & chordMask) == chordMask;
+    const bool curChord = (buttons & chordMask) == chordMask;
+    if (curChord && !prevChord)
+    {
+        debug_menu::ToggleOverlay();
+    }
+    else if (debug_menu::IsOverlayVisible())
+    {
+        const uint16_t pressed = buttons & ~s_prevGamepadButtons;
+        if (pressed & XAMINPUT_GAMEPAD_DPAD_UP) debug_menu::HandleInput(debug_menu::InputAction::Up);
+        else if (pressed & XAMINPUT_GAMEPAD_DPAD_DOWN) debug_menu::HandleInput(debug_menu::InputAction::Down);
+        else if (pressed & XAMINPUT_GAMEPAD_DPAD_LEFT) debug_menu::HandleInput(debug_menu::InputAction::Left);
+        else if (pressed & XAMINPUT_GAMEPAD_DPAD_RIGHT) debug_menu::HandleInput(debug_menu::InputAction::Right);
+        else if (pressed & XAMINPUT_GAMEPAD_A) debug_menu::HandleInput(debug_menu::InputAction::Confirm);
+        else if (pressed & XAMINPUT_GAMEPAD_B) debug_menu::HandleInput(debug_menu::InputAction::Cancel);
+        else if ((pressed & XAMINPUT_GAMEPAD_LEFT_SHOULDER) && !curChord) debug_menu::HandleInput(debug_menu::InputAction::PrevTab);
+        else if ((pressed & XAMINPUT_GAMEPAD_RIGHT_SHOULDER) && !curChord) debug_menu::HandleInput(debug_menu::InputAction::NextTab);
+    }
+    s_prevGamepadButtons = buttons;
+}
+
+void hid::PumpHostInput()
+{
+    uint16_t buttons = 0;
+    {
+        std::lock_guard lock(g_hidMutex);
+        if (g_externalPump) SDL_GameControllerUpdate();
+        buttons = ReadRawButtonsLocked();
+    }
+    ProcessHostInput(buttons);
 }
 
 void hid::Poll()
@@ -367,39 +443,19 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
         traceInputActive = active;
     }
 
-    // Chord detection: LB + RB simultaneous press edge triggers debug menu overlay.
-    bool overlayOwnsInput = debug_menu::IsOverlayVisible();
+    // Chord detection & host overlay input:
+    // When external event pump is active, PumpHostInput() on the window/event pump thread
+    // independently drives chord detection and menu navigation (even when guest is paused).
+    // When external pump is NOT active (e.g. standalone test), handle it here.
+    if (!g_externalPump)
     {
-        static uint16_t s_prevGamepadButtons = 0;
-        const uint16_t chordMask = XAMINPUT_GAMEPAD_LEFT_SHOULDER | XAMINPUT_GAMEPAD_RIGHT_SHOULDER;
-        const bool prevChord = (s_prevGamepadButtons & chordMask) == chordMask;
-        const bool curChord = (gp.wButtons & chordMask) == chordMask;
-        if (curChord && !prevChord)
-        {
-            debug_menu::ToggleOverlay();
-        }
-
-        if (debug_menu::IsOverlayVisible())
-        {
-            overlayOwnsInput = true;
-            // Edge detection for D-Pad, face buttons, shoulders
-            const uint16_t pressed = gp.wButtons & ~s_prevGamepadButtons;
-            if (pressed & XAMINPUT_GAMEPAD_DPAD_UP) debug_menu::HandleInput(debug_menu::InputAction::Up);
-            else if (pressed & XAMINPUT_GAMEPAD_DPAD_DOWN) debug_menu::HandleInput(debug_menu::InputAction::Down);
-            else if (pressed & XAMINPUT_GAMEPAD_DPAD_LEFT) debug_menu::HandleInput(debug_menu::InputAction::Left);
-            else if (pressed & XAMINPUT_GAMEPAD_DPAD_RIGHT) debug_menu::HandleInput(debug_menu::InputAction::Right);
-            else if (pressed & XAMINPUT_GAMEPAD_A) debug_menu::HandleInput(debug_menu::InputAction::Confirm);
-            else if (pressed & XAMINPUT_GAMEPAD_B) debug_menu::HandleInput(debug_menu::InputAction::Cancel);
-            else if (pressed & XAMINPUT_GAMEPAD_LEFT_SHOULDER && !curChord) debug_menu::HandleInput(debug_menu::InputAction::PrevTab);
-            else if (pressed & XAMINPUT_GAMEPAD_RIGHT_SHOULDER && !curChord) debug_menu::HandleInput(debug_menu::InputAction::NextTab);
-        }
-
-        s_prevGamepadButtons = gp.wButtons;
+        ProcessHostInput(gp.wButtons);
     }
 
+    bool overlayOwnsInput = debug_menu::IsOverlayVisible();
     const uint16_t beforeMenuButtons = gp.wButtons;
     bool menuFiltered = false;
-    if (overlayOwnsInput || debug_menu::IsOverlayVisible()) {
+    if (overlayOwnsInput) {
         menuFiltered = true;
         gp.wButtons = 0;
     }
