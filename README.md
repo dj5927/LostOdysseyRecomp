@@ -21,6 +21,9 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 
 ## Unreleased development
 
+- Corrected host EDRAM format clamping for unsigned formats (0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_10_FLOAT`) with a strict `0.0` lower bound, resolving Issue #38 inverted and black light fixtures ("anti-lights emitting darkness") in Numara Castle (Philosopher's Chamber) and preventing tone-mapping `log2` NaNs / black voids. Shader cache `Version` is bumped to 23.
+- Resolved TAA inter-frame phase jitter flicker on stairs and the save point light sphere in `f2358` by registering missing static scene and lighting vertex shaders in `PositionVPSlot`.
+- Focused tests `LoTemporalJitterTest` (2,319,037 checks) and `LoMenuRenderTest` built and passed; render comparisons verify black diamond voids are eliminated, lantern structures and bloom are restored, and TAA phase jitter is aligned.
 - The in-game debug overlay now composes correctly across output resolutions and protects shared overlay state during concurrent access. Its software UI uses the intended RGBA channel order, HID locking covers the complete device operation, and guest pause uses cooperative safe points so overlay interaction does not suspend worker threads indefinitely.
 - Focused Windows regression tests pass after rebuilding: `LoHostUiCompositeTest`, `LoDebugOverlayTest` and `LoHidTest`. A complete Clang 22 Linux Release runtime also links successfully and recognizes `game_us/default.xex` during startup. The Linux check used `SDL_VIDEODRIVER=dummy`, so Vulkan window creation and real scene gameplay were not exercised.
 

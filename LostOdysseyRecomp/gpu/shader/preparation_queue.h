@@ -5,6 +5,8 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <exception>
 #include <filesystem>
@@ -18,15 +20,54 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 namespace xenos::preparation
 {
-    inline size_t WorkerCount(unsigned logicalThreads, size_t jobs, bool forceSerial)
+    inline size_t HostWorkerCap(unsigned logicalThreads)
     {
-        const unsigned requested = forceSerial ? 1u : (logicalThreads > 1 ? logicalThreads - 1 : 1u);
-        // DXC working sets are not covered by the result queue bound.
-        // Prefer predictable memory use on shared-memory handhelds.
-        return std::min<size_t>(std::min(requested, 4u), jobs);
+        if (const char* env = std::getenv("LO_SHADER_WORKERS")) {
+            if (std::strcmp(env, "0") == 0 || std::strcmp(env, "max") == 0 || std::strcmp(env, "all") == 0)
+                return logicalThreads;
+            int parsed = std::atoi(env);
+            if (parsed > 0) return static_cast<size_t>(parsed);
+        }
+#ifdef _WIN32
+        MEMORYSTATUSEX status{sizeof(status)};
+        if (GlobalMemoryStatusEx(&status)) {
+            // Low-memory / handheld hosts (<= 16 GB physical RAM, e.g. Steam Deck, ROG Ally)
+            // cap concurrent DXC workers to 4 to avoid OOM in shared-memory environments.
+            if (status.ullTotalPhys <= 18ULL * 1024 * 1024 * 1024) {
+                return 4u;
+            }
+            // High-memory desktop hosts have plenty of headroom for DXC working sets.
+            return logicalThreads > 1 ? logicalThreads - 1 : 1u;
+        }
+#endif
+        // Default conservative fallback on unknown platforms or without memory API
+        return std::min<size_t>(4u, logicalThreads > 1 ? logicalThreads - 1 : 1u);
+    }
+
+    inline size_t WorkerCount(unsigned logicalThreads, size_t jobs, bool forceSerial, unsigned cap = 4u)
+    {
+        if (const char* env = std::getenv("LO_SHADER_WORKERS")) {
+            if (std::strcmp(env, "0") == 0 || std::strcmp(env, "max") == 0 || std::strcmp(env, "all") == 0)
+                return std::min<size_t>(logicalThreads, jobs);
+            int parsed = std::atoi(env);
+            if (parsed > 0) return std::min<size_t>(parsed, jobs);
+        }
+        if (forceSerial || jobs == 0) return jobs == 0 ? 0u : 1u;
+        const unsigned requested = logicalThreads > 1 ? logicalThreads - 1 : 1u;
+        const unsigned effective = cap > 0 ? std::min(requested, cap) : requested;
+        return std::min<size_t>(effective, jobs);
     }
 
     struct QueueStats

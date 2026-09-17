@@ -1782,8 +1782,17 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     }
                 };
                 const unsigned logical = std::thread::hardware_concurrency();
+                const unsigned pipelineCap = [&]() -> unsigned {
+                    if (const char* env = getenv("LO_PIPELINE_WORKERS")) {
+                        if (strcmp(env, "0") == 0 || strcmp(env, "max") == 0 || strcmp(env, "all") == 0)
+                            return logical;
+                        int parsed = atoi(env);
+                        if (parsed > 0) return static_cast<unsigned>(parsed);
+                    }
+                    return static_cast<unsigned>(xenos::preparation::HostWorkerCap(logical));
+                }();
                 const auto count = std::min<size_t>(jobs.size(), getenv("LO_PIPELINE_PREPARE_SERIAL") ? 1u :
-                    std::min(4u, logical > 1 ? logical - 1 : 1u));
+                    std::min(pipelineCap, logical > 1 ? logical - 1 : 1u));
                 std::vector<std::jthread> workers;
                 try { for (size_t i = 0; i < count; ++i) workers.emplace_back(worker); }
                 catch (const std::system_error& e) {
@@ -2004,8 +2013,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     bool cachedFailure = false;
                 };
                 const unsigned logicalThreads = std::thread::hardware_concurrency();
+                const auto workerCap = xenos::preparation::HostWorkerCap(logicalThreads);
                 const auto workerCount = xenos::preparation::WorkerCount(logicalThreads, jobs.size(),
-                    getenv("LO_SHADER_PREPARE_SERIAL") != nullptr);
+                    getenv("LO_SHADER_PREPARE_SERIAL") != nullptr, static_cast<unsigned>(workerCap));
                 const size_t readyCapacity = std::max<size_t>(8, workerCount * 2);
 
                 auto prepare = [&](size_t index) {

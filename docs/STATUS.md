@@ -1,5 +1,21 @@
 # Project status
 
+## Host EDRAM format clamping and f2358 TAA jitter fixes — unpublished development — 2026-09-17
+
+The source fixes host EDRAM unsigned format clamping (Issue #38) and registers missing static scene and lighting vertex shaders for TAA jitter compensation in scene `f2358` on the `menu` branch (commit `7484518`, unpublished development checkpoint, source version remains `0.5.14`, not a release).
+- **Host EDRAM unsigned format clamping (Issue #38)**: In `LostOdysseyRecomp/gpu/renderer.cpp` and `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`, correct host EDRAM clamping for unsigned formats (formats 0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_10_FLOAT`). Clamping lower bound is now strictly `0.0` for unsigned targets, preventing additive blending passes from accumulating negative light and tone-mapping `log2` from triggering NaNs / black voids in Numara Castle (Philosopher's Chamber). Bumped shader cache `Version` from 22 to 23 in `LostOdysseyRecomp/gpu/shader/cache.h` to invalidate stale DXIL binaries.
+- **TAA jitter compensation in f2358**: In `PositionVPSlot` (`LostOdysseyRecomp/gpu/temporal_scene.h`), register missing static scene and lighting vertex shaders (`0x69e9adcf2e1b6887`, `0x6a8c2c78737dc94c`, `0xa20d6099a44e2cd5` to Slot 7 and `0x6761469677f921c6` to Slot 8), eliminating inter-frame camera jitter phase mismatch artifacts on stairs and the save point light sphere in scene `f2358`.
+
+Focused verification and bounded evidence:
+- Unit and regression fixtures `LoTemporalJitterTest.exe` (2,319,037 checks) and `LoMenuRenderTest.exe` built and passed.
+- Render comparisons generated and verified: black diamond voids eliminated; lantern structure, lighting and bloom restored cleanly; TAA inter-frame jitter phase matched.
+- Committed as `7484518` on `menu` branch and pushed to `origin/menu` (Gitea) and `github/menu`. `CHANGELOG.md` has been updated in both English and Chinese.
+
+Validation limits and open boundaries:
+- Verification is bounded to the reported scenes (Numara Castle Philosopher's Chamber and f2358 stairs/save point); does not constitute a full-game playthrough or player visual acceptance across all scenes.
+- Clamping enforces `0.0` lower bound for unsigned host EDRAM formats; non-EDRAM or other shader arithmetic edge cases remain subject to future scene discoveries.
+- Development code is committed on the `menu` branch; no tag or release package exists for this checkpoint.
+
 ## Published v0.5.14 — 2026-09-16
 
 The published release contains the embedded installer/updater work, accepted audit fixes, Linux XDG/AppImage support, and the R3 notified-wait CPU modernization. It was published at [GitHub Release v0.5.14](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14) on 2026-09-16T07:18:53Z from source/tag commit `caf8060d99e5f1e52aec9d545331efe59e0c01e8`. Release CI `35065717899` succeeded; Linux Release job `104695450320` succeeded on attempt 1. The Windows ZIP is 32,915,456 bytes with SHA-256 `c21224ed985ada3502e25b42dd9e9379cb95749b0f06cea6d838f4d60843c09d`; the original Linux AppImage is 43,162,104 bytes with SHA-256 `a9912d2a258f17a2fea1a4d7f99c9589b538e66efd25225b1ade74af606e6196`.

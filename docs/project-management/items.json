@@ -2488,7 +2488,7 @@
       "fields": {
         "Kind": "Research",
         "Area": "Graphics backends",
-        "Status": "Todo",
+        "Status": "Blocked",
         "Delivery": "Not started",
         "Release": null,
         "Start date": null,
@@ -2736,7 +2736,7 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Recompiler validation",
-        "Status": "Todo",
+        "Status": "Done",
         "Delivery": "Awaiting validation",
         "Release": null,
         "Start date": null,
@@ -4372,10 +4372,11 @@
         "Kind": "Feature",
         "Area": "Startup paths",
         "Status": "Done",
-        "Delivery": "Validated",
+        "Delivery": "Not started",
         "Release": "v0.5.0",
         "Start date": "2026-09-08",
-        "Target date": "2026-09-08"
+        "Target date": "2026-09-08",
+        "Evidence": "Regression verified 2026-09-14: Resolve accepts relative `--game default.xex` but Recognize returns its empty parent, so the later game: resource root is empty. A C++20 temporary-file fixture gave relative valid=1/root empty and absolute valid=1/nonempty; static file-system flow returns STATUS_OBJECT_PATH_NOT_FOUND for empty host root. TODO: resolve explicit relative CLI paths against CWD before recognition and cover default.xex, ./default.xex, relative directory/disc1, absolute paths and invalid explicit paths without fallback. No game run; resource failure is source-chain inference. Historical v0.5.0 direct-EXE validation remains recorded separately."
       },
       "source_refs": [
         "docs/notes/v0.5.0-qol-requirements.md",
@@ -4918,7 +4919,7 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Release Engineering",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.6",
         "Start date": "2026-09-10",
@@ -5272,6 +5273,55 @@
         "Start date": "2026-09-14",
         "Target date": "2026-09-15",
         "Evidence": "Issue #27 closed 2026-09-15. Reporter confirmed v0.5.12 Spanish opening FMV/cutscene subtitles on Vulkan and D3D12. Lead confirmed DE/FR/IT FMV coverage. Published v0.5.12 from 36e574b; Release CI 34895591364 passed. Complete event coverage and whole-game validation remain unverified. https://github.com/freefrank/LostOdysseyRecomp/issues/27"
+      }
+    },
+    {
+      "key": "issue-38-numara-castle-inverted-lights",
+      "title": "[Bug] Numara Castle has inverted lights",
+      "body": "<!-- lo-project:issue-38-numara-castle-inverted-lights -->\n\nIssue #38 reports inverted/black lights (\"anti-lights emitting darkness\") in Numara Castle (Philosopher's Chamber).\n\n## Root cause and repair\n\n- Root cause: The Xenos translator shader epilogue clamped unsigned 7e3 EDRAM format (`COLOR_2_10_10_10_FLOAT`) to `[-31.875, 31.875]`. Additive light blending wrote negative light values to the host EDRAM target, causing subsequent tone-mapping `log2` to produce NaNs and pitch black voids.\n- Repair: In `LostOdysseyRecomp/gpu/renderer.cpp` and `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`, enforced a strict `0.0` lower bound for unsigned EDRAM formats (formats 0, 1, 2, 3, 10, 12). Bumped shader cache `Version` from 22 to 23 in `LostOdysseyRecomp/gpu/shader/cache.h` to invalidate stale cached DXIL binaries.\n\n## Recorded validation\n\n- Verification confirmed black diamond voids eliminated and lantern lighting and bloom cleanly restored in Philosopher's Chamber.\n- Test suite passing (`LoTemporalJitterTest`, `LoMenuRenderTest`).\n\n## Status and delivery boundary\n\nImplemented and verified on `menu` branch (commit `7484518`), pushed to `origin/menu` and `github/menu`. Pending PR/release merge into main and reporter acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/38\n- https://github.com/freefrank/LostOdysseyRecomp/commit/7484518\n- `LostOdysseyRecomp/gpu/renderer.cpp`\n- `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`\n- `LostOdysseyRecomp/gpu/shader/cache.h`\n- `docs/STATUS.md`\n- `CHANGELOG.md`\n",
+      "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/38",
+      "record_type": "issue",
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/38",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/7484518",
+        "LostOdysseyRecomp/gpu/renderer.cpp",
+        "LostOdysseyRecomp/gpu/shader/xenos_translator.cpp",
+        "LostOdysseyRecomp/gpu/shader/cache.h",
+        "docs/STATUS.md",
+        "CHANGELOG.md"
+      ],
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Graphics",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
+        "Release": null,
+        "Start date": "2026-09-15",
+        "Target date": null,
+        "Evidence": "Implemented on menu branch (commit 7484518). Unsigned EDRAM formats clamped to [0.0, 31.875] in renderer.cpp and xenos_translator.cpp, preventing negative light accumulation and tone-mapping log2 NaNs / black voids. Shader cache Version bumped to 23. Test suite passing (LoTemporalJitterTest, LoMenuRenderTest). Pending PR/release merge and reporter acceptance."
+      }
+    },
+    {
+      "key": "f2358-taa-jitter-flicker",
+      "title": "Fix scene f2358 TAA jitter flicker on stairs and save point",
+      "body": "<!-- lo-project:f2358-taa-jitter-flicker -->\n\nFix inter-frame camera jitter phase mismatch in scene `f2358` (stairs and save point light sphere).\n\n## Implementation and validation\n\nCommit `7484518` on branch `menu` registers missing static scene and lighting vertex shaders (`0x69e9adcf2e1b6887`, `0x6a8c2c78737dc94c`, `0xa20d6099a44e2cd5` to Slot 7 and `0x6761469677f921c6` to Slot 8) in `PositionVPSlot` (`LostOdysseyRecomp/gpu/temporal_scene.h`).\n\n`LoTemporalJitterTest` passed with 2,319,037 checks and render comparisons match inter-frame jitter phases. Broader scene coverage and player visual acceptance remain tracked.\n\n## Delivery boundary\n\nImplemented on `menu` branch pending PR/release merge. This is bounded scene validation for `f2358`, not full-game visual acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/commit/7484518\n- `LostOdysseyRecomp/gpu/temporal_scene.h`\n- `docs/ROADMAP.md`\n- `docs/STATUS.md`\n",
+      "issue_url": null,
+      "record_type": "backlog",
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/7484518",
+        "LostOdysseyRecomp/gpu/temporal_scene.h",
+        "docs/ROADMAP.md#current-feedback-and-regression-work",
+        "docs/STATUS.md#host-edram-format-clamping-and-f2358-taa-jitter-fixes--unpublished-development--2026-09-17"
+      ],
+      "fields": {
+        "Kind": "Bug",
+        "Area": "TAA and shadows",
+        "Status": "Done",
+        "Delivery": "Validated",
+        "Release": null,
+        "Start date": "2026-09-16",
+        "Target date": null,
+        "Evidence": "Commit 7484518 on branch menu registers missing static scene and lighting vertex shaders (0x69e9adcf2e1b6887, 0x6a8c2c78737dc94c, 0xa20d6099a44e2cd5 to Slot 7 and 0x6761469677f921c6 to Slot 8) in PositionVPSlot (temporal_scene.h). LoTemporalJitterTest passed with 2,319,037 checks; render comparisons confirm inter-frame jitter phase alignment on f2358 stairs and save point. Pending PR/release merge; broader scene coverage and player visual acceptance remain tracked."
       }
     }
   ]

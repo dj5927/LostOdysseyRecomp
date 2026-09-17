@@ -1228,7 +1228,7 @@
       "fields": {
         "Kind": "Research",
         "Area": "Graphics backends",
-        "Status": "Todo",
+        "Status": "Blocked",
         "Delivery": "Not started",
         "Release": "v0.5.0",
         "Evidence": "Future DX11 work outside the current v0.5.0 release target. Feasibility/runtime remains unstarted; no next-release version or date is assigned.",
@@ -1324,7 +1324,7 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Recompiler validation",
-        "Status": "Todo",
+        "Status": "Done",
         "Delivery": "Awaiting validation",
         "Source key": "ppc-semantics-gameplay-regression"
       },
@@ -2021,11 +2021,12 @@
         "Kind": "Feature",
         "Area": "Startup paths",
         "Status": "Done",
-        "Delivery": "Validated",
+        "Delivery": "Not started",
         "Release": "v0.5.0",
         "Source key": "qol-empty-game-path-default",
         "Start date": "2026-09-08",
-        "Target date": "2026-09-08"
+        "Target date": "2026-09-08",
+        "Evidence": "Regression verified 2026-09-14: Resolve accepts relative `--game default.xex` but Recognize returns its empty parent, so the later game: resource root is empty. A C++20 temporary-file fixture gave relative valid=1/root empty and absolute valid=1/nonempty; static file-system flow returns STATUS_OBJECT_PATH_NOT_FOUND for empty host root. TODO: resolve explicit relative CLI paths against CWD before recognition and cover default.xex, ./default.xex, relative directory/disc1, absolute paths and invalid explicit paths without fallback. No game run; resource failure is source-chain inference. Historical v0.5.0 direct-EXE validation remains recorded separately."
       },
       "title": "Default an empty game-path.txt to ../game",
       "body_sha256": "82831c5c41c5f6c87d661ecd463286a152165ed3dd2cbf3799ab703ea8a93e3c"
@@ -2378,7 +2379,7 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Release Engineering",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.6",
         "Start date": "2026-09-10",
@@ -2551,6 +2552,32 @@
         "Source key": "issue-27-spanish-fmv-subtitles",
         "Target date": "2026-09-15"
       }
+    },
+    "issue-38-numara-castle-inverted-lights": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg7XV34",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Graphics",
+        "Status": "Awaiting validation",
+        "Delivery": "Validated",
+        "Start date": "2026-09-15",
+        "Evidence": "Implemented on menu branch (commit 7484518). Unsigned EDRAM formats clamped to [0.0, 31.875] in renderer.cpp and xenos_translator.cpp, preventing negative light accumulation and tone-mapping log2 NaNs / black voids. Shader cache Version bumped to 23. Test suite passing (LoTemporalJitterTest, LoMenuRenderTest). Pending PR/release merge and reporter acceptance.",
+        "Source key": "issue-38-numara-castle-inverted-lights"
+      }
+    },
+    "f2358-taa-jitter-flicker": {
+      "id": "PVTI_lAHOAAsUY84Biy1azg7XV5A",
+      "fields": {
+        "Kind": "Bug",
+        "Area": "TAA and shadows",
+        "Status": "Done",
+        "Delivery": "Validated",
+        "Start date": "2026-09-16",
+        "Evidence": "Commit 7484518 on branch menu registers missing static scene and lighting vertex shaders (0x69e9adcf2e1b6887, 0x6a8c2c78737dc94c, 0xa20d6099a44e2cd5 to Slot 7 and 0x6761469677f921c6 to Slot 8) in PositionVPSlot (temporal_scene.h). LoTemporalJitterTest passed with 2,319,037 checks; render comparisons confirm inter-frame jitter phase alignment on f2358 stairs and save point. Pending PR/release merge; broader scene coverage and player visual acceptance remain tracked.",
+        "Source key": "f2358-taa-jitter-flicker"
+      },
+      "title": "Fix scene f2358 TAA jitter flicker on stairs and save point",
+      "body_sha256": "3144ad8069ffa79d82955f1ae7f03fd7c2cf71079a4645d5eef2e2b636515a25"
     }
   }
 }

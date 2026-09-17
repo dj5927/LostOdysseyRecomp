@@ -65,6 +65,8 @@ D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定�
 
 - [x] **Vulkan 像素着色器 LoopEnd 谓词退出：**v0.5.7 已从 954d0e17 发布，CI 34743383193 通过且全部安装包交付核验完成。既有有界 LoopEnd guard、64-lane GPU/reference 和 cache 证据保留。负责人于 2026-09-15 关闭实机 GPU 验收等待；LoopEnd 谓词退出修复已随 v0.5.7 发布。复杂循环与跨场景覆盖仍待完成。
 - [x] **相邻重复 resolve copy 消除：**v0.5.7 已从 954d0e17 发布，CI 34743383193 通过且全部安装包交付核验完成。既有 CPU 与 D3D12/Vulkan FP16 fixture 证据保留。负责人于 2026-09-15 关闭实机命中等待；相邻 resolve copy 消除已随 v0.5.7 发布。跨场景命中覆盖仍待完成。
+- [x] **Issue #38 努玛拉城黑光灯具修复：**`menu` 分支 commit `7484518` 在 `renderer.cpp` 与 `xenos_translator.cpp` 中对无符号 EDRAM 格式（格式 0、1、2、3、10、12，含 7e3 格式 `COLOR_2_10_10_10_FLOAT`）严格截断下限至 `0.0`，杜绝加法光照混合写入负数导致后续色调映射 `log2` 计算产生 NaN 与全屏黑洞。`cache.h` 着色器缓存 `Version` 提升至 23。渲染对比确认菱形黑斑消除，灯具结构、光照与光晕恢复；`LoMenuRenderTest` 编译并通过。全游戏通关与全场景玩家视觉验收仍待完成。
+- [x] **`f2358` 场景 TAA 抖动闪烁修复：**`menu` 分支 commit `7484518` 在 `temporal_scene.h` 的 `PositionVPSlot` 中补充注册遗漏的静态场景与光照顶点着色器（`0x69e9adcf2e1b6887`、`0x6a8c2c78737dc94c`、`0xa20d6099a44e2cd5` 映射至 Slot 7，`0x6761469677f921c6` 映射至 Slot 8）。消除了 `f2358` 场景中阶梯与保存点光球处的帧间相机抖动相位不匹配闪烁。`LoTemporalJitterTest` 通过 2,319,037 项检查，画面对比确认帧间抖动相位对齐。更广场景覆盖与玩家视觉验收继续跟踪。
 
 <a id="当前反馈与回归"></a>
 ## 保留的有效验证范围
