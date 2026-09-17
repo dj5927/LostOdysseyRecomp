@@ -152,10 +152,26 @@ def restore(bundle, output):
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
+def library_reusable(manifest, current_fingerprint):
+    """True when the library can be reused and only the root CMakeLists changed."""
+    if manifest is None:
+        return False
+    remote = manifest.get("fingerprint") or {}
+    if any(remote.get(field) != current_fingerprint.get(field) for field in ("inputs", "outputs", "headers")):
+        return False
+    remote_cmake = remote.get("cmake") or {}
+    local_cmake = current_fingerprint.get("cmake") or {}
+    expected = {"CMakeLists.txt", "LostOdysseyRecompLib/CMakeLists.txt"}
+    if set(remote_cmake) != expected or set(local_cmake) != expected:
+        return False
+    return remote_cmake.get("LostOdysseyRecompLib/CMakeLists.txt") == local_cmake.get("LostOdysseyRecompLib/CMakeLists.txt")
+
+
 def check(root, bundle, build_dir=None):
     manifest = load_manifest(bundle)
     validate_file(bundle / LIBRARY, manifest["library"])
-    if manifest["fingerprint"] != fingerprint(root):
+    current_fp = fingerprint(root)
+    if manifest["fingerprint"] != current_fp and not library_reusable(manifest, current_fp):
         raise ValueError("PPC prebuilt inputs/outputs changed; export a fresh bundle")
     if build_dir and manifest["contract"] != compile_contract(root, build_dir)[0]:
         raise ValueError("PPC prebuilt compile contract changed; export a fresh bundle")
