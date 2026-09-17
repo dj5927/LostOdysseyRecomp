@@ -1858,8 +1858,6 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         uint32_t modules = 0, cachedFailures = 0;
                         double moduleMs = 0;
                         try {
-                            video::SetShaderPreparationProgress(0, 1, video::PreparationStage::CachedShaders);
-                            video::PumpEvents();
                             auto loaded = startup::LoadTransactional(bundlePath, bundleIdentity, cacheIdentity, [&](startup::Record&& record) {
                                 auto& entry = shaders[record.info.isPixelShader ? 1 : 0][record.hash];
                                 entry.info = std::move(record.info);
@@ -1879,14 +1877,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             }, [&] { shaders[0].clear(); shaders[1].clear(); }, [&] {
                                 if (startup::ReadBundleIdentity(bundlePath) != bundleIdentity)
                                     throw std::runtime_error("bundle modified while loading");
-                            }, [] { video::PumpEvents(); }, [&](uint32_t done, uint32_t total, int pass) {
-                                video::SetShaderPreparationProgress(done, total,
-                                    pass ? video::PreparationStage::CachedShaders : video::PreparationStage::CacheValidation,
-                                    video::PreparationUnit::Shaders);
-                                video::PumpEvents();
-                            });
+                            }, [] { video::PumpEvents(); });
                             if (!loaded.ok) throw std::runtime_error(loaded.reason);
-                            video::SetShaderPreparationProgress(0, 0);
                             LOG_INFO("renderer: startup bundle hit: {} records, {} modules ready, {} cached failures; 0 source content reads, 0 translations, 0 DXC attempts, {} bytes verified/read",
                                 loaded.records, modules, cachedFailures, loaded.bytesRead);
                             LOG_INFO("renderer: startup bundle elapsed {:.0f} ms including {:.0f} ms device module creation; source discovery/expansion skipped",

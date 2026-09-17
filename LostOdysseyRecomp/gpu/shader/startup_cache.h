@@ -264,59 +264,55 @@ inline std::string ReadBundleIdentity(const fs::path& path) {
 }
 struct LoadResult { bool ok=false;uint32_t records=0;uint64_t bytesRead=0;std::string reason; };
 inline LoadResult Load(const fs::path& path,std::string_view snapshot,cache::Format format,
-    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={},
-    const std::function<void(uint32_t done, uint32_t total, int pass)>& onProgress={}) {
+    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={}) {
     LoadResult result;
     try {
         std::ifstream in(path,std::ios::binary);if(!in) {result.reason="bundle missing";return result;}
+        std::vector<char> ioBuffer(8 << 20);
+        in.rdbuf()->pubsetbuf(ioBuffer.data(), ioBuffer.size());
         if(ReadNumber(in)!=Magic || ReadNumber(in)!=Schema) throw std::runtime_error("bundle format changed");
         const auto count=ReadNumber(in);if(!count || count>MaxRecords) throw std::runtime_error("invalid bundle record count");
         std::string identity(64,'\0');in.read(identity.data(),identity.size());
         if(!in || identity!=snapshot) throw std::runtime_error("resource/source/binary/compiler identity changed");
         const auto commonSize=ReadNumber(in);if(commonSize>MaxRecordBytes) throw std::runtime_error("invalid bundle prelude length");
         std::string common(size_t(commonSize),'\0');if(!in.read(common.data(),common.size())) throw std::runtime_error("truncated bundle prelude");
-        const auto begin=in.tellg();
-        // Validate the complete file first, then re-read with bounded memory.
-        // A consumer or second-pass IO failure must roll back caller state.
-        for(int pass=0;pass<2;++pass) {
-            in.clear();in.seekg(begin);Encoder digests;std::set<std::pair<bool,uint64_t>> keys;
-            const auto commonDigest=resources::Sha256(Bytes(common));
-            digests.bytes.insert(digests.bytes.end(),commonDigest.begin(),commonDigest.end());
-            for(uint64_t index=0;index<count;++index) {
-                const auto size=ReadNumber(in);if(size>MaxRecordBytes || size<32) throw std::runtime_error("invalid bundle record length");
-                Digest expected{};in.read(reinterpret_cast<char*>(expected.data()),expected.size());
-                std::vector<uint8_t> bytes(static_cast<size_t>(size));
-                if(!in.read(reinterpret_cast<char*>(bytes.data()),bytes.size())) throw std::runtime_error("truncated bundle record");
-                result.bytesRead+=bytes.size();
-                if(resources::Sha256(bytes)!=expected) throw std::runtime_error("bundle record digest mismatch");
-                auto record=Decode(bytes,common,format);
-                if(!keys.emplace(record.info.isPixelShader,record.hash).second) throw std::runtime_error("duplicate bundle record");
-                digests.bytes.insert(digests.bytes.end(),expected.begin(),expected.end());
-                if(pass) consume(std::move(record));
-                if(onProgress && (index%128==0 || index+1==count))
-                    onProgress(uint32_t(index+1),uint32_t(count),pass);
-                else if(pump && index%128==0) pump();
-            }
-            digests.Text(snapshot);digests.U64(count);digests.U64(Schema);
-            if(ReadNumber(in)!=Magic) throw std::runtime_error("bundle completion marker missing");
-            Digest digest{};in.read(reinterpret_cast<char*>(digest.data()),digest.size());
-            if(!in || digest!=resources::Sha256(digests.bytes) || in.peek()!=std::char_traits<char>::eof())
-                throw std::runtime_error("bundle completion digest mismatch");
+
+        Encoder digests;
+        std::set<std::pair<bool,uint64_t>> keys;
+        const auto commonDigest=resources::Sha256(Bytes(common));
+        digests.bytes.insert(digests.bytes.end(),commonDigest.begin(),commonDigest.end());
+
+        for(uint64_t index=0;index<count;++index) {
+            const auto size=ReadNumber(in);if(size>MaxRecordBytes || size<32) throw std::runtime_error("invalid bundle record length");
+            Digest expected{};in.read(reinterpret_cast<char*>(expected.data()),expected.size());
+            std::vector<uint8_t> bytes(static_cast<size_t>(size));
+            if(!in.read(reinterpret_cast<char*>(bytes.data()),bytes.size())) throw std::runtime_error("truncated bundle record");
+            result.bytesRead+=bytes.size();
+            if(resources::Sha256(bytes)!=expected) throw std::runtime_error("bundle record digest mismatch");
+            auto record=Decode(bytes,common,format);
+            if(!keys.emplace(record.info.isPixelShader,record.hash).second) throw std::runtime_error("duplicate bundle record");
+            digests.bytes.insert(digests.bytes.end(),expected.begin(),expected.end());
+            consume(std::move(record));
         }
+
+        digests.Text(snapshot);digests.U64(count);digests.U64(Schema);
+        if(ReadNumber(in)!=Magic) throw std::runtime_error("bundle completion marker missing");
+        Digest digest{};in.read(reinterpret_cast<char*>(digest.data()),digest.size());
+        if(!in || digest!=resources::Sha256(digests.bytes) || in.peek()!=std::char_traits<char>::eof())
+            throw std::runtime_error("bundle completion digest mismatch");
+
         result.ok=true;result.records=uint32_t(count);
     } catch(const std::exception& e) {result.reason=e.what();}
     return result;
 }
 inline LoadResult Load(const fs::path& path,std::string_view snapshot,bool spirv,
-    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={},
-    const std::function<void(uint32_t done, uint32_t total, int pass)>& onProgress={}) {
-    return Load(path,snapshot,spirv ? cache::Format::Spirv : cache::Format::Dxil,consume,pump,onProgress);
+    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={}) {
+    return Load(path,snapshot,spirv ? cache::Format::Spirv : cache::Format::Dxil,consume,pump);
 }
 inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapshot,bool spirv,
     const std::function<void(Record&&)>& consume,const std::function<void()>& rollback,
-    const std::function<void()>& validateInputs,const std::function<void()>& pump={},
-    const std::function<void(uint32_t done, uint32_t total, int pass)>& onProgress={}) {
-    auto result=Load(path,snapshot,spirv,consume,pump,onProgress);
+    const std::function<void()>& validateInputs,const std::function<void()>& pump={}) {
+    auto result=Load(path,snapshot,spirv,consume,pump);
     if(result.ok) try {validateInputs();}
         catch(const std::exception& e) {result.ok=false;result.reason=e.what();}
     if(!result.ok) rollback();
@@ -324,10 +320,9 @@ inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapsh
 }
 inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapshot,const cache::Identity& identity,
     const std::function<void(Record&&)>& consume,const std::function<void()>& rollback,
-    const std::function<void()>& validateInputs,const std::function<void()>& pump={},
-    const std::function<void(uint32_t done, uint32_t total, int pass)>& onProgress={}) {
+    const std::function<void()>& validateInputs,const std::function<void()>& pump={}) {
     if (!cache::ValidIdentity(identity)) { rollback(); return {false,0,0,"unsupported shader cache identity"}; }
-    auto result=Load(path,snapshot,identity.format,consume,pump,onProgress);
+    auto result=Load(path,snapshot,identity.format,consume,pump);
     if(result.ok) try {validateInputs();}
         catch(const std::exception& e) {result.ok=false;result.reason=e.what();}
     if(!result.ok) rollback();

@@ -656,6 +656,16 @@ namespace gpu::video
 #else
             if (total && g_swapChain && !g_swapChain->isEmpty() && (g_available || g_initializing) && g_presentation) {
                 RenderPreparationScreen(stage, unit, done, total);
+            } else if (!total && shownProgress != 0 && g_swapChain && !g_swapChain->isEmpty() && (g_available || g_initializing) && g_presentation) {
+                const uint32_t width = g_swapChain->getWidth();
+                const uint32_t height = g_swapChain->getHeight();
+                if (width && height) {
+                    static std::vector<uint32_t> s_clearPixels;
+                    const size_t count = size_t(width) * height;
+                    if (s_clearPixels.size() != count)
+                        s_clearPixels.assign(count, host_ui::MakeColor(255, 0, 0, 0));
+                    UploadAndPresentPixels(s_clearPixels, width, height, true, 0, PresentationOptions{});
+                }
             }
 #endif
             shownProgress = progress;
