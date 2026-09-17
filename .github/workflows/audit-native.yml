@@ -35,6 +35,10 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           submodules: recursive
           persist-credentials: false
+      - name: Install Plume platform header dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev
       - name: CPU fixtures with ASan and UBSan
         run: python3 tools/tests/native_audit.py --cxx clang++ --sanitize --out out/audit/native
       - name: Production menu boundaries
