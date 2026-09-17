@@ -63,8 +63,25 @@ namespace settings::game_path
 
     inline std::filesystem::path PathFromUtf8(std::string_view value)
     {
+#ifndef _WIN32
+        std::string str(value);
+        for (char& c : str)
+        {
+            if (c == '\\')
+                c = '/';
+        }
+        if (str.size() >= 2 && std::isalpha(static_cast<unsigned char>(str[0])) && str[1] == ':')
+        {
+            char drive = static_cast<char>(std::tolower(static_cast<unsigned char>(str[0])));
+            std::string sub = (str.size() >= 3 && str[2] == '/') ? str.substr(3) : str.substr(2);
+            str = std::string("/mnt/") + drive + "/" + sub;
+        }
+        const auto utf8 = std::u8string(reinterpret_cast<const char8_t*>(str.data()), str.size());
+        return std::filesystem::path(utf8);
+#else
         const auto utf8 = std::u8string(reinterpret_cast<const char8_t*>(value.data()), value.size());
         return std::filesystem::path(utf8);
+#endif
     }
 
     inline std::optional<std::filesystem::path> Recognize(const std::filesystem::path& candidate)
@@ -113,9 +130,13 @@ namespace settings::game_path
         // path stays as supplied and never falls through to another install.
         if (explicitGame)
         {
-            if (const auto root = Recognize(*explicitGame))
+            auto candidate = *explicitGame;
+#ifndef _WIN32
+            candidate = PathFromUtf8(candidate.string());
+#endif
+            if (const auto root = Recognize(candidate))
                 return { *root, Source::ExplicitArgument, true, false };
-            return { *explicitGame, Source::ExplicitArgument, false, false };
+            return { candidate, Source::ExplicitArgument, false, false };
         }
 
         Resolution result;

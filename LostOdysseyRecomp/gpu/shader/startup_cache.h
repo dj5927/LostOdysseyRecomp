@@ -248,9 +248,24 @@ public:
         Publish(temp,path);
     }
 };
+inline std::string ReadBundleIdentity(const fs::path& path) {
+    std::error_code ec;
+    if (!fs::is_regular_file(path, ec)) return {};
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return {};
+    try {
+        if (ReadNumber(in) != Magic || ReadNumber(in) != Schema) return {};
+        const auto count = ReadNumber(in);
+        if (!count || count > MaxRecords) return {};
+        std::string identity(64, '\0');
+        if (!in.read(identity.data(), identity.size())) return {};
+        return identity;
+    } catch (...) { return {}; }
+}
 struct LoadResult { bool ok=false;uint32_t records=0;uint64_t bytesRead=0;std::string reason; };
 inline LoadResult Load(const fs::path& path,std::string_view snapshot,cache::Format format,
-    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={}) {
+    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={},
+    const std::function<void(uint32_t done, uint32_t total, int pass)>& onProgress={}) {
     LoadResult result;
     try {
         std::ifstream in(path,std::ios::binary);if(!in) {result.reason="bundle missing";return result;}
@@ -278,7 +293,9 @@ inline LoadResult Load(const fs::path& path,std::string_view snapshot,cache::For
                 if(!keys.emplace(record.info.isPixelShader,record.hash).second) throw std::runtime_error("duplicate bundle record");
                 digests.bytes.insert(digests.bytes.end(),expected.begin(),expected.end());
                 if(pass) consume(std::move(record));
-                if(pump && index%128==0) pump();
+                if(onProgress && (index%128==0 || index+1==count))
+                    onProgress(uint32_t(index+1),uint32_t(count),pass);
+                else if(pump && index%128==0) pump();
             }
             digests.Text(snapshot);digests.U64(count);digests.U64(Schema);
             if(ReadNumber(in)!=Magic) throw std::runtime_error("bundle completion marker missing");
@@ -291,13 +308,15 @@ inline LoadResult Load(const fs::path& path,std::string_view snapshot,cache::For
     return result;
 }
 inline LoadResult Load(const fs::path& path,std::string_view snapshot,bool spirv,
-    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={}) {
-    return Load(path,snapshot,spirv ? cache::Format::Spirv : cache::Format::Dxil,consume,pump);
+    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={},
+    const std::function<void(uint32_t done, uint32_t total, int pass)>& onProgress={}) {
+    return Load(path,snapshot,spirv ? cache::Format::Spirv : cache::Format::Dxil,consume,pump,onProgress);
 }
 inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapshot,bool spirv,
     const std::function<void(Record&&)>& consume,const std::function<void()>& rollback,
-    const std::function<void()>& validateInputs,const std::function<void()>& pump={}) {
-    auto result=Load(path,snapshot,spirv,consume,pump);
+    const std::function<void()>& validateInputs,const std::function<void()>& pump={},
+    const std::function<void(uint32_t done, uint32_t total, int pass)>& onProgress={}) {
+    auto result=Load(path,snapshot,spirv,consume,pump,onProgress);
     if(result.ok) try {validateInputs();}
         catch(const std::exception& e) {result.ok=false;result.reason=e.what();}
     if(!result.ok) rollback();
@@ -305,9 +324,10 @@ inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapsh
 }
 inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapshot,const cache::Identity& identity,
     const std::function<void(Record&&)>& consume,const std::function<void()>& rollback,
-    const std::function<void()>& validateInputs,const std::function<void()>& pump={}) {
+    const std::function<void()>& validateInputs,const std::function<void()>& pump={},
+    const std::function<void(uint32_t done, uint32_t total, int pass)>& onProgress={}) {
     if (!cache::ValidIdentity(identity)) { rollback(); return {false,0,0,"unsupported shader cache identity"}; }
-    auto result=Load(path,snapshot,identity.format,consume,pump);
+    auto result=Load(path,snapshot,identity.format,consume,pump,onProgress);
     if(result.ok) try {validateInputs();}
         catch(const std::exception& e) {result.ok=false;result.reason=e.what();}
     if(!result.ok) rollback();

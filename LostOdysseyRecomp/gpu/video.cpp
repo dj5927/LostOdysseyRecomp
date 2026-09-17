@@ -562,6 +562,59 @@ namespace gpu::video
     DisplayChangeResult QueryDisplayChange(uint64_t ticket) { return g_displayChanges.Query(ticket); }
 
     namespace {
+#ifndef _WIN32
+    static bool UploadAndPresentPixels(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height,
+                                       bool isMenu, uint64_t displayTicket, const PresentationOptions& presentationOptions);
+    static void RenderPreparationScreen(PreparationStage stage, PreparationUnit unit, uint32_t done, uint32_t total)
+    {
+        if (!g_swapChain || g_swapChain->isEmpty() || (!g_available && !g_initializing) || !g_presentation)
+            return;
+        const uint32_t width = g_swapChain->getWidth();
+        const uint32_t height = g_swapChain->getHeight();
+        if (!width || !height)
+            return;
+
+        static std::vector<uint32_t> s_prepPixels;
+        const size_t pixelCount = size_t(width) * height;
+        if (s_prepPixels.size() != pixelCount)
+            s_prepPixels.resize(pixelCount);
+
+        std::fill(s_prepPixels.begin(), s_prepPixels.end(), host_ui::MakeColor(255, 20, 24, 31));
+
+        host_ui::Rasterizer r(s_prepPixels.data(), width, height);
+        const int centerY = int(height) / 2;
+
+        const auto* titleStr = PreparationTitle(stage);
+        const float titleScale = (width >= 1280 && height >= 720) ? 2.0f : 1.5f;
+        const int titleW = r.MeasureWString(titleStr, titleScale);
+        r.DrawWString((int(width) - titleW) / 2, centerY - 85, titleStr, host_ui::MakeColor(255, 235, 238, 242), titleScale);
+
+        const std::wstring detail = std::to_wstring(done) + L" / " + std::to_wstring(total) + PreparationSuffix(unit);
+        const float detailScale = 1.0f;
+        const int countW = r.MeasureWString(detail, detailScale);
+        r.DrawWString((int(width) - countW) / 2, centerY - 35, detail, host_ui::MakeColor(255, 200, 205, 215), detailScale);
+
+        const int barWidth = std::min(480, std::max(0, int(width) - 80));
+        const int barHeight = 8;
+        const int barX = (int(width) - barWidth) / 2;
+        const int barY = centerY + 8;
+        r.FillRect(barX, barY, barWidth, barHeight, host_ui::MakeColor(255, 51, 58, 70));
+        const int fillW = int(total ? uint64_t(barWidth) * std::min(done, total) / total : 0);
+        if (fillW > 0)
+            r.FillRect(barX, barY, fillW, barHeight, host_ui::MakeColor(255, 111, 177, 218));
+
+        const std::wstring line1 = L"The game will continue automatically.";
+        const std::wstring line2 = L"Future launches reuse the shader cache.";
+        const uint32_t hintColor = host_ui::MakeColor(255, 157, 168, 184);
+        const int hint1W = r.MeasureWString(line1, 1.0f);
+        const int hint2W = r.MeasureWString(line2, 1.0f);
+        r.DrawWString((int(width) - hint1W) / 2, centerY + 45, line1, hintColor, 1.0f);
+        r.DrawWString((int(width) - hint2W) / 2, centerY + 68, line2, hintColor, 1.0f);
+
+        UploadAndPresentPixels(s_prepPixels, width, height, true, 0, PresentationOptions{});
+    }
+#endif
+
     void PumpWindowEvents()
     {
         static uint64_t shownProgress = 0;
@@ -599,6 +652,10 @@ namespace gpu::video
                 InvalidateRect(g_preparationWindow,nullptr,FALSE);
             } else if (g_preparationWindow) {
                 DestroyWindow(g_preparationWindow); g_preparationWindow=nullptr;
+            }
+#else
+            if (total && g_swapChain && !g_swapChain->isEmpty() && (g_available || g_initializing) && g_presentation) {
+                RenderPreparationScreen(stage, unit, done, total);
             }
 #endif
             shownProgress = progress;
@@ -843,7 +900,7 @@ namespace gpu::video
     static bool UploadAndPresentPixels(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height,
                                        bool isMenu, uint64_t displayTicket, const PresentationOptions& presentationOptions)
     {
-        if (!g_available || !g_swapChain || g_swapChain->isEmpty())
+        if ((!g_available && !g_initializing) || !g_swapChain || g_swapChain->isEmpty())
             return false;
         if (!width || !height || size_t(width) > std::numeric_limits<size_t>::max() / height ||
             pixels.size() != size_t(width) * height || width > (UINT32_MAX - 255u) / 4u) {

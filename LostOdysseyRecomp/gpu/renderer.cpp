@@ -1853,52 +1853,57 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 LOG_INFO("renderer: shader startup cache: {}, compiler identity {}", bundlePath.string(),
                     compilerIdentity.empty() ? "unavailable (persistent reuse disabled)" : compilerIdentity);
                 if (bundleEnabled) {
-                    uint32_t modules = 0, cachedFailures = 0;
-                    double moduleMs = 0;
-                    const auto probeStarted = std::chrono::steady_clock::now();
-                    try {
-                        const auto identity = snapshot();
-                        LOG_INFO("renderer: shader startup metadata snapshot: {:.0f} ms",
-                            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-probeStarted).count());
-                        video::SetShaderPreparationProgress(0, 1, video::PreparationStage::CachedShaders);
-                        auto loaded = startup::LoadTransactional(bundlePath, identity, cacheIdentity, [&](startup::Record&& record) {
-                            auto& entry = shaders[record.info.isPixelShader ? 1 : 0][record.hash];
-                            entry.info = std::move(record.info);
-                            if (!record.failure.empty()) {
-                                ++cachedFailures;
-                                LOG_WARNING("renderer: cached compiler failure {}_{:016x}: {} (full diagnostic retained in startup cache)",
-                                    entry.info.isPixelShader ? "ps" : "vs", record.hash,
-                                    record.failure.substr(0, record.failure.find('\n')));
-                                return;
-                            }
-                            const auto begin = std::chrono::steady_clock::now();
-                            entry.shader = device->createShader(record.binary.data(), record.binary.size(), "main", renderFormat);
-                            moduleMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-begin).count();
-                            entry.valid = entry.shader != nullptr;
-                            if (!entry.valid) throw std::runtime_error("cached shader device module creation failed");
-                            ++modules;
-                        }, [&] { shaders[0].clear(); shaders[1].clear(); }, [&] {
-                            if (identity != snapshot()) throw std::runtime_error("cache inputs changed while loading bundle");
-                        }, [] { video::PumpEvents(); });
-                        if (!loaded.ok) throw std::runtime_error(loaded.reason);
-                        video::SetShaderPreparationProgress(0, 0);
-                        LOG_INFO("renderer: startup bundle hit: {} records, {} modules ready, {} cached failures; 0 source content reads, 0 translations, 0 DXC attempts, {} bytes verified/read",
-                            loaded.records, modules, cachedFailures, loaded.bytesRead);
-                        LOG_INFO("renderer: startup bundle elapsed {:.0f} ms including {:.0f} ms device module creation; source discovery/expansion skipped",
-                            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-wholeStarted).count(), moduleMs);
-                        ResetTimers();
-                        return;
-                    } catch (const std::exception& e) {
-                        // Pass one is validation-only. Pass two and module creation
-                        // may still fail: discard all state before legacy fallback.
-                        shaders[0].clear(); shaders[1].clear();
-                        LOG_INFO("renderer: startup bundle fallback: {}", e.what());
+                    const auto bundleIdentity = startup::ReadBundleIdentity(bundlePath);
+                    if (!bundleIdentity.empty()) {
+                        uint32_t modules = 0, cachedFailures = 0;
+                        double moduleMs = 0;
+                        try {
+                            video::SetShaderPreparationProgress(0, 1, video::PreparationStage::CachedShaders);
+                            video::PumpEvents();
+                            auto loaded = startup::LoadTransactional(bundlePath, bundleIdentity, cacheIdentity, [&](startup::Record&& record) {
+                                auto& entry = shaders[record.info.isPixelShader ? 1 : 0][record.hash];
+                                entry.info = std::move(record.info);
+                                if (!record.failure.empty()) {
+                                    ++cachedFailures;
+                                    LOG_WARNING("renderer: cached compiler failure {}_{:016x}: {} (full diagnostic retained in startup cache)",
+                                        entry.info.isPixelShader ? "ps" : "vs", record.hash,
+                                        record.failure.substr(0, record.failure.find('\n')));
+                                    return;
+                                }
+                                const auto begin = std::chrono::steady_clock::now();
+                                entry.shader = device->createShader(record.binary.data(), record.binary.size(), "main", renderFormat);
+                                moduleMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-begin).count();
+                                entry.valid = entry.shader != nullptr;
+                                if (!entry.valid) throw std::runtime_error("cached shader device module creation failed");
+                                ++modules;
+                            }, [&] { shaders[0].clear(); shaders[1].clear(); }, [&] {
+                                if (startup::ReadBundleIdentity(bundlePath) != bundleIdentity)
+                                    throw std::runtime_error("bundle modified while loading");
+                            }, [] { video::PumpEvents(); }, [&](uint32_t done, uint32_t total, int pass) {
+                                video::SetShaderPreparationProgress(done, total,
+                                    pass ? video::PreparationStage::CachedShaders : video::PreparationStage::CacheValidation,
+                                    video::PreparationUnit::Shaders);
+                                video::PumpEvents();
+                            });
+                            if (!loaded.ok) throw std::runtime_error(loaded.reason);
+                            video::SetShaderPreparationProgress(0, 0);
+                            LOG_INFO("renderer: startup bundle hit: {} records, {} modules ready, {} cached failures; 0 source content reads, 0 translations, 0 DXC attempts, {} bytes verified/read",
+                                loaded.records, modules, cachedFailures, loaded.bytesRead);
+                            LOG_INFO("renderer: startup bundle elapsed {:.0f} ms including {:.0f} ms device module creation; source discovery/expansion skipped",
+                                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-wholeStarted).count(), moduleMs);
+                            ResetTimers();
+                            return;
+                        } catch (const std::exception& e) {
+                            shaders[0].clear(); shaders[1].clear();
+                            LOG_INFO("renderer: startup bundle fallback: {}", e.what());
+                        }
                     }
                 } else LOG_INFO("renderer: startup bundle bypass: explicit scan/dump/retry or unavailable compiler identity");
+                video::SetShaderPreparationProgress(0, 1, video::PreparationStage::CacheValidation, video::PreparationUnit::Files);
+                video::PumpEvents();
                 std::string resourcesBefore;
                 if (bundleEnabled) try { resourcesBefore = snapshot(false, false); }
                     catch (const std::exception& e) { LOG_WARNING("renderer: resource snapshot unavailable: {}", e.what()); }
-                video::SetShaderPreparationProgress(0, 1, video::PreparationStage::CacheValidation, video::PreparationUnit::Files);
                 const auto inventoryStarted = std::chrono::steady_clock::now();
                 const auto extracted = xenos::resources::Scan(FileSystem::GetGameRoot(), shaderCacheDir,
                     [](const xenos::resources::ScanProgress& progress) {

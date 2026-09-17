@@ -104,6 +104,13 @@ namespace xenos
             {
                 candidates.push_back(cwd / "libdxcompiler.so");
             }
+            char selfPath[4096]{};
+            const ssize_t n = readlink("/proc/self/exe", selfPath, sizeof(selfPath) - 1);
+            if (n > 0)
+            {
+                selfPath[n] = '\0';
+                candidates.push_back(std::filesystem::path(selfPath).parent_path() / "libdxcompiler.so");
+            }
             const std::filesystem::path relativeDxc = "tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so";
             if (std::filesystem::exists(relativeDxc, ec))
             {
