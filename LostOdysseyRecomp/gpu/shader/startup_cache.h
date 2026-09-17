@@ -17,7 +17,7 @@
 namespace xenos::startup_cache {
 namespace fs = std::filesystem;
 using Digest = resources::Sha256Digest;
-inline constexpr uint32_t Schema = 1;
+inline constexpr uint32_t Schema = 2;
 inline constexpr uint32_t MaxRecords = 100000;
 inline constexpr uint32_t MaxRecordBytes = 32u << 20;
 inline constexpr uint64_t Magic = 0x31454c444e42534cULL; // LSBNDLE1
@@ -125,6 +125,21 @@ inline std::string Snapshot(const fs::path& game, const fs::path& cacheDir,
         identity.compiler, xex, includeCompiled, includeSources, &identity);
 }
 
+// Imported game assets are trusted on the normal startup path. Bind generated
+// cache data to the current compiler/backend/translator and already-loaded XEX,
+// without enumerating or re-reading the game or loose shader cache directories.
+// Explicit full-scan/dump/retry controls bypass the bundle in the renderer.
+inline std::string RuntimeIdentity(const fs::path& game, const cache::Identity& identity,
+    std::span<const uint8_t> xex,
+    std::string_view discovery = resources::variants::DiscoveryIdentity) {
+    if (!cache::ValidIdentity(identity)) throw std::runtime_error("unsupported shader cache identity");
+    std::ostringstream out;
+    out << "trusted-import-bundle=" << Schema << '\n' << cache::IdentityKey(identity) << '\n'
+        << fs::absolute(game).lexically_normal().generic_string() << '\n'
+        << Hex(xex) << '\n' << discovery << '\n';
+    return Hex(Bytes(out.str()));
+}
+
 struct Record {
     uint64_t hash = 0;
     TranslatedShader info;
@@ -178,7 +193,8 @@ inline std::vector<uint8_t> Encode(const Record& r, std::string_view common) {
     e.Text(i.errors); e.Text(r.failure); e.Blob(r.binary);
     return std::move(e.bytes);
 }
-inline Record Decode(std::span<const uint8_t> bytes, std::string_view common, cache::Format format) {
+inline Record Decode(std::span<const uint8_t> bytes, std::string_view common, cache::Format format,
+    bool retainHlsl = true) {
     Decoder d{bytes}; Record r; auto& i=r.info;
     auto boolean=[&] { const auto n=d.U32(); if(n>1) throw std::runtime_error("invalid startup cache flag"); return n!=0; };
     r.hash=d.U64(); i.isPixelShader=boolean(); i.vertexFetchSlotsUsed=d.U32();
@@ -186,8 +202,16 @@ inline Record Decode(std::span<const uint8_t> bytes, std::string_view common, ca
     const auto dimensions=d.Blob(); if(dimensions.size()!=32) throw std::runtime_error("invalid texture metadata");
     std::copy(dimensions.begin(),dimensions.end(),i.textureDimension);
     i.writesDepth=boolean(); i.colorTargetsWritten=d.U32(); i.usesPointSize=boolean(); i.usesRelativeConstants=boolean();
-    const bool sharedPrelude=boolean(); i.hlsl=d.Text();
-    if(sharedPrelude) { i.hlsl+=Prelude(common,i.isPixelShader);i.hlsl+=d.Text(); }
+    const bool sharedPrelude=boolean();
+    const auto prefix=d.Blob();
+    const auto suffix=sharedPrelude ? d.Blob() : std::span<const uint8_t>{};
+    if (retainHlsl) {
+        i.hlsl.assign(reinterpret_cast<const char*>(prefix.data()),prefix.size());
+        if(sharedPrelude) {
+            i.hlsl+=Prelude(common,i.isPixelShader);
+            i.hlsl.append(reinterpret_cast<const char*>(suffix.data()),suffix.size());
+        }
+    }
     i.errors=d.Text(); r.failure=d.Text(); const auto binary=d.Blob();
     if(!d.bytes.empty() || !r.hash || i.colorTargetsWritten>15 || (r.failure.empty() && !cache::CompleteBinary(binary,format)) ||
         (!r.failure.empty() && !binary.empty())) throw std::runtime_error("invalid startup cache payload");
@@ -262,14 +286,18 @@ inline std::string ReadBundleIdentity(const fs::path& path) {
         return identity;
     } catch (...) { return {}; }
 }
+using Progress = std::function<void(uint32_t done, uint32_t total)>;
 struct LoadResult { bool ok=false;uint32_t records=0;uint64_t bytesRead=0;std::string reason; };
 inline LoadResult Load(const fs::path& path,std::string_view snapshot,cache::Format format,
-    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={}) {
+    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={},
+    const Progress& progress={}, bool retainHlsl=true) {
     LoadResult result;
     try {
-        std::ifstream in(path,std::ios::binary);if(!in) {result.reason="bundle missing";return result;}
-        std::vector<char> ioBuffer(8 << 20);
+        // pubsetbuf must precede open; the external buffer must outlive filebuf.
+        std::vector<char> ioBuffer(256 << 10);
+        std::ifstream in;
         in.rdbuf()->pubsetbuf(ioBuffer.data(), ioBuffer.size());
+        in.open(path,std::ios::binary);if(!in) {result.reason="bundle missing";return result;}
         if(ReadNumber(in)!=Magic || ReadNumber(in)!=Schema) throw std::runtime_error("bundle format changed");
         const auto count=ReadNumber(in);if(!count || count>MaxRecords) throw std::runtime_error("invalid bundle record count");
         std::string identity(64,'\0');in.read(identity.data(),identity.size());
@@ -282,6 +310,9 @@ inline LoadResult Load(const fs::path& path,std::string_view snapshot,cache::For
         const auto commonDigest=resources::Sha256(Bytes(common));
         digests.bytes.insert(digests.bytes.end(),commonDigest.begin(),commonDigest.end());
 
+        if(progress) progress(0,uint32_t(count));
+        if(pump) pump();
+        auto lastPump=std::chrono::steady_clock::now();
         for(uint64_t index=0;index<count;++index) {
             const auto size=ReadNumber(in);if(size>MaxRecordBytes || size<32) throw std::runtime_error("invalid bundle record length");
             Digest expected{};in.read(reinterpret_cast<char*>(expected.data()),expected.size());
@@ -289,10 +320,16 @@ inline LoadResult Load(const fs::path& path,std::string_view snapshot,cache::For
             if(!in.read(reinterpret_cast<char*>(bytes.data()),bytes.size())) throw std::runtime_error("truncated bundle record");
             result.bytesRead+=bytes.size();
             if(resources::Sha256(bytes)!=expected) throw std::runtime_error("bundle record digest mismatch");
-            auto record=Decode(bytes,common,format);
+            auto record=Decode(bytes,common,format,retainHlsl);
             if(!keys.emplace(record.info.isPixelShader,record.hash).second) throw std::runtime_error("duplicate bundle record");
             digests.bytes.insert(digests.bytes.end(),expected.begin(),expected.end());
             consume(std::move(record));
+            const auto now=std::chrono::steady_clock::now();
+            if(index+1==count || now-lastPump>=std::chrono::milliseconds(16)) {
+                if(progress) progress(uint32_t(index+1),uint32_t(count));
+                if(pump) pump();
+                lastPump=now;
+            }
         }
 
         digests.Text(snapshot);digests.U64(count);digests.U64(Schema);
@@ -306,13 +343,15 @@ inline LoadResult Load(const fs::path& path,std::string_view snapshot,cache::For
     return result;
 }
 inline LoadResult Load(const fs::path& path,std::string_view snapshot,bool spirv,
-    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={}) {
-    return Load(path,snapshot,spirv ? cache::Format::Spirv : cache::Format::Dxil,consume,pump);
+    const std::function<void(Record&&)>& consume,const std::function<void()>& pump={},
+    const Progress& progress={}, bool retainHlsl=true) {
+    return Load(path,snapshot,spirv ? cache::Format::Spirv : cache::Format::Dxil,consume,pump,progress,retainHlsl);
 }
 inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapshot,bool spirv,
     const std::function<void(Record&&)>& consume,const std::function<void()>& rollback,
-    const std::function<void()>& validateInputs,const std::function<void()>& pump={}) {
-    auto result=Load(path,snapshot,spirv,consume,pump);
+    const std::function<void()>& validateInputs,const std::function<void()>& pump={},
+    const Progress& progress={}, bool retainHlsl=true) {
+    auto result=Load(path,snapshot,spirv,consume,pump,progress,retainHlsl);
     if(result.ok) try {validateInputs();}
         catch(const std::exception& e) {result.ok=false;result.reason=e.what();}
     if(!result.ok) rollback();
@@ -320,9 +359,10 @@ inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapsh
 }
 inline LoadResult LoadTransactional(const fs::path& path,std::string_view snapshot,const cache::Identity& identity,
     const std::function<void(Record&&)>& consume,const std::function<void()>& rollback,
-    const std::function<void()>& validateInputs,const std::function<void()>& pump={}) {
+    const std::function<void()>& validateInputs,const std::function<void()>& pump={},
+    const Progress& progress={}, bool retainHlsl=true) {
     if (!cache::ValidIdentity(identity)) { rollback(); return {false,0,0,"unsupported shader cache identity"}; }
-    auto result=Load(path,snapshot,identity.format,consume,pump);
+    auto result=Load(path,snapshot,identity.format,consume,pump,progress,retainHlsl);
     if(result.ok) try {validateInputs();}
         catch(const std::exception& e) {result.ok=false;result.reason=e.what();}
     if(!result.ok) rollback();

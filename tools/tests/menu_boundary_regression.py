@@ -242,7 +242,7 @@ int main() {
 
 def display_fixture(source: str) -> str:
     state = between(source, '        struct PresentationDisplayState {', '        constexpr plume::RenderFormat kSwapChainFormat')
-    prepare = between(source, '    static bool PreparePresentation(', '    static bool UploadAndPresentPixels(')
+    prepare = between(source, '    static bool PreparePresentation(', '    static bool UploadAndPresentPixels(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height,\n                                       bool isMenu, uint64_t displayTicket, const PresentationOptions& presentationOptions)\n    {')
     overlay = between(source, '    void PresentHostOverlay()', '    static bool WritePpm(')
     return COMMON + r'''
 #include <gpu/display_change.h>
@@ -383,13 +383,43 @@ int main() {
 '''
 
 
+
+def headless_preparation_fixture(source: str) -> str:
+    # Compile the actual helper guards and progress prefix without any Plume
+    # declarations. A GPU reference leaking into LO_GPU_PLUME=OFF must fail.
+    start=source.index("    namespace {\n",source.index("    DisplayChangeResult QueryDisplayChange"))
+    end=source.index("        if (settings::restart::Requested())",start)
+    body=source[start:end]+"    }\n}\n"
+    return COMMON + r'''
+struct SDL_Window {} window;
+SDL_Window* g_window=&window;
+std::atomic<uint64_t> g_shaderProgress{0};
+constexpr uint64_t kProgressMask=(1ull<<28)-1;
+enum class PreparationStage { CacheValidation };
+enum class PreparationUnit { Files };
+const char* PreparationTitleNarrow(PreparationStage) { return "fixture"; }
+const char* PreparationSuffixNarrow(PreparationUnit) { return "files"; }
+namespace fmt { template<class... Args> std::string format(const char*,Args&&...) { return "progress"; } }
+unsigned titleUpdates=0;
+void SDL_SetWindowTitle(SDL_Window*,const char*) { ++titleUpdates; }
+''' + body + r'''
+int main() {
+    g_shaderProgress=(1ull<<28);
+    PumpWindowEvents();
+    Check(titleUpdates==1,"headless progress did not update window title");
+    g_shaderProgress=0;PumpWindowEvents();
+    Check(titleUpdates==2,"headless progress did not clear window title");
+    puts("PASS: actual progress prefix with LO_GPU_PLUME=OFF (no GPU declarations)");
+}
+'''
+
 def main() -> None:
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root',type=Path,default=Path(__file__).resolve().parents[2])
     parser.add_argument('--out',type=Path)
     parser.add_argument('--cxx',default='clang++')
     parser.add_argument('--sanitize',action='store_true')
-    parser.add_argument('--only',choices=['input','overlay','display','dxgi'])
+    parser.add_argument('--only',choices=['input','overlay','display','dxgi','headless'])
     args=parser.parse_args()
     root=args.root.resolve();runtime=root/'LostOdysseyRecomp'
     out=args.out.resolve() if args.out else Path(tempfile.mkdtemp(prefix='lo-menu-boundary-'))
@@ -397,6 +427,7 @@ def main() -> None:
     inputs={name:(runtime/path).read_text(encoding='utf-8') for name,path in {
         'hid':'hid/hid.cpp','overlay':'debug/menu_overlay.cpp','video':'gpu/video.cpp'}.items()}
     fixtures={
+        'headless':(lambda:headless_preparation_fixture(inputs['video']),[]),
         'input':(lambda:input_fixture(inputs['hid']),[]),
         'overlay':(lambda:overlay_fixture(inputs['overlay']),[]),
         'display':(lambda:display_fixture(inputs['video']),[]),

@@ -8,6 +8,17 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- Keep extraction and fixed/linked shader sources in bounded memory instead of
+  exporting and re-reading temporary sources during prebuild; retain compiled
+  checkpoints for interrupted-startup recovery.
+- Bind startup bundles to the current runtime/compiler contract, restore event
+  pumping and transactional error propagation, and fix cancellation wakeups.
+- Cap concurrent DXC preparation at four workers, release retained HLSL, and
+  decode only indexed CPX blocks. Preserve explicit diagnostic/full-scan controls.
+- Add game-data-free CPU/sanitizer and production-function regression coverage.
+  See [audit scope, evidence and remaining hardware checks](docs/MENU_SHADER_PREBUILD_AUDIT.md).
+
+
 - Menu branch fixes improve the in-game debug overlay across output resolutions and protect shared overlay state during concurrent access. The software UI now uses the intended RGBA channel order, HID locking covers the complete device operation, and guest pause uses cooperative safe points so overlay interaction does not suspend worker threads indefinitely.
 - Addressed code review report items R1 through R10:
   - Decoupled host controller input pumping (`PumpHostInput`) and overlay presentation (`PresentHostOverlay`) from guest pause, and added SDL event pumping to GPU `WAIT_REG_MEM` loops (R1, R2).

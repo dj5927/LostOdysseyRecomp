@@ -562,7 +562,7 @@ namespace gpu::video
     DisplayChangeResult QueryDisplayChange(uint64_t ticket) { return g_displayChanges.Query(ticket); }
 
     namespace {
-#ifndef _WIN32
+#if defined(LO_GPU_PLUME) && !defined(_WIN32)
     static bool UploadAndPresentPixels(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height,
                                        bool isMenu, uint64_t displayTicket, const PresentationOptions& presentationOptions);
     static void RenderPreparationScreen(PreparationStage stage, PreparationUnit unit, uint32_t done, uint32_t total)
@@ -653,7 +653,7 @@ namespace gpu::video
             } else if (g_preparationWindow) {
                 DestroyWindow(g_preparationWindow); g_preparationWindow=nullptr;
             }
-#else
+#elif defined(LO_GPU_PLUME)
             if (total && g_swapChain && !g_swapChain->isEmpty() && (g_available || g_initializing) && g_presentation) {
                 RenderPreparationScreen(stage, unit, done, total);
             } else if (!total && shownProgress != 0 && g_swapChain && !g_swapChain->isEmpty() && (g_available || g_initializing) && g_presentation) {
