@@ -15,6 +15,10 @@ the relocatable portable Vulkan shader pack (`.lospv`) architecture, shader and
 pipeline preparation worker scaling, and the integrated in-game debug overlay and
 pure software cross-platform settings rasterizer from the menu branch.
 
+Both the Windows portable ZIP and Linux AppImage packages bundle `shaders/portable_vk.lospv`
+directly out-of-the-box via automated CI packaging (`tools/release/fetch_shader_pack.py`),
+providing instant first-launch startup with all 28,482 shaders ready without runtime DXC calls.
+
 ## Published v0.5.14 — 2026-09-16
 
 The published release notes are in the matching `v0.5.14` section of

@@ -114,6 +114,17 @@ jobs:
           print(json.dumps({'key': key, 'contract': evidence['contract']}, indent=2))
           '@ | python
           if ($LASTEXITCODE -ne 0) { throw 'Could not record PPC cache identity.' }
+      - name: Retrieve private shader pack
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: freefrank/LostOdysseyRecomp-build-inputs
+          ref: main
+          path: out/shader-input
+          sparse-checkout: /shaders/
+          sparse-checkout-cone-mode: false
+          ssh-key: ${{ secrets.LO_BUILD_INPUT_KEY }}
+          persist-credentials: false
       - name: Retrieve synchronized PPC library
         if: ${{ !inputs.rebuild_ppc }}
         uses: actions/checkout@v4
@@ -138,7 +149,12 @@ jobs:
           identity_path = Path('out/ppc-cache-identity.json')
           required = json.loads(identity_path.read_text())
           manifest = json.loads(Path('out/ppc-input/ppc/manifest.json').read_text())
-          ppc_sync.validate_manifest(manifest, {k: required[k] for k in ('fingerprint', 'contract')})
+          evidence = {k: required[k] for k in ('fingerprint', 'contract')}
+          if not ppc_sync.matching_manifest(manifest, evidence):
+              if ppc_sync.library_reusable(manifest, required['fingerprint']):
+                  print('PPC library is reusable across root CMakeLists version bump.')
+              else:
+                  ppc_sync.validate_manifest(manifest, evidence)
           required['private_commit'] = subprocess.check_output(
               ['git', '-C', 'out/ppc-input', 'rev-parse', 'HEAD'], text=True).strip()
           identity_path.write_text(json.dumps(required, indent=2) + '\n', encoding='utf-8')
@@ -156,6 +172,12 @@ jobs:
         env:
           LO_BUILD_JOBS: '2'
         run: call tools\build_release.bat
+      - name: Fetch portable shader pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          python tools/release/fetch_shader_pack.py --target-dir out/build/release/LostOdysseyRecomp/shaders --pack-tool out/build/release/LostOdysseyRecomp/LoShaderPackTool.exe --tag "$env:RELEASE_TAG"
       - name: Package runtime
         run: |
           if ($env:RELEASE_TAG) {
@@ -262,6 +284,17 @@ jobs:
           sparse-checkout-cone-mode: false
           ssh-key: ${{ secrets.LO_BUILD_INPUT_KEY }}
           persist-credentials: false
+      - name: Retrieve private shader pack
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: freefrank/LostOdysseyRecomp-build-inputs
+          ref: main
+          path: out/shader-input
+          sparse-checkout: /shaders/
+          sparse-checkout-cone-mode: false
+          ssh-key: ${{ secrets.LO_BUILD_INPUT_KEY }}
+          persist-credentials: false
       - name: Verify private build input
         env:
           LO_BUILD_XEX_PATH: out/build-input/default.xex
@@ -290,13 +323,18 @@ jobs:
             -DCMAKE_CXX_COMPILER=clang++ \
             -DLO_PREBUILT_PPC_DIR= \
             -DLO_PPC_AUTO_SYNC=OFF
-          cmake --build out/build/linux --target LostOdysseyRecomp --parallel 2
+          cmake --build out/build/linux --target LostOdysseyRecomp LoShaderPackTool --parallel 2
       - name: Install linuxdeploy
         run: |
           mkdir -p out/tools/linuxdeploy
           wget -q -O out/tools/linuxdeploy/linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x out/tools/linuxdeploy/linuxdeploy
           echo "$GITHUB_WORKSPACE/out/tools/linuxdeploy" >> "$GITHUB_PATH"
+      - name: Fetch portable shader pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/release/fetch_shader_pack.py --target-dir out/build/linux/shaders --pack-tool out/build/linux/LostOdysseyRecomp/LoShaderPackTool --tag "$RELEASE_TAG"
       - name: Package AppImage
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
