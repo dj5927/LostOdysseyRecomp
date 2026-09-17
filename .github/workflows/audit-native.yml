@@ -4,9 +4,8 @@ on:
     branches: [menu]
     paths:
       - '.github/workflows/audit-native.yml'
-      - 'LostOdysseyRecomp/gpu/shader/**'
-      - 'tools/tests/*shader*'
-      - 'tools/tests/*startup*'
+      - 'LostOdysseyRecomp/**'
+      - 'tools/tests/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,32 +13,68 @@ concurrency:
   group: native-audit-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  fixtures:
+  linux-cpu:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      # Reproducible public-source snapshot for inspecting the exact tested tree.
-      # No submodules, private game inputs, credentials or untracked files.
-      - name: Archive tested source
-        run: |
-          mkdir -p out/audit
-          git archive --format=tar HEAD > out/audit/source.tar
-          git rev-parse HEAD > out/audit/commit.txt
-      - uses: actions/upload-artifact@v4
+      - name: CPU fixtures with ASan and UBSan
+        run: python3 tools/tests/native_audit.py --cxx clang++ --sanitize --out out/audit/native
+      - name: Production menu boundaries
+        run: python3 tools/tests/menu_boundary_regression.py --cxx clang++ --sanitize --out out/audit/menu
+      - name: Production shader preparation boundaries
+        run: python3 tools/tests/shader_prebuild_regression.py --cxx clang++ --sanitize --out out/audit/prebuild
+      - name: Preserve CPU fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: audit-source-${{ github.sha }}
+          name: linux-cpu-audit
           path: |
-            out/audit/source.tar
-            out/audit/commit.txt
-          retention-days: 1
-      - name: Build bounded shader queue fixture
+            out/audit/**/*.log
+            out/audit/**/results.json
+          if-no-files-found: ignore
+          retention-days: 7
+  windows-cpu:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Standalone fixtures deliberately exclude real DXC, GPU drivers and game
+      # inputs. Assertions remain enabled. Scratch paths are unique per fixture.
+      - name: Compile Windows cache, resource and queue fixtures
+        shell: cmd
         run: |
-          g++ -std=c++20 -O1 -g -pthread -Wall -Wextra -I LostOdysseyRecomp \
-            tools/tests/shader_preparation_queue_test.cpp -o out/audit/shader-queue
-      - name: Run bounded shader queue fixture
+          call tools\setup_windows.bat || exit /b 1
+          mkdir out\audit\windows
+          for %%T in (shader_preparation_queue shader_prebuild_io shader_startup_cache shader_resource_scan shader_resource_variants cpx_decode backend_selection) do (
+            clang-cl /nologo /std:c++20 /EHsc /O1 /utf-8 /DNOMINMAX /DLO_TEST_NO_DXC /I LostOdysseyRecomp tools\tests\%%T_test.cpp /Fe:out\audit\windows\%%T.exe /Fo:out\audit\windows\%%T.obj > out\audit\windows\%%T.build.log 2>&1
+            if errorlevel 1 (type out\audit\windows\%%T.build.log & exit /b 1)
+          )
+      - name: Run Windows CPU fixtures
+        shell: cmd
         run: |
-          timeout 30s out/audit/shader-queue out/audit/queue-results
-          timeout 30s out/audit/shader-queue --launch-exception-only out/audit/launch-results
+          for %%T in (shader_preparation_queue shader_prebuild_io shader_startup_cache shader_resource_scan shader_resource_variants) do (
+            out\audit\windows\%%T.exe out\audit\windows\%%T-data > out\audit\windows\%%T.run.log 2>&1
+            if errorlevel 1 (type out\audit\windows\%%T.run.log & exit /b 1)
+            type out\audit\windows\%%T.run.log
+          )
+          for %%T in (cpx_decode backend_selection) do (
+            out\audit\windows\%%T.exe > out\audit\windows\%%T.run.log 2>&1
+            if errorlevel 1 (type out\audit\windows\%%T.run.log & exit /b 1)
+            type out\audit\windows\%%T.run.log
+          )
+          out\audit\windows\shader_preparation_queue.exe --launch-exception-only out\audit\windows\launch-failure > out\audit\windows\launch-failure.run.log 2>&1
+          if errorlevel 1 (type out\audit\windows\launch-failure.run.log & exit /b 1)
+          type out\audit\windows\launch-failure.run.log
+      - name: Preserve Windows fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-cpu-audit
+          path: out/audit/windows/*.log
+          if-no-files-found: ignore
+          retention-days: 7
