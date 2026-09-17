@@ -1,0 +1,95 @@
+name: Apply reviewed menu audit
+on:
+  push:
+    branches: [menu]
+    paths: ['.github/audit-menu-20260916/**', '.github/workflows/apply-menu-audit.yml']
+permissions:
+  contents: write
+concurrency:
+  group: apply-reviewed-menu-audit
+  cancel-in-progress: false
+jobs:
+  apply-reviewed-patch:
+    if: github.repository == 'freefrank/LostOdysseyRecomp' && github.ref == 'refs/heads/menu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      # One-shot publication of an already reviewed/tested local patch. No game
+      # inputs, private assets or additional credentials are downloaded. The
+      # source parent, exact patch digest, index and modified paths are guarded.
+      # Remove this workflow and its transport files after successful publication.
+      - name: Verify and stage exact reviewed patch
+        shell: python
+        run: |
+          import base64, hashlib, lzma, subprocess
+          from pathlib import Path
+          base = '55538a5ad1e23379447788cca358ce5ef0f9d17d'
+          assert subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip() == base, 'Source branch changed; re-review required'
+          files = [Path('.github/audit-menu-20260916') / ('part'+str(i)+'.b64') for i in range(4)]
+          patch = lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in files),validate=True))
+          assert hashlib.sha256(patch).hexdigest() == 'bc5211129fe8e4a2c4adec00d5a8b1f122141ec76af4ae16fec9c2fb5d03c034', 'Patch digest mismatch'
+          Path('/tmp/reviewed-menu-audit.patch').write_bytes(patch)
+          command = ['git','apply','--index','--unidiff-zero']
+          subprocess.run(command+['--check','/tmp/reviewed-menu-audit.patch'],check=True)
+          subprocess.run(command+['/tmp/reviewed-menu-audit.patch'],check=True)
+          expected = '''CHANGELOG.md
+          LostOdysseyRecomp/CMakeLists.txt
+          LostOdysseyRecomp/gpu/renderer.cpp
+          LostOdysseyRecomp/gpu/shader/preparation_queue.h
+          LostOdysseyRecomp/gpu/shader/resource_scan.h
+          LostOdysseyRecomp/gpu/shader/resource_variants.h
+          LostOdysseyRecomp/gpu/shader/resource_xex.h
+          LostOdysseyRecomp/gpu/shader/source_store.h
+          LostOdysseyRecomp/gpu/shader/startup_cache.h
+          LostOdysseyRecomp/gpu/temporal_collection.h
+          LostOdysseyRecomp/gpu/video.cpp
+          docs/MENU_SHADER_PREBUILD_AUDIT.md
+          tools/tests/backend_selection_test.cpp
+          tools/tests/collection_diagnostics_test.cpp
+          tools/tests/collection_upload_request_test.cpp
+          tools/tests/menu_boundary_regression.py
+          tools/tests/native_audit.py
+          tools/tests/position_evidence_collection_test.cpp
+          tools/tests/shader_prebuild_io_test.cpp
+          tools/tests/shader_prebuild_regression.py
+          tools/tests/shader_preparation_queue_test.cpp
+          tools/tests/shader_source_collection_test.cpp
+          tools/tests/shader_startup_cache_test.cpp
+          tools/tests/summary_collection_test.cpp
+          tools/tests/taa_binding_collection_test.cpp'''.splitlines()
+          actual = subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert sorted(actual) == sorted(expected), 'Unexpected patch scope'
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          print('Verified exact patch: 25 reviewed files; no workflow or third-party changes')
+      - name: CPU fixtures with ASan and UBSan
+        run: python tools/tests/native_audit.py --cxx clang++ --sanitize --out out/audit/native
+      - name: Production menu boundaries
+        run: python tools/tests/menu_boundary_regression.py --cxx clang++ --sanitize --out out/audit/menu
+      - name: Production prebuild boundaries
+        run: python tools/tests/shader_prebuild_regression.py --cxx clang++ --sanitize --out out/audit/prebuild
+      - name: Commit and fast-forward menu
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --exit-code
+          test "$(git ls-remote origin refs/heads/menu | cut -f1)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'gpu: reduce prebuild IO and memory; repair cache and cancellation contracts' -m 'Publish the exact reviewed patch after CPU sanitizer and production-boundary fixtures. Trust imported resources, retain interruption checkpoints and compatibility checks. Refs #22; crash root cause remains unconfirmed.'
+          git -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' push origin HEAD:refs/heads/menu
+          git rev-parse HEAD
+      - name: Preserve fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: menu-audit-publication-fixtures
+          path: |
+            out/audit/**/*.log
+            out/audit/**/results.json
+          if-no-files-found: ignore
+          retention-days: 7
