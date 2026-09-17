@@ -1,17 +1,20 @@
 """Stage only the portable distribution artifact, never local cache directories."""
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 
+
 def stage_portable_shader_pack(runtime_directory: Path, executable_directory: Path,
                                licenses: Path) -> dict | None:
     licenses.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "thirdparty/zstd-LICENSE.txt", licenses / "zstd-LICENSE.txt")
-    source = runtime_directory / "shaders/portable_vk.lospv"
+    env_override = os.environ.get("LO_PORTABLE_SHADER_PACK")
+    source = Path(env_override) if env_override else runtime_directory / "shaders/portable_vk.lospv"
     if not source.exists():
         return None
     if source.is_symlink() or not source.is_file():

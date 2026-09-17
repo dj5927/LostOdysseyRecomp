@@ -24,10 +24,10 @@ One record of completed changes, with unpublished work separated from verified r
 
 - Add portable Vulkan shader pack distribution architecture (`.lospv`):
   - Introduce independent, read-only `.lospv` distribution artifact for successful SPIR-V binaries and essential `TranslatedShader` metadata, completely stripping HLSL sources, diagnostics, and failure records.
-  - Implement SHA-256 deduplication of SPIR-V bytecode and chunked Zstandard block compression (~1 MiB blocks) with single-block streaming cache, significantly reducing distribution size and startup RSS.
-  - Runtime module creation is performed lazily upon first use in rendering, bypassing startup discovery/translation/DXC overhead when a valid pack is present while retaining local on-demand compilation for missing shaders.
+  - Implement SHA-256 deduplication of SPIR-V bytecode and chunked Zstandard block compression (~1 MiB blocks) with single-block streaming cache, significantly reducing distribution size and startup RSS (169.9 MB package for 28,482 shaders).
+  - Runtime module creation is performed lazily upon first use in rendering, bypassing startup discovery/translation/DXC overhead when a valid pack is present (verified 1.2s startup on WSL Linux with 0 DXC calls).
   - Decouple compatibility contract from host install path and host DXC DLL/SO SHA-256, allowing portable pack reuse across platforms and CPU architectures (x86-64 / ARM64, Windows / Linux / Steam Deck).
-  - Add `LoShaderPackTool` inspection/verification utility and update Windows ZIP / Linux AppImage release packaging scripts to stage only verified portable packs and include Zstandard license.
+  - Add `LoShaderPackTool` inspection/verification utility, `tools/build_linux.sh` and `tools/build_wsl.bat` for fast on-demand incremental builds, and update packaging scripts (`package_shader_bundle.py`, `package_release.py`, `package_appimage.py`) to verify and package `.lospv` release assets.
 - Keep extraction and fixed/linked shader sources in bounded memory instead of
   exporting and re-reading temporary sources during prebuild; retain compiled
   checkpoints for interrupted-startup recovery.
@@ -75,10 +75,10 @@ One record of completed changes, with unpublished work separated from verified r
 
 - 新增可分发便携式 Vulkan 着色器包架构（`.lospv`）：
   - 引入独立、只读的 `.lospv` 分发资产，仅封装成功编译的 SPIR-V 字节码与必要 `TranslatedShader` 元数据，彻底剥离 HLSL 源码、诊断日志与编译失败条目。
-  - 实现 SPIR-V 字节码 SHA-256 精确去重与分块 Zstandard 压缩（约 1 MiB 数据块），采用单块流式解码缓存，大幅压缩分发体积并削减启动 RSS 内存占用。
-  - 运行时着色器模块创建改为按需惰性加载（Lazy loading），存在有效便携包时直接秒级进入游戏并跳过启动阶段全量预编译；遇到未覆盖着色器时保留本地按需编译回退。
+  - 实现 SPIR-V 字节码 SHA-256 精确去重与分块 Zstandard 压缩（约 1 MiB 数据块），采用单块流式解码缓存，大幅压缩分发体积并削减启动 RSS 内存占用（28,482 个着色器压缩至 169.9 MB）。
+  - 运行时着色器模块创建改为按需惰性加载（Lazy loading），存在有效便携包时直接秒级进入游戏并跳过启动阶段全量预编译（WSL Linux 实测 1.2 秒启动，0 次 DXC 调用与重翻译）；遇到未覆盖着色器时保留本地按需编译回退。
   - 兼容性契约与宿主绝对路径、宿主 DXC 动态库哈希完全解耦，支持跨系统与跨 CPU 架构（Windows / Linux / Steam Deck，x86-64 / ARM64）通用复用。
-  - 提供 `LoShaderPackTool` 结构检查与完整性校验工具，并更新 Windows ZIP 与 Linux AppImage 打包流程，支持自动校验并打包经过验证的便携包及 Zstandard 许可证。
+  - 提供 `LoShaderPackTool` 检查与完整性校验工具，新增 `tools/build_linux.sh` 与 `tools/build_wsl.bat` 便捷增量构建脚本，并更新打包流程（`package_shader_bundle.py`、`package_release.py`、`package_appimage.py`），支持在发布时按需校验并打包独立的 `.lospv` Release 附件。
 - menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
 - 完整修复代码审查报告 R1 至 R10 缺陷项：
   - 将手柄宿主输入泵（`PumpHostInput`）与浮层呈现（`PresentHostOverlay`）与客户机暂停解耦，并在 GPU `WAIT_REG_MEM` 循环中注入事件泵，防止暂停期间卡死（R1, R2）。
