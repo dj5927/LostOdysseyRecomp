@@ -35,6 +35,10 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           submodules: recursive
           persist-credentials: false
+      - name: Apply the runtime Plume interface patch
+        shell: bash
+        run: |
+          git -C thirdparty/plume apply --reverse --check ../../tools/patches/plume-lostodyssey.patch >/dev/null 2>&1 || git -C thirdparty/plume apply ../../tools/patches/plume-lostodyssey.patch
       - name: Install Plume platform header dependencies
         run: |
           sudo apt-get update
@@ -73,6 +77,10 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           submodules: recursive
           persist-credentials: false
+      - name: Apply the runtime Plume interface patch
+        shell: bash
+        run: |
+          git -C thirdparty/plume apply --reverse --check ../../tools/patches/plume-lostodyssey.patch >/dev/null 2>&1 || git -C thirdparty/plume apply ../../tools/patches/plume-lostodyssey.patch
       # Standalone fixtures deliberately exclude real DXC, GPU drivers and game
       # inputs. Assertions remain enabled. Scratch paths are unique per fixture.
       - name: Compile Windows cache, resource and queue fixtures
