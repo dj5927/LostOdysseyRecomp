@@ -1,0 +1,45 @@
+name: Native audit fixtures
+on:
+  push:
+    branches: [menu]
+    paths:
+      - '.github/workflows/audit-native.yml'
+      - 'LostOdysseyRecomp/gpu/shader/**'
+      - 'tools/tests/*shader*'
+      - 'tools/tests/*startup*'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-audit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  fixtures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Reproducible public-source snapshot for inspecting the exact tested tree.
+      # No submodules, private game inputs, credentials or untracked files.
+      - name: Archive tested source
+        run: |
+          mkdir -p out/audit
+          git archive --format=tar HEAD > out/audit/source.tar
+          git rev-parse HEAD > out/audit/commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audit-source-${{ github.sha }}
+          path: |
+            out/audit/source.tar
+            out/audit/commit.txt
+          retention-days: 1
+      - name: Build bounded shader queue fixture
+        run: |
+          g++ -std=c++20 -O1 -g -pthread -Wall -Wextra -I LostOdysseyRecomp \
+            tools/tests/shader_preparation_queue_test.cpp -o out/audit/shader-queue
+      - name: Run bounded shader queue fixture
+        run: |
+          timeout 30s out/audit/shader-queue out/audit/queue-results
+          timeout 30s out/audit/shader-queue --launch-exception-only out/audit/launch-results
