@@ -59,56 +59,6 @@ The seven `unittest` cases cover a matching manifest, input/output/context drift
 
 Run commands from the repository root. Select checks appropriate to the changed behavior; this entry point does not imply that every suite is required for every change.
 
-## PPC prebuilt bundle checks
-
-`test_ppc_prebuilt.py` exercises the synthetic export, restore and check contract
-for the PPC static-library bundle, including incremental output handling,
-receipt/input/output validation, shard boundaries and SHA256 checks. It uses a
-temporary fixture and does not require game input, a generated guest tree, a
-native build or a game process:
-
-```powershell
-python -B tools/tests/test_ppc_prebuilt.py
-```
-
-The 13 synthetic bundle checks pass. The separate `.github/workflows/test-ppc-prebuilt.yml`
-workflow runs this fixture independently of release packaging; actionlint 1.7.12
-also passes for both workflows. The fixture does not prove the hosted Release
-x64 `/MT` non-LTO build, runtime relink, gameplay launch or user acceptance. The
-real local export, restore and isolated CMake check are recorded in the [release
-packaging evidence](../../docs/notes/release-packaging.md).
-
-## PPC auto-sync boundary
-
-The current synchronization implementation fast-forwards the private PPC cache on
-`main`, preserves unrelated archive files and retries bounded concurrent advances. It
-retains existing `ppc/<key>` branches for historical build selection and does not create
-new PPC refs. Release CI validates the synchronized manifest fingerprint and compile
-contract before restore and records the immutable private `main` HEAD in its identity
-artifact. `actionlint` passed for the workflow change. The PPC sync suite passed
-23 tests in 19.858s, including six bare-Git integration cases covering single-ref main
-updates, unrelated blob preservation, stale PPC cleanup, bounded concurrent retry
-behavior, same-key no-op, identity rejection and policy rejection. Two isolated synthetic
-workflow checks also passed: matching input recorded the checkout commit, and mismatched
-input was rejected. This documentation does not claim that local auto-sync is enabled
-automatically.
-
-Historical hook behavior: the local auto-sync hook was a post-build action authorized by Git config
-`git config --local lo.ppcAutoSync true`; CMake `LO_PPC_AUTO_SYNC` reads that
-setting and may need reconfiguration when a cache is `OFF`. It is not a file watcher. The
-read-only `ppc_sync.py key` command could inspect the deterministic key, while
-`sync` could reuse an existing private branch or upload a changed bundle in shards
-of at most 40 MiB. CI, imported libraries and `LO_PPC_SYNC_ACTIVE` were excluded.
-Nineteen synthetic sync cases pass; the built-library roundtrip and
-change-during-build cases were also verified separately. The real target, same-key unchanged check and sparse
-restore/check are recorded in the [release packaging evidence](../../docs/notes/release-packaging.md).
-The earlier 13-case prebuilt fixture and workflow run remain historical evidence
-for the bundle format only. Run the synthetic sync suite with:
-
-```powershell
-python -B tools/tests/test_ppc_sync.py
-```
-
 ```powershell
 tools\test.bat --list
 tools\test.bat shaders pipeline

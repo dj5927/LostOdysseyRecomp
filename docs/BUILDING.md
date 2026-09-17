@@ -24,86 +24,11 @@ python -B tools/ppc_codegen.py generate
 
 `build_tools.bat` builds the generator and records a receipt containing the generator binary and source hashes. `ppc_codegen.py generate` verifies that receipt, hashes the TOML and generator inputs before and after execution, writes an output manifest for the generated C++/header files and rejects obsolete 64-bit jump-table switches. Use `python -B tools/ppc_codegen.py check` to verify an existing generated tree without regenerating it; if the inputs or outputs changed, regenerate from the repository root. Configured runtime builds also run `LoPpcCodegenCheck` as an order dependency before compiling guest objects. See [recompilation notes](notes/recomp.md) for function boundaries and switch-table maintenance. These commands describe the checked-in scripts; a new-machine end-to-end bootstrap has not been retested as part of this documentation update.
 
-### Optional PPC prebuilt library
+### PowerPC recompilation from source
 
-Release packaging uses a PPC static library restored from the private immutable
-`ppc/<key>` branch selected by the input/compiler key. The XEX input remains
-from its pinned private commit and is checked against its pinned SHA256. Local builds can opt into the same path by
-restoring the bundle into an ignored output directory and setting
-`LO_PREBUILT_PPC_DIR`; CMake checks the existing generated tree, then consumes
-`LostOdysseyRecompLib.lib` and skips compiling generated PPC C++ sources. The
-release workflow runs its separate `Generate game code` step before this CMake
-configuration. Clear the variable to return to the ordinary generated-source build.
+All platforms compile recompiled PowerPC guest code directly from generated sources in `LostOdysseyRecompLib/ppc/`. The build does not depend on prebuilt static libraries or remote PPC synchronization, ensuring clean provenance, reproducible multi-platform builds, and forward compatibility with additional architectures (such as ARM64).
 
-From `cmd` or an x64 Developer Command Prompt, keep the compiler environment in
-the same shell before running the exporter:
-
-```cmd
-call tools\setup_windows.bat
-python tools\release\ppc_prebuilt.py export --build-dir out\build\fps-0.5.4 --output out\ppc-export
-```
-
-The export/restore commands above are retained for offline bundle diagnostics.
-The current upload path is the post-build auto-sync hook or
-`ppc_sync.py sync`, which selects an immutable `ppc/<key>` branch.
-
-Then restore and check the fresh export from PowerShell:
-
-```powershell
-python tools/release/ppc_prebuilt.py restore --bundle out/ppc-export --output out/ppc-prebuilt
-python tools/release/ppc_prebuilt.py check --bundle out/ppc-prebuilt --build-dir out/build/fps-0.5.4
-```
-
-For a local prebuilt runtime build in PowerShell:
-
-```powershell
-$env:LO_PREBUILT_PPC_DIR = (Resolve-Path out/ppc-prebuilt).Path
-.\tools\build_release.bat
-Remove-Item Env:LO_PREBUILT_PPC_DIR
-```
-
-The release contract is x64 clang-cl, Release, static CRT (`/MT`) and non-LTO.
-Preserve codegen receipts, input/output and CMake hashes, compile flags/includes,
-shard hashes and library SHA256 as evidence. The 13 synthetic bundle checks pass;
-the local Release/x64 clang-cl export, restore and isolated prebuilt CMake check
-also pass. The complete runtime was inspected through its Ninja dependency/link
-graph and has zero PPC compile commands while referencing the imported library;
-the runtime was not relinked or launched. See the [release packaging evidence](notes/release-packaging.md).
-
-### Local PPC auto-sync
-
-Local builds may opt into post-build PPC synchronization only after enabling the
-local Git setting with `git config --local lo.ppcAutoSync true`. The CMake option
-reads that setting; if an existing cache is `OFF`, reconfigure with
-`-DLO_PPC_AUTO_SYNC=ON` as needed, while `OFF` disables the hook. CMake alone does
-not grant the script's upload authorization. The hook runs only after a
-successful PPC library build and invokes `ppc_sync.py sync --already-built`. It
-is not a file watcher, and editing files does not trigger it.
-
-The sync key covers PPC inputs and compiler arguments. If the same key already
-exists remotely, no compilation or upload occurs. A changed key uses a new
-immutable private `ppc/<key>` branch with dynamically sized shards of at most
-40 MiB; old branches are
-retained. Imported libraries, CI and `LO_PPC_SYNC_ACTIVE` are excluded from
-uploads. Sync failures report a build or retry failure and do not silently fall
-back. For a manual run, prepare the Windows environment in one `cmd` session:
-
-```cmd
-call tools\setup_windows.bat
-python tools\release\ppc_sync.py sync --build-dir out\build\fps-0.5.4
-```
-
-Non-Release builds may create the independent `out/build/ppc-sync-Release`
-configuration and build only its Release PPC library; that configuration keeps
-the hook off to prevent recursion. The read-only key command accepts
-`--build-dir DIR [--github-output PATH]`; `--force` enables one manual sync and
-`--already-built` is reserved for the internal hook.
-
-Nineteen synthetic sync cases pass. Separately, the built-library roundtrip and
-change-during-build cases pass. The real `LoPpcAutoSync` target, same-key unchanged
-check and sparse restore/check also pass; the target produced no PPC C++ compile
-commands and did not build or launch the runtime. See the [release packaging
-evidence](notes/release-packaging.md) for the branch, commit and retained logs.
+After generating the guest sources with `tools/ppc_codegen.py generate`, simply configure CMake and build the target. CMake enforces that `LostOdysseyRecompLib/ppc/` contains valid recompiled code and runs `LoPpcCodegenCheck` to verify input/output consistency.
 
 Audio configuration fetches the pinned Xenia FFmpeg source via CMake FetchContent, so first configuration needs network access. See [ffmpeg.cmake](../thirdparty/ffmpeg.cmake) and its [license](../thirdparty/ffmpeg-LICENSE.txt). This is a frame-level XMAFRAMES decoder, not a system FFmpeg executable requirement.
 
@@ -129,7 +54,7 @@ SDL2 build dependencies are already vendored in the repository tree.
 
 ### Linux PowerPC source generation
 
-Linux compiles generated PowerPC source code directly from `LostOdysseyRecompLib/ppc/`. The Windows prebuilt static library is not used on Linux (`LO_PREBUILT_PPC_DIR` is kept empty, as the Windows `.lib` is built with `clang-cl /MT`). Release CI for Linux also generates PPC sources from repository tools and inputs on Ubuntu 24.04 rather than consuming the Windows prebuilt archive.
+Linux compiles generated PowerPC source code directly from `LostOdysseyRecompLib/ppc/` using Clang. Release CI for Linux generates PPC sources from repository tools and inputs on Ubuntu 24.04 before building.
 
 If `LostOdysseyRecompLib/ppc/` is empty or missing, generate the sources from the repository root:
 

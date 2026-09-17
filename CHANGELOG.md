@@ -38,6 +38,9 @@ One record of completed changes, with unpublished work separated from verified r
   - Runtime module creation is performed lazily upon first use in rendering, bypassing startup discovery/translation/DXC overhead when a valid pack is present (verified 1.2s startup on WSL Linux with 0 DXC calls).
   - Decouple compatibility contract from host install path and host DXC DLL/SO SHA-256, allowing portable pack reuse across platforms and CPU architectures (x86-64 / ARM64, Windows / Linux / Steam Deck).
   - Add `LoShaderPackTool` inspection/verification utility, `tools/build_linux.sh` and `tools/build_wsl.bat` for fast on-demand incremental builds, and update packaging scripts (`package_shader_bundle.py`, `package_release.py`, `package_appimage.py`) to verify and package `.lospv` release assets.
+- Remove PowerPC prebuilt library cache and remote synchronization (`LO_PREBUILT_PPC_DIR`, `ppc_sync.py`, `ppc_prebuilt.py`):
+  - Compile `LostOdysseyRecompLib` guest PowerPC code directly from recompiled source on all platforms (Windows and Linux) in CI and local release builds, eliminating platform-specific static library caching and providing architecture portability for future targets (such as ARM64).
+  - Automatically bundle the portable Vulkan shader pack (`shaders/portable_vk.lospv`) into both Windows portable ZIP and Linux AppImage release artifacts via `tools/release/fetch_shader_pack.py`.
 - Keep extraction and fixed/linked shader sources in bounded memory instead of
   exporting and re-reading temporary sources during prebuild; retain compiled
   checkpoints for interrupted-startup recovery.
@@ -89,6 +92,9 @@ One record of completed changes, with unpublished work separated from verified r
   - 运行时着色器模块创建改为按需惰性加载（Lazy loading），存在有效便携包时直接秒级进入游戏并跳过启动阶段全量预编译（WSL Linux 实测 1.2 秒启动，0 次 DXC 调用与重翻译）；遇到未覆盖着色器时保留本地按需编译回退。
   - 兼容性契约与宿主绝对路径、宿主 DXC 动态库哈希完全解耦，支持跨系统与跨 CPU 架构（Windows / Linux / Steam Deck，x86-64 / ARM64）通用复用。
   - 提供 `LoShaderPackTool` 检查与完整性校验工具，新增 `tools/build_linux.sh` 与 `tools/build_wsl.bat` 便捷增量构建脚本，并更新打包流程（`package_shader_bundle.py`、`package_release.py`、`package_appimage.py`），支持在发布时按需校验并打包独立的 `.lospv` Release 附件。
+- 移除 PowerPC 预编译静态库缓存与远程同步机制（`LO_PREBUILT_PPC_DIR`、`ppc_sync.py`、`ppc_prebuilt.py`）：
+  - 所有平台（Windows 与 Linux）在 CI 及本地 Release 构建中均统一从重编译源码直接在线编译 `LostOdysseyRecompLib`，彻底消除特定平台的静态库依赖契约，为未来扩展更多硬件架构（如 ARM64）铺平道路。
+  - 发布流程中通过 `tools/release/fetch_shader_pack.py` 自动获取便携式 Vulkan 着色器包，直接内置到 Windows 便携 ZIP 与 Linux AppImage 发布产物中（`shaders/portable_vk.lospv`）。
 - menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
 - 完整修复代码审查报告 R1 至 R10 缺陷项：
   - 将手柄宿主输入泵（`PumpHostInput`）与浮层呈现（`PresentHostOverlay`）与客户机暂停解耦，并在 GPU `WAIT_REG_MEM` 循环中注入事件泵，防止暂停期间卡死（R1, R2）。
