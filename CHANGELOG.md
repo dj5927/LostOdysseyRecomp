@@ -8,6 +8,16 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- Planned maintenance and ongoing investigations.
+
+### 简体中文
+
+- 计划中的维护与持续排查。
+
+## v0.5.20 — 2026-09-17 / Published / 已发布
+
+### English
+
 - Fix Issue #38 inverted/black light fixtures ("anti-lights emitting darkness") in Numara Castle (Philosopher's Chamber):
   - In `LostOdysseyRecomp/gpu/renderer.cpp` and `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`, correct the host EDRAM epilogue clamping for unsigned formats (formats 0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_10_FLOAT`). Clamping lower bound is now strictly `0.0` for unsigned targets, preventing additive blending passes from accumulating negative light and tone-mapping `log2` from triggering NaNs / black voids.
   - Bump shader cache `Version` from 22 to 23 in `cache.h` to invalidate stale DXIL binaries.
@@ -96,6 +106,8 @@ One record of completed changes, with unpublished work separated from verified r
   - 在 Linux 平台上按实际能力展示唯一的 Vulkan 图形后端，并将重启对话框调整为友好的手动重启提示（R17）。
   - 将 `LoDebugMenuInteractionTest` 测试目标移出 Windows 独占条件，加入跨平台测试套件。
 - 维持并扩充测试套件：`LoHidTest`、`LoHostUiCompositeTest`、`LoDebugOverlayTest`、`LoDebugMenuInteractionTest` 与 `LoMenuRenderTest` 全部重新编译并测试通过。
+
+Published at [GitHub Release v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) on 2026-09-17.
 
 ## Historical development checkpoints / 历史开发检查点
 

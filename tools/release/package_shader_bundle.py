@@ -37,7 +37,7 @@ def detect_version() -> str:
             return ver
     except Exception:
         pass
-    return "v0.5.15"
+    return "v0.5.20"
 
 
 def find_pack_tool() -> Path | None:

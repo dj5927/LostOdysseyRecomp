@@ -19,15 +19,17 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
-## Unreleased development
+## New in v0.5.20
 
-- Corrected host EDRAM format clamping for unsigned formats (0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_10_FLOAT`) with a strict `0.0` lower bound, resolving Issue #38 inverted and black light fixtures ("anti-lights emitting darkness") in Numara Castle (Philosopher's Chamber) and preventing tone-mapping `log2` NaNs / black voids. Shader cache `Version` is bumped to 23.
+Published release: [v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20). It provides a Windows x64 ZIP, a Linux x64 AppImage, and a standalone portable Vulkan shader pack ZIP.
+
+- Corrected host EDRAM format clamping for unsigned formats (0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_10_FLOAT`) with a strict `0.0` lower bound, resolving Issue #38 inverted and black light fixtures ("anti-lights emitting darkness") in Numara Castle (Philosopher's Chamber). Shader cache `Version` is bumped to 23.
 - Resolved TAA inter-frame phase jitter flicker on stairs and the save point light sphere in `f2358` by registering missing static scene and lighting vertex shaders in `PositionVPSlot`.
-- Focused tests `LoTemporalJitterTest` (2,319,037 checks) and `LoMenuRenderTest` built and passed; render comparisons verify black diamond voids are eliminated, lantern structures and bloom are restored, and TAA phase jitter is aligned.
-- The in-game debug overlay now composes correctly across output resolutions and protects shared overlay state during concurrent access. Its software UI uses the intended RGBA channel order, HID locking covers the complete device operation, and guest pause uses cooperative safe points so overlay interaction does not suspend worker threads indefinitely.
-- Focused Windows regression tests pass after rebuilding: `LoHostUiCompositeTest`, `LoDebugOverlayTest` and `LoHidTest`. A complete Clang 22 Linux Release runtime also links successfully and recognizes `game_us/default.xex` during startup. The Linux check used `SDL_VIDEODRIVER=dummy`, so Vulkan window creation and real scene gameplay were not exercised.
+- Added relocatable portable Vulkan shader pack architecture (`.lospv`) with SHA-256 deduplication and Zstandard block compression, achieving 1.2s zero-compile startup on Linux/WSL2 across 28,482 shaders.
+- Optimized shader and pipeline prebuilding concurrency and throughput with host RAM adaptive scaling, interactive skip support (ESC/Space/B), and fast WSL incremental build scripts (`tools/build_wsl.bat`).
+- Completed in-game debug overlay and cross-platform settings software rasterizer (menu branch) with full keyboard and controller navigation.
 
-Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with the published Linux x64 AppImage available from the [v0.5.14 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14); see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides.
+Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with the published Linux x64 AppImage available from the [v0.5.20 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20); see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides.
 
 ## New in v0.5.14
 

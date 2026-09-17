@@ -7,6 +7,14 @@ separate `InstallGame.exe` or `LostOdysseyUpdater.exe`; the native importer and
 updater run from the single runtime binary. The CMake `LostOdysseyUpdater`
 target remains available for host-side fixtures.
 
+## Published v0.5.20 — 2026-09-17
+
+The published release notes are in the matching `v0.5.20` section of `CHANGELOG.md`.
+It includes host EDRAM unsigned format clamping (Issue #38), f2358 TAA jitter fixes,
+the relocatable portable Vulkan shader pack (`.lospv`) architecture, shader and
+pipeline preparation worker scaling, and the integrated in-game debug overlay and
+pure software cross-platform settings rasterizer from the menu branch.
+
 ## Published v0.5.14 — 2026-09-16
 
 The published release notes are in the matching `v0.5.14` section of

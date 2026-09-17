@@ -19,15 +19,17 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
-## 未发布开发内容
+## v0.5.20 新增
 
-- 修正着色器尾声对无符号 EDRAM 格式（0、1、2、3、10、12，含 7e3 格式 `COLOR_2_10_10_10_FLOAT`）的物理范围截断，下限严格限制为 `0.0`，修复 Issue #38 努玛拉城哲学者之间（Philosopher's Chamber）黑光灯具问题并杜绝色调映射 `log2` 计算产生 NaN 与全屏黑洞；着色器缓存版本号 `Version` 提升至 23 自动使旧版 DXIL 缓存失效。
+已发布版本：[v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20)。提供 Windows x64 ZIP、Linux x64 AppImage 以及独立的便携式 Vulkan 着色器包 ZIP。
+
+- 修正着色器尾声对无符号 EDRAM 格式（0、1、2、3、10、12，含 7e3 格式 `COLOR_2_10_10_10_FLOAT`）的物理范围截断，下限严格限制为 `0.0`，彻底修复 Issue #38 努玛拉城哲学者之间（Philosopher's Chamber）黑光灯具问题并杜绝色调映射 `log2` 计算产生 NaN 与全屏黑洞；着色器缓存版本号 `Version` 提升至 23 自动使旧版 DXIL 缓存失效。
 - 修复 `f2358` 场景阶梯与保存点光球处的 TAA 抖动闪烁：在 `PositionVPSlot` 中补充注册遗漏的静态场景与光照顶点着色器，消除帧间相机抖动相位不匹配。
-- 定向测试 `LoTemporalJitterTest`（2,319,037 项检查）与 `LoMenuRenderTest` 编译并通过；渲染对比核实黑斑消除，灯具与光晕恢复，且 TAA 帧间抖动相位对齐。
-- 游戏内调试浮层现可在不同输出分辨率下正确合成，并保护并发访问中的共享浮层状态。软件 UI 使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
-- Windows 定向回归测试重新编译并通过：`LoHostUiCompositeTest`、`LoDebugOverlayTest` 和 `LoHidTest`。完整的 Clang 22 Linux Release runtime 也已成功链接，并在启动时识别 `game_us/default.xex`。Linux 检查使用了 `SDL_VIDEODRIVER=dummy`，因此未执行 Vulkan 窗口创建和真实场景游戏运行。
+- 引入可重定位便携式 Vulkan 着色器包架构（`.lospv`），采用 SHA-256 去重与分块 Zstandard 压缩，包含 28,482 个着色器仅 169.9 MB，在 Linux/WSL2 实测 1.2 秒零编译启动与 0 次 DXC 调用。
+- 优化着色器与管线预构建并发效率，支持基于宿主内存动态缩放、按键即时跳过（ESC/空格/B 键）及 WSL 快速增量构建脚本（`tools/build_wsl.bat`）。
+- 完整合入 menu 分支的游戏内调试浮层与纯软件跨平台设置菜单，支持键盘与手柄全功能导航。
 
-Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flatpak 清单构建，Linux x64 AppImage 已随 [v0.5.14 发布版](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14)提供；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。
+Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flatpak 清单构建，Linux x64 AppImage 已随 [v0.5.20 发布版](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20)提供；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。
 
 ## v0.5.14 新增
 

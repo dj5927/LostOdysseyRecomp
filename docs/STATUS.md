@@ -1,23 +1,25 @@
 # Project status
 
-## Portable Vulkan shader pack (.lospv) and WSL build pipeline — unpublished development — 2026-09-17
+## Published v0.5.20 — 2026-09-17
 
-The source adds a portable, read-only Vulkan shader pack format (`.lospv`), decoupling shader distribution from host DXC binary hashes and absolute paths, alongside fast WSL/Linux incremental build integration on the `menu` branch (unpublished development checkpoint, source version remains `0.5.14`, not a release).
-- **Portable shader pack format (`.lospv`)**: Strips HLSL sources, diagnostics, and failure records, serializing only verified SPIR-V bytecode and essential `TranslatedShader` metadata. Deduplicates SPIR-V bytecode via SHA-256 and applies chunked Zstandard block compression (~1 MiB blocks). The pack format contract is determined purely by translator version, variant, compile options, prelude hash, discovery layout, and XEX hash, allowing identical `.lospv` files to be shared across Windows, Linux, Steam Deck, x86-64, and ARM64.
-- **Lazy module compilation & startup bypass**: When `shaders/portable_vk.lospv` is present in the game directory, the runtime skips startup DXC translation and precompilation entirely, initializing Vulkan shader modules lazily upon first draw submission.
-- **Verification and release tools**: Adds `LoShaderPackTool` for verifying payload integrity, blocks, and contracts. Adds `tools/build_linux.sh` and `tools/build_wsl.bat` enabling fast on-demand incremental builds in WSL. Updates `tools/release/package_shader_bundle.py` to auto-detect and verify `.lospv` packs, generating compressed release ZIPs with checksums.
+The published release contains host EDRAM unsigned format clamping (Issue #38), f2358 TAA jitter compensation, the relocatable portable Vulkan shader pack (`.lospv`) distribution architecture, shader/pipeline preparation worker scaling, and the integrated in-game debug overlay and cross-platform settings rasterizer from the menu branch. Source version is `0.5.20`.
+- **Host EDRAM unsigned format clamping (Issue #38)**: In `LostOdysseyRecomp/gpu/renderer.cpp` and `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`, correct host EDRAM clamping for unsigned formats (formats 0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_10_FLOAT`) with a strict `0.0` lower bound, resolving inverted/black light fixtures in Numara Castle (Philosopher's Chamber). Bumped shader cache `Version` from 22 to 23 in `LostOdysseyRecomp/gpu/shader/cache.h` to invalidate stale DXIL binaries.
+- **TAA jitter compensation in f2358**: In `PositionVPSlot` (`LostOdysseyRecomp/gpu/temporal_scene.h`), register missing static scene and lighting vertex shaders (`0x69e9adcf2e1b6887`, `0x6a8c2c78737dc94c`, `0xa20d6099a44e2cd5` to Slot 7 and `0x6761469677f921c6` to Slot 8), eliminating inter-frame phase jitter artifacts on stairs and the save point light sphere in scene `f2358`.
+- **Portable Vulkan shader pack (`.lospv`)**: Strips HLSL sources, diagnostics, and failure records, serializing only verified SPIR-V bytecode and essential `TranslatedShader` metadata. Deduplicates SPIR-V bytecode via SHA-256 and applies chunked Zstandard block compression (~1 MiB blocks). Decoupled from host paths and host DXC DLL hashes (28,482 shaders in 169.9 MB). Enables 1.2s zero-compile startup on Linux/WSL2 with lazy GPU module creation.
+- **Shader prebuild scaling & skip**: Dynamically scales concurrent DXC and pipeline workers based on host RAM and CPU threads. Interactive skip support (ESC/Space/B) and `skip_shader_prebuild` setting in `settings.ini`.
+- **Integrated menu overlay**: Full cross-platform software rasterized settings menu and in-game debug overlay with complete keyboard and gamepad navigation.
+- **WSL Linux build workflow**: Added `tools/build_linux.sh` and `tools/build_wsl.bat` for fast on-demand incremental builds.
 
 Focused verification and bounded evidence:
-- Unit and integration fixtures `LoPortableShaderPackTest.exe` (56 checks), `LoPortableShaderPackIntegrationTest.exe` (24 checks), and `portable_shader_pack_packaging_test.py` built and passed.
+- Unit and integration fixtures `LoPortableShaderPackTest.exe` (56 checks), `LoPortableShaderPackIntegrationTest.exe` (24 checks), `LoTemporalJitterTest.exe` (2,319,037 checks), `LoMenuRenderTest.exe`, `LoHidTest`, `LoHostUiCompositeTest`, and `LoDebugOverlayTest` built and passed.
 - Converted full Windows startup bundle (28,482 shaders) into `shaders/portable_vk.lospv` (169.9 MB, verified by `LoShaderPackTool verify`).
 - Linux ELF executed in WSL2 Manjaro with Mesa Dozen pointing to Windows game directory (`/mnt/d/Mihoyo/LostOdysseyRecomp-windows-x64`), hitting `portable shader pack hit: 28482 records, 27726 unique binaries` and achieving 1.2s zero-compile startup with 0 DXC calls.
 - Packaged `LostOdysseyRecomp-shader-pack-vk12-*.zip` (167.95 MB) with verified SHA-256 manifest.
-- Verified fast WSL incremental build and deployment using `tools/build_wsl.bat`.
+- Fast WSL incremental build and deployment verified using `tools/build_wsl.bat`.
 
 Validation limits and open boundaries:
 - Verification covers Vulkan backend on Windows and WSL2 Linux with Mesa Dozen; native Direct3D 12 startup bundle remains separate.
 - Packaged `.lospv` contains 28,482 shaders discovered from the tested game version; unencountered shaders continue to use local on-demand compilation.
-- Development code is local on the `menu` branch; no tag or public GitHub release asset exists for this checkpoint.
 
 ## Host EDRAM format clamping and f2358 TAA jitter fixes — unpublished development — 2026-09-17
 
