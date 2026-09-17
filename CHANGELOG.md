@@ -13,9 +13,14 @@ One record of completed changes, with unpublished work separated from verified r
   - Bump shader cache `Version` from 22 to 23 in `cache.h` to invalidate stale DXIL binaries.
 - Fix TAA flicker on stairs and save point in `f2358`:
   - Register missing static scene and lighting vertex shaders (`0x69e9adcf2e1b6887`, `0x6a8c2c78737dc94c`, `0xa20d6099a44e2cd5` to Slot 7 and `0x6761469677f921c6` to Slot 8) in `PositionVPSlot` (`LostOdysseyRecomp/gpu/temporal_scene.h`), eliminating inter-frame phase jitter artifacts.
-- Optimize shader and pipeline prebuilding concurrency:
+- Optimize shader and pipeline prebuilding concurrency and throughput:
   - Dynamically scale concurrent DXC and pipeline workers based on host physical memory and CPU thread count (`HostWorkerCap`). Hosts with >= 8 GB RAM automatically use `logicalThreads - 1` workers, while low-memory environments (< 8 GB RAM) retain a 4-worker safety cap to prevent OOM.
   - Support explicit worker concurrency overrides via environment variables `LO_SHADER_WORKERS` and `LO_PIPELINE_WORKERS` (accepting numeric counts, `0`, or `max`).
+  - Eliminate `MOVEFILE_WRITE_THROUGH` forced disk flushes on Windows shader checkpoint saves, allowing OS write-caching to accelerate compilation throughput.
+  - Prioritize primary game and executable shaders ahead of predictive expansion variants during preparation, ensuring essential scene shaders compile first.
+  - Add interactive skip support to the shader preparation screen (press ESC, Space, or Controller B to skip remaining compilation and start the game immediately).
+  - Add `skip_shader_prebuild` configuration setting in `settings.ini` to permanently bypass startup compilation on low-end systems.
+  - Add `tools/release/package_shader_bundle.py` utility to package precompiled startup bundles into release archives for distribution without Git LFS.
 
 - Keep extraction and fixed/linked shader sources in bounded memory instead of
   exporting and re-reading temporary sources during prebuild; retain compiled
@@ -53,9 +58,14 @@ One record of completed changes, with unpublished work separated from verified r
   - 将 `cache.h` 中的着色器缓存版本号 `Version` 由 22 提升至 23，自动使磁盘旧版 DXIL 缓存失效。
 - 修复 `f2358` 场景阶梯与保存点光球处的 TAA 抖动闪烁：
   - 在 `LostOdysseyRecomp/gpu/temporal_scene.h` 的 `PositionVPSlot` 中补充注册遗漏的静态场景与光照顶点着色器（`0x69e9adcf2e1b6887`、`0x6a8c2c78737dc94c`、`0xa20d6099a44e2cd5` 映射至 Slot 7，`0x6761469677f921c6` 映射至 Slot 8），消除帧间相机抖动补偿相位不匹配导致的闪烁。
-- 优化着色器与管线预构建并发编译效率：
+- 优化着色器与管线预构建并发编译效率与 I/O 吞吐：
   - 基于宿主物理内存容量与 CPU 逻辑线程数动态调整 DXC 与管线并发工作线程数（`HostWorkerCap`）。宿主物理内存 >= 8 GB 时自动使用 `logicalThreads - 1` 线程充分发挥多核并发性能，仅在物理内存 < 8 GB 的低内存环境中保留 4 线程安全上限以防 OOM。
   - 支持通过环境变量 `LO_SHADER_WORKERS` 与 `LO_PIPELINE_WORKERS` 显式指定工作线程数（支持数值、`0` 或 `max` 全核）。
+  - 移除 Windows 单文件着色器落盘时的 `MOVEFILE_WRITE_THROUGH` 物理强行刷盘标志，利用系统写缓冲消除小文件磁头寻道阻塞，显著提升写入吞吐。
+  - 引入着色器预构建优先级排序：核心 XEX 与游戏包体真实着色器（优先级 0）优先编译，预测性展开变体（优先级 1）靠后编译，确保基础画面即时就绪。
+  - 启动预构建界面增加按键跳过支持：按 ESC、空格键或手柄 B 键可随时安全跳过剩余预编译直接进入游戏，已编译内容自动持久化保存。
+  - `settings.ini` 增加 `skip_shader_prebuild` 配置项，方便低配电脑与掌机用户永久绕过全量预编译。
+  - 新增 `tools/release/package_shader_bundle.py` 打包脚本，支持将预编译启动包打入独立 Release 附件分发，避免消耗 Git LFS 配额。
 
 - menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
 - 完整修复代码审查报告 R1 至 R10 缺陷项：

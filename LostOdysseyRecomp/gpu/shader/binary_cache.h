@@ -59,7 +59,7 @@ inline bool WriteBinary(const std::filesystem::path& path, bool pixel, uint64_t 
         out.close();
         if (!out) throw std::runtime_error("shader cache write failed");
 #ifdef _WIN32
-        if (!MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        if (!MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING))
             throw std::runtime_error("shader cache publish failed: "+std::to_string(GetLastError()));
 #else
         std::filesystem::rename(temp,path);

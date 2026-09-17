@@ -1847,7 +1847,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 
             void PrepareKnownShaders()
             {
-                if (shaderCacheDir.empty() || getenv("LO_NO_SHADER_PREPARE")) return;
+                if (shaderCacheDir.empty() || getenv("LO_NO_SHADER_PREPARE") || settings::GetConfig().skipShaderPrebuild) {
+                    LOG_INFO("renderer: shader preparation skipped by configuration or environment");
+                    return;
+                }
+                video::ResetShaderPreparationSkip();
                 namespace startup = xenos::startup_cache;
                 const auto wholeStarted = std::chrono::steady_clock::now();
                 const auto& compilerIdentity = xenos::DxcIdentity();
@@ -1958,10 +1962,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     std::set<uint64_t> fixedHashes;
                     const auto generated = xenos::resources::variants::GenerateFixedVariants(source,
                         [&](uint64_t hash, std::span<const uint8_t> code) {
-                            fixedHashes.insert(hash); saveSource(false, code);
+                            fixedHashes.insert(hash); sourceStore.Add(false, code, 1);
                         }, {}, readSource);
                     const auto linked = xenos::resources::variants::GenerateLinkedVariants(source,
-                        [&](uint64_t, std::span<const uint8_t> code) { saveSource(false, code); },
+                        [&](uint64_t, std::span<const uint8_t> code) { sourceStore.Add(false, code, 1); },
                         {}, readSource, &fixedHashes);
                     LOG_INFO("renderer: shader prebuild sources: {} in memory, {} bytes, {} learned sources; 0 intermediate source writes",
                         sourceStore.Size(), sourceStore.Bytes(), learned);
@@ -2156,6 +2160,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     ++done;
                     video::SetShaderPreparationProgress(done, uint32_t(jobs.size()));
                     video::PumpEvents();
+                    if (video::ShaderPreparationSkipped()) {
+                        LOG_INFO("renderer: shader preparation skipped by user request after {} shaders", done);
+                        return false;
+                    }
                     return !initializationModuleFailure;
                 };
 

@@ -88,6 +88,8 @@ Config Read()
             value.frameRate = number;
         else if (key == "fxaa")
             value.fxaa = number == 1;
+        else if (key == "skip_shader_prebuild")
+            value.skipShaderPrebuild = number == 1;
         else if (key == "automatic_updates")
         {
             // Unknown values keep the safe package default (enabled).
@@ -167,7 +169,8 @@ static bool WriteConfig(const Config &value)
            << "\nantialiasing=" << value.antialiasing << "\nframe_rate=" << value.frameRate
            << "\nscaling_quality=" << value.scalingQuality
            << "\ninternal_resolution=" << value.internalResolution
-           << "\nfxaa=" << value.fxaa << "\nautomatic_updates=" << value.automaticUpdates << '\n';
+           << "\nfxaa=" << value.fxaa << "\nautomatic_updates=" << value.automaticUpdates
+           << "\nskip_shader_prebuild=" << (value.skipShaderPrebuild ? 1 : 0) << '\n';
     output.flush();
     if (!output)
         return false;

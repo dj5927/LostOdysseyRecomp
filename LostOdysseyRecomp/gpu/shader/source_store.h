@@ -21,6 +21,7 @@ public:
         bool pixel;
         uint64_t hash;
         std::vector<uint8_t> code;
+        uint8_t priority = 0; // 0 = primary (XEX, game packages, learned), 1 = generated variants
     };
     using Key = std::pair<bool, uint64_t>;
     static constexpr size_t MaxBytes = 128u << 20;
@@ -36,7 +37,7 @@ public:
         return hash;
     }
     bool Contains(bool pixel, uint64_t hash) const { return sources.contains({pixel, hash}); }
-    void Add(bool pixel, std::span<const uint8_t> code) {
+    void Add(bool pixel, std::span<const uint8_t> code, uint8_t priority = 0) {
         if (code.size() < 12 || code.size() > MaxSourceBytes || code.size() % 4)
             throw std::runtime_error("invalid in-memory shader source size");
         const auto hash = CodeHash(code);
@@ -45,11 +46,12 @@ public:
             if (found->second.code.size() != code.size() ||
                 !std::equal(code.begin(), code.end(), found->second.code.begin()))
                 throw std::runtime_error("conflicting shader source identity");
+            found->second.priority = std::min(found->second.priority, priority);
             return;
         }
         if (sources.size() >= recordLimit || code.size() > byteLimit - byteCount)
             throw std::runtime_error("shader source memory budget exceeded");
-        sources.emplace(key, Source{pixel, hash, {code.begin(), code.end()}});
+        sources.emplace(key, Source{pixel, hash, {code.begin(), code.end()}, priority});
         byteCount += code.size();
     }
     int Read(uint64_t hash, uint32_t size, bool pixel, std::vector<uint8_t>& code) const {
@@ -63,6 +65,11 @@ public:
         std::vector<const Source*> jobs;
         jobs.reserve(sources.size());
         for (const auto& [key, source] : sources) jobs.push_back(&source);
+        std::stable_sort(jobs.begin(), jobs.end(), [](const Source* a, const Source* b) {
+            if (a->priority != b->priority) return a->priority < b->priority;
+            if (a->pixel != b->pixel) return !a->pixel && b->pixel;
+            return a->hash < b->hash;
+        });
         return jobs;
     }
     size_t Size() const { return sources.size(); }

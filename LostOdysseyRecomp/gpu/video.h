@@ -43,6 +43,9 @@ namespace gpu::video
     enum class PreparationUnit : uint32_t { Shaders, Pipelines, Files, MiB, Entries };
     void SetShaderPreparationProgress(uint32_t completed, uint32_t total,
         PreparationStage stage = PreparationStage::Shaders, PreparationUnit unit = PreparationUnit::Shaders);
+    bool ShaderPreparationSkipped();
+    void RequestSkipShaderPreparation();
+    void ResetShaderPreparationSkip();
 
     // Untiles the guest frontbuffer (a tiled 32bpp texture written by the
     // GPU resolve) into an upload buffer and presents it.

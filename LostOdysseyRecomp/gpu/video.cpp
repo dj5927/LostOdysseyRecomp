@@ -135,6 +135,12 @@ namespace gpu::video
         LRESULT CALLBACK PreparationWindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
         {
             if (message == WM_ERASEBKGND) return 1;
+            if (message == WM_KEYDOWN) {
+                if (wparam == VK_ESCAPE || wparam == VK_SPACE || wparam == 'B' || wparam == 'b') {
+                    RequestSkipShaderPreparation();
+                    return 0;
+                }
+            }
             if (message == WM_PAINT || message == WM_PRINTCLIENT) {
                 PAINTSTRUCT paint{};
                 HDC target=message == WM_PRINTCLIENT ? reinterpret_cast<HDC>(wparam) : BeginPaint(window,&paint);
@@ -172,8 +178,8 @@ namespace gpu::video
                 bar.right=bar.left+int(total ? uint64_t(width)*std::min(done,total)/total : 0);
                 HBRUSH fill=CreateSolidBrush(RGB(111,177,218)); FillRect(dc,&bar,fill); DeleteObject(fill);
                 SetTextColor(dc,RGB(157,168,184));
-                RECT hint{20,bounds.bottom/2+45,bounds.right-20,bounds.bottom/2+95};
-                DrawTextW(dc,L"The game will continue automatically.\nFuture launches reuse the shader cache.",-1,&hint,DT_CENTER);
+                RECT hint{20,bounds.bottom/2+45,bounds.right-20,bounds.bottom/2+120};
+                DrawTextW(dc,L"The game will continue automatically.\nFuture launches reuse the shader cache.\nPress ESC, Space, or Controller (B) to skip.",-1,&hint,DT_CENTER);
                 SelectObject(dc,old); DeleteObject(font);
                 BitBlt(target,0,0,bounds.right,bounds.bottom,dc,0,0,SRCCOPY);
                 SelectObject(dc,oldBitmap); DeleteObject(bitmap); DeleteDC(dc);
@@ -551,6 +557,13 @@ namespace gpu::video
         g_shaderProgress.store((std::min<uint64_t>(total,kProgressMask) << 28) |
             std::min<uint64_t>(completed,kProgressMask) | (uint64_t(stage) << 56) | (uint64_t(unit) << 60));
     }
+    static std::atomic<bool> g_skipShaderPreparation{false};
+    bool ShaderPreparationSkipped() { return g_skipShaderPreparation.load(); }
+    void RequestSkipShaderPreparation() {
+        g_skipShaderPreparation.store(true);
+        LOG_INFO("video: shader preparation skip requested");
+    }
+    void ResetShaderPreparationSkip() { g_skipShaderPreparation.store(false); }
     bool DisplayModeFailed() { return g_displayFailed.load(); }
     bool WindowModeOverridden() { return g_windowModeOverridden.load(); }
     uint64_t BeginDisplayChange(const settings::Config& config) {
@@ -605,11 +618,14 @@ namespace gpu::video
 
         const std::wstring line1 = L"The game will continue automatically.";
         const std::wstring line2 = L"Future launches reuse the shader cache.";
+        const std::wstring line3 = L"Press ESC, Space, or Controller (B) to skip.";
         const uint32_t hintColor = host_ui::MakeColor(255, 157, 168, 184);
         const int hint1W = r.MeasureWString(line1, 1.0f);
         const int hint2W = r.MeasureWString(line2, 1.0f);
+        const int hint3W = r.MeasureWString(line3, 1.0f);
         r.DrawWString((int(width) - hint1W) / 2, centerY + 45, line1, hintColor, 1.0f);
         r.DrawWString((int(width) - hint2W) / 2, centerY + 68, line2, hintColor, 1.0f);
+        r.DrawWString((int(width) - hint3W) / 2, centerY + 91, line3, hintColor, 1.0f);
 
         UploadAndPresentPixels(s_prepPixels, width, height, true, 0, PresentationOptions{});
     }
@@ -743,6 +759,18 @@ namespace gpu::video
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
+            if (g_shaderProgress.load() != 0) {
+                if (event.type == SDL_KEYDOWN && !event.key.repeat) {
+                    if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_SPACE ||
+                        event.key.keysym.sym == SDLK_b) {
+                        RequestSkipShaderPreparation();
+                    }
+                } else if (event.type == SDL_CONTROLLERBUTTONDOWN) {
+                    if (event.cbutton.button == SDL_CONTROLLER_BUTTON_B || event.cbutton.button == SDL_CONTROLLER_BUTTON_START) {
+                        RequestSkipShaderPreparation();
+                    }
+                }
+            }
             if (event.type == SDL_KEYUP && event.key.keysym.scancode == state.consumedKey) {
                 state.consumedKey = SDL_SCANCODE_UNKNOWN;
                 continue;
