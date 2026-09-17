@@ -14,7 +14,7 @@ One record of completed changes, with unpublished work separated from verified r
 - Fix TAA flicker on stairs and save point in `f2358`:
   - Register missing static scene and lighting vertex shaders (`0x69e9adcf2e1b6887`, `0x6a8c2c78737dc94c`, `0xa20d6099a44e2cd5` to Slot 7 and `0x6761469677f921c6` to Slot 8) in `PositionVPSlot` (`LostOdysseyRecomp/gpu/temporal_scene.h`), eliminating inter-frame phase jitter artifacts.
 - Optimize shader and pipeline prebuilding concurrency:
-  - Dynamically scale concurrent DXC and pipeline workers based on host physical memory and CPU thread count (`HostWorkerCap`), lifting the previous hardcoded 4-worker limit on high-memory desktop PCs (>16 GB RAM) while preserving safe memory bounds on handhelds (e.g. Steam Deck, ROG Ally).
+  - Dynamically scale concurrent DXC and pipeline workers based on host physical memory and CPU thread count (`HostWorkerCap`). Hosts with >= 8 GB RAM automatically use `logicalThreads - 1` workers, while low-memory environments (< 8 GB RAM) retain a 4-worker safety cap to prevent OOM.
   - Support explicit worker concurrency overrides via environment variables `LO_SHADER_WORKERS` and `LO_PIPELINE_WORKERS` (accepting numeric counts, `0`, or `max`).
 
 - Keep extraction and fixed/linked shader sources in bounded memory instead of
@@ -54,7 +54,7 @@ One record of completed changes, with unpublished work separated from verified r
 - 修复 `f2358` 场景阶梯与保存点光球处的 TAA 抖动闪烁：
   - 在 `LostOdysseyRecomp/gpu/temporal_scene.h` 的 `PositionVPSlot` 中补充注册遗漏的静态场景与光照顶点着色器（`0x69e9adcf2e1b6887`、`0x6a8c2c78737dc94c`、`0xa20d6099a44e2cd5` 映射至 Slot 7，`0x6761469677f921c6` 映射至 Slot 8），消除帧间相机抖动补偿相位不匹配导致的闪烁。
 - 优化着色器与管线预构建并发编译效率：
-  - 基于宿主物理内存容量与 CPU 逻辑线程数动态调整 DXC 与管线并发工作线程数（`HostWorkerCap`），解除大内存桌面 PC（>16 GB 内存）上原本硬编码的 4 线程限制，使多核桌面系统可充分调用 CPU 并发编译（由 50% CPU 利用率提升至满载），同时在 16 GB 掌机（如 Steam Deck、ROG Ally）上继续保持 4 线程内存安全上限。
+  - 基于宿主物理内存容量与 CPU 逻辑线程数动态调整 DXC 与管线并发工作线程数（`HostWorkerCap`）。宿主物理内存 >= 8 GB 时自动使用 `logicalThreads - 1` 线程充分发挥多核并发性能，仅在物理内存 < 8 GB 的低内存环境中保留 4 线程安全上限以防 OOM。
   - 支持通过环境变量 `LO_SHADER_WORKERS` 与 `LO_PIPELINE_WORKERS` 显式指定工作线程数（支持数值、`0` 或 `max` 全核）。
 
 - menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。

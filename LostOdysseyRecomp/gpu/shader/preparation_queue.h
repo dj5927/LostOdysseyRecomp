@@ -43,17 +43,14 @@ namespace xenos::preparation
 #ifdef _WIN32
         MEMORYSTATUSEX status{sizeof(status)};
         if (GlobalMemoryStatusEx(&status)) {
-            // Low-memory / handheld hosts (<= 16 GB physical RAM, e.g. Steam Deck, ROG Ally)
-            // cap concurrent DXC workers to 4 to avoid OOM in shared-memory environments.
-            if (status.ullTotalPhys <= 18ULL * 1024 * 1024 * 1024) {
+            // Only cap to 4 workers when total physical memory is < 8 GB.
+            if (status.ullTotalPhys < 8ULL * 1024 * 1024 * 1024) {
                 return 4u;
             }
-            // High-memory desktop hosts have plenty of headroom for DXC working sets.
             return logicalThreads > 1 ? logicalThreads - 1 : 1u;
         }
 #endif
-        // Default conservative fallback on unknown platforms or without memory API
-        return std::min<size_t>(4u, logicalThreads > 1 ? logicalThreads - 1 : 1u);
+        return logicalThreads > 1 ? logicalThreads - 1 : 1u;
     }
 
     inline size_t WorkerCount(unsigned logicalThreads, size_t jobs, bool forceSerial, unsigned cap = 4u)
