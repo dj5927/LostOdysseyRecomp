@@ -71,7 +71,7 @@ cbuffer XeShared : register(b1, space0)
     float4 xeNdcOffset;
     float2 xeHalfPixelOffset;
     uint xeVtxFmt;          // PA_CL_VTE_CNTL bits 8..10: xy already /w, z already /w, w is 1/w
-    uint xeFlags;           // bit0: alpha test enable
+    uint xeFlags;           // bit0: alpha test enable, bit5: signed format
     float4 xeAlphaTest;     // x = reference, y = compare function
     float4 xeColorMax;      // per-channel range of the bound EDRAM format
     uint4 xeTransfer;       // x = source EDRAM class, y = destination class (transfer blit)
@@ -1219,7 +1219,9 @@ float4 max4(float4 src0)
                     // EDRAM formats 8_8_8_8 and 2_10_10_10 are fixed point and 2_10_10_10_FLOAT
                     // is 7e3: the hardware clamps the pixel output to their range. Our render
                     // targets are FP16 for all of them, so the clamp has to be explicit.
-                    out += "\toC0 = clamp(oC0, -xeColorMax, xeColorMax);\n";
+                    // Unsigned formats (8_8_8_8, 2_10_10_10, 7e3) clamp to [0, max];
+                    // signed formats (16_16_FLOAT, 32_FLOAT) clamp to [-max, max].
+                    out += "\toC0 = clamp(oC0, ((xeFlags & 32u) != 0u) ? -xeColorMax : float4(0.0, 0.0, 0.0, 0.0), xeColorMax);\n";
                     // Debug aid (LO_PS_TEXDEBUG): show the last texture fetch result.
                     out += "\tif (xeFlags & 16u) oC0 = float4(xeDbgTex.rgb, 1.0);\n";
                     // Debug aid (LO_PS_DEBUG): paint every surviving fragment magenta.

@@ -22,6 +22,8 @@ inline int PositionVPSlot(uint64_t shader) {
     case 0x52e4405f97159d2full:
     // f16385-f16387: alpha-tested depth; UV/color outputs are independent of VP.
     case 0xfe3efe042c311110ull:
+    // f11745: static depth companion of a936; c4-c7 position only.
+    case 0xb2eaed9ab75471f9ull:
     case 0xb030ab4e17a20783ull:case 0xf1b330b3ceea9a3bull:case 0xf7fd88506d704a3dull:return 4;
     case 0x03184cec350bc14eull:case 0x3621e6e696f914c5ull:case 0x4053f2a21dbb92ddull:
     case 0xa27a7234977e0d4aull:case 0xbfe5f796efa9ae95ull:case 0xc13cdd857c57fed9ull:case 0xf4577672c6ee5dd9ull:
@@ -48,7 +50,12 @@ inline int PositionVPSlot(uint64_t shader) {
     // f5912-f5914: clip-copy light pass; c4-c6/c11-c12 lighting stays independent.
     case 0x97b5d441419b5533ull:
     // f16385-f16387: matching alpha-tested light layer, same clip/UV separation.
-    case 0x1474db97dfc0afadull:return 7;
+    case 0x1474db97dfc0afadull:
+    // f11745: palace static material & additive lighting accumulation passes; c7-c10 position only.
+    case 0x0743de0d691de4c9ull:case 0x25a13c85314d2c4bull:case 0xa2eef6788cd4d60bull:
+    case 0xa936005072d293ddull:case 0xc0e0f4c574750856ull:case 0xf91227f682ce9042ull:
+    // f2358: stairs / save point static scene & lighting passes; c7-c10 position only.
+    case 0x69e9adcf2e1b6887ull:case 0x6a8c2c78737dc94cull:case 0xa20d6099a44e2cd5ull:return 7;
     case 0x1da1ddc75da8e994ull:case 0x22557143e0f243ddull:case 0x4c87bb5b986defc8ull:case 0xa6c8c11c6dd07144ull:
     case 0xe8c0d438c690c784ull:case 0x576d669b2ad3c898ull:
     case 0x188061ace0615678ull:case 0xdc7f83af67c53ba1ull:case 0x68014a17a2a9a4bdull:
@@ -56,7 +63,9 @@ inline int PositionVPSlot(uint64_t shader) {
     // c8-c11 feed only position/clip, preserving UV and lighting constants.
     case 0x5d98f5e3bcc3f4aeull:case 0xa9dd56801863b1f0ull:
     // f5914: stride-56 material/light pair, c7 UV and c12+ lighting untouched.
-    case 0x799c02c8b6582bfeull:case 0xeeae6424413228d6ull:return 8;
+    case 0x799c02c8b6582bfeull:case 0xeeae6424413228d6ull:
+    // f2358: matched static companion; c8-c11 position only.
+    case 0x6761469677f921c6ull:return 8;
     case 0x31bde3e2770db187ull:case 0x7e8492365edcf556ull:return 230;
     case 0x118a37c0d32c0477ull:case 0x3148f81d65d3b5f4ull:case 0xb7557072899a63a1ull:case 0xc84ca5209e98e743ull:
     case 0x0eb223d33f8e8e0cull:case 0x1e9017d2b296f480ull:

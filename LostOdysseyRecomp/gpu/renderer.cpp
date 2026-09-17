@@ -3585,9 +3585,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     }
                     float m = 1.0f;            // 8_8_8_8, 8_8_8_8_GAMMA, 2_10_10_10, _AS_10_10_10_10
                     if (cfmt == 3 || cfmt == 12) m = 31.875f;   // 2_10_10_10_FLOAT (7e3)
-                    else if (cfmt >= 4) m = 65504.0f;           // 16_16(_16_16)(_FLOAT), 32_FLOAT
+                    else if (cfmt >= 4 && cfmt != 10) m = 65504.0f;           // 16_16(_16_16)(_FLOAT), 32_FLOAT
                     shared.colorMax[0] = shared.colorMax[1] = shared.colorMax[2] = m;
                     shared.colorMax[3] = (cfmt == 3 || cfmt == 12 || cfmt <= 2 || cfmt == 10) ? 1.0f : m;
+                    if (cfmt >= 4 && cfmt != 10 && cfmt != 12)
+                        shared.flags |= 32u;    // signed format (16_16_FLOAT, 32_FLOAT)
                 }
                 uint32_t colorControl = Reg(REG_RB_COLORCONTROL);
                 // LO_PS_DEBUG=<n>: paint draws with at least n indices magenta.

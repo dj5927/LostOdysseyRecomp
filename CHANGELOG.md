@@ -8,6 +8,12 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- Fix Issue #38 inverted/black light fixtures ("anti-lights emitting darkness") in Numara Castle (Philosopher's Chamber):
+  - In `LostOdysseyRecomp/gpu/renderer.cpp` and `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`, correct the host EDRAM epilogue clamping for unsigned formats (formats 0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_10_FLOAT`). Clamping lower bound is now strictly `0.0` for unsigned targets, preventing additive blending passes from accumulating negative light and tone-mapping `log2` from triggering NaNs / black voids.
+  - Bump shader cache `Version` from 22 to 23 in `cache.h` to invalidate stale DXIL binaries.
+- Fix TAA flicker on stairs and save point in `f2358`:
+  - Register missing static scene and lighting vertex shaders (`0x69e9adcf2e1b6887`, `0x6a8c2c78737dc94c`, `0xa20d6099a44e2cd5` to Slot 7 and `0x6761469677f921c6` to Slot 8) in `PositionVPSlot` (`LostOdysseyRecomp/gpu/temporal_scene.h`), eliminating inter-frame phase jitter artifacts.
+
 - Keep extraction and fixed/linked shader sources in bounded memory instead of
   exporting and re-reading temporary sources during prebuild; retain compiled
   checkpoints for interrupted-startup recovery.
@@ -38,6 +44,12 @@ One record of completed changes, with unpublished work separated from verified r
 - Maintained and expanded test suite: `LoHidTest`, `LoHostUiCompositeTest`, `LoDebugOverlayTest`, `LoDebugMenuInteractionTest`, and `LoMenuRenderTest` all built and passed.
 
 ### 简体中文
+
+- 修复 Issue #38 努玛拉城哲学者之间（Philosopher's Chamber）黑光灯具问题：
+  - 在 `LostOdysseyRecomp/gpu/renderer.cpp` 与 `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp` 中修正着色器尾声对无符号 EDRAM 格式（格式 0、1、2、3、10、12，含 7e3 格式 `COLOR_2_10_10_10_FLOAT`）的物理范围截断。无符号目标下限严格截断至 `0.0`，杜绝加法光照混合通道写入负数及后续色调映射 `log2(负数)` 扩散至全屏的巨大黑洞。
+  - 将 `cache.h` 中的着色器缓存版本号 `Version` 由 22 提升至 23，自动使磁盘旧版 DXIL 缓存失效。
+- 修复 `f2358` 场景阶梯与保存点光球处的 TAA 抖动闪烁：
+  - 在 `LostOdysseyRecomp/gpu/temporal_scene.h` 的 `PositionVPSlot` 中补充注册遗漏的静态场景与光照顶点着色器（`0x69e9adcf2e1b6887`、`0x6a8c2c78737dc94c`、`0xa20d6099a44e2cd5` 映射至 Slot 7，`0x6761469677f921c6` 映射至 Slot 8），消除帧间相机抖动补偿相位不匹配导致的闪烁。
 
 - menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
 - 完整修复代码审查报告 R1 至 R10 缺陷项：
