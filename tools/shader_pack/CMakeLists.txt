@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.25)
+project(LoShaderPackTools LANGUAGES C CXX)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/portable_shader_pack.cmake")
+enable_testing()
+add_test(NAME portable-pack-core COMMAND LoPortableShaderPackTest)
+add_test(NAME portable-pack-integration COMMAND LoPortableShaderPackIntegrationTest)

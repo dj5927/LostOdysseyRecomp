@@ -31,6 +31,7 @@
 #include "shader/binary_cache.h"
 #include "shader/preparation_queue.h"
 #include "shader/startup_cache.h"
+#include "shader/portable_shader_pack.h"
 #include "shader/resource_scan.h"
 #include "shader/source_store.h"
 #include "shader/resource_xex.h"
@@ -1763,6 +1764,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 struct Job { PipelineKey key; Shader* vs; Shader* ps; std::unique_ptr<RenderPipeline> pipeline; };
                 std::vector<Job> jobs;
                 size_t missingShaders = 0;
+                // Finish all shader-map insertions before taking pointers into those maps for PSO jobs.
+                if (portableShaderPack) for (const auto& key : loaded.keys) {
+                    TryLoadPortableShader(false, key.vs);
+                    if (key.ps) TryLoadPortableShader(true, key.ps);
+                }
                 for (const auto& key : loaded.keys) {
                     const auto vs = shaders[0].find(key.vs), ps = shaders[1].find(key.ps);
                     if (vs == shaders[0].end() || !vs->second.valid ||
@@ -1845,8 +1851,13 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 } catch (const std::exception& e) { LOG_WARNING("renderer: pipeline recipe writer: {}", e.what()); }
             }
 
+            #include "shader/portable_shader_pack_renderer.inl"
+
             void PrepareKnownShaders()
             {
+                const auto xex = std::span<const uint8_t>(static_cast<const uint8_t*>(g_memory.Translate(0x82000000)), 0x185C60);
+                // A distribution pack is independent of the writable local cache and local DXC identity.
+                if (TryOpenPortableShaderPack(xex)) { ResetTimers(); return; }
                 if (shaderCacheDir.empty() || getenv("LO_NO_SHADER_PREPARE") || settings::GetConfig().skipShaderPrebuild) {
                     LOG_INFO("renderer: shader preparation skipped by configuration or environment");
                     return;
@@ -1858,7 +1869,6 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const bool retryFailures = getenv("LO_SHADER_RETRY_FAILURES") != nullptr;
                 const auto bundlePath = std::filesystem::path(shaderCacheDir) /
                     (vulkan ? "startup_vk12_v1.bundle" : "startup_dxil_v1.bundle");
-                const auto xex = std::span<const uint8_t>(static_cast<const uint8_t*>(g_memory.Translate(0x82000000)), 0x185C60);
                 // Trust imported assets, not a cache file's self-reported identity.
                 // This hashes the already-loaded XEX and current compiler contract;
                 // no game/source/cache directory walk is needed for a warm start.
@@ -1869,11 +1879,14 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     !getenv("LO_SHADER_HLSL_DIR") && !retryFailures;
                 LOG_INFO("renderer: shader startup cache: {}, compiler identity {}", bundlePath.string(),
                     compilerIdentity.empty() ? "unavailable (persistent reuse disabled)" : compilerIdentity);
+                BeginPortableShaderExport(xex);
                 if (reuseBundle) {
                     uint32_t modules = 0, cachedFailures = 0;
                     double moduleMs = 0;
                     try {
                         auto loaded = startup::LoadTransactional(bundlePath, bundleIdentity, cacheIdentity, [&](startup::Record&& record) {
+                            ExportPortableShader(record.hash, record.info, record.binary, record.failure, true);
+                            std::string{}.swap(record.info.hlsl); // Export counts source text, but the renderer does not retain it.
                             auto& entry = shaders[record.info.isPixelShader ? 1 : 0][record.hash];
                             entry.info = std::move(record.info);
                             if (!record.failure.empty()) {
@@ -1893,9 +1906,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         [] { video::PumpEvents(); }, [](uint32_t done, uint32_t total) {
                             video::SetShaderPreparationProgress(done, total, video::PreparationStage::CachedShaders,
                                 video::PreparationUnit::Shaders);
-                        }, false); // Keep metadata, not thousands of reconstructed HLSL strings.
+                        }, PortableExportRequested()); // Reconstruct one record at a time only for export size accounting.
                         video::SetShaderPreparationProgress(0, 0);
                         if (!loaded.ok) throw std::runtime_error(loaded.reason);
+                        FinishPortableShaderExport();
                         LOG_INFO("renderer: startup bundle hit: {} records, {} modules ready, {} cached failures; 0 source content reads, 0 translations, 0 DXC attempts, {} bytes verified/read",
                             loaded.records, modules, cachedFailures, loaded.bytesRead);
                         LOG_INFO("renderer: startup bundle elapsed {:.0f} ms including {:.0f} ms device module creation; source discovery/expansion skipped",
@@ -1907,6 +1921,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         LOG_INFO("renderer: startup bundle fallback: {}", e.what());
                     }
                 } else LOG_INFO("renderer: startup bundle bypass: explicit scan/dump/retry or unavailable compiler identity");
+                BeginPortableShaderExport(xex); // Discard any partial export after transactional bundle rejection.
                 video::SetShaderPreparationProgress(0, 1, video::PreparationStage::CacheValidation, video::PreparationUnit::Files);
                 video::PumpEvents();
                 xenos::resources::SourceStore sourceStore;
@@ -2123,6 +2138,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     }
                     // A later explicit frame capture regenerates HLSL from that
                     // draw's guest microcode; ordinary rendering uses metadata only.
+                    ExportPortableShader(item.hash, item.info, item.bytecode, item.error, item.deterministicFailure);
                     std::string{}.swap(item.info.hlsl);
                     if (item.cachePresent && !item.cacheValid)
                         SHADER_LOG_WARNING("cache-invalid", RendererByteFnv, "renderer: ignoring incomplete shader cache {}", item.cachePath);
@@ -2180,6 +2196,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     LOG_WARNING("renderer: started only {} shader workers: {}",
                         queueStats.startedWorkers, queueStats.startError);
                 video::SetShaderPreparationProgress(0, 0);
+                if (done == jobs.size() && expansionComplete && extracted.error.empty() && !initializationModuleFailure)
+                    FinishPortableShaderExport();
+                else portableShaderExport.reset(); // Cancellation/module failures never publish an incomplete export.
                 if (bundleWriter && done == jobs.size()) {
                     try {
                         bundleWriter->Finish(bundleIdentity);
@@ -2221,6 +2240,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     debugShaderSources->Observe(!pixel, hash, words, count, frame);
                 auto& cache = shaders[pixel ? 1 : 0];
                 auto it = cache.find(hash);
+                if (it == cache.end() && TryLoadPortableShader(pixel, hash)) it = cache.find(hash);
                 if (it != cache.end()) {
                     if (!debugCaptureDir.empty() && it->second.valid && it->second.info.hlsl.empty()) {
                         std::vector<uint32_t> swapped(count);

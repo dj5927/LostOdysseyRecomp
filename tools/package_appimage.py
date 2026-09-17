@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from portable_shader_pack_payload import stage_portable_shader_pack
 
 ROOT = Path(__file__).resolve().parents[1]
 LINUX_PACKAGING = ROOT / "packaging/linux"
@@ -62,6 +63,8 @@ def main():
         (appdir / "usr/lib").mkdir(parents=True)
         shutil.copy2(runtime, appdir / "usr/bin/LostOdysseyRecomp")
         shutil.copy2(dxc, appdir / "usr/lib/libdxcompiler.so")
+        stage_portable_shader_pack(runtime.parent, appdir / "usr/bin",
+                                   appdir / "usr/share/licenses/lost-odyssey-recomp")
         desktop = LINUX_PACKAGING / "io.github.freefrank.LostOdysseyRecomp.desktop"
         icon = LINUX_PACKAGING / "io.github.freefrank.LostOdysseyRecomp.png"
         applications = appdir / "usr/share/applications"

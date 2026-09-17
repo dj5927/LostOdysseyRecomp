@@ -1,6 +1,7 @@
 project(LostOdysseyRecomp LANGUAGES CXX)
 
 set(LO_RUNTIME_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+include("${CMAKE_SOURCE_DIR}/cmake/portable_shader_pack.cmake")
 add_library(lo_menu_lzo STATIC EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/thirdparty/lzokay/lzokay.cpp)
 target_include_directories(lo_menu_lzo PUBLIC ${CMAKE_SOURCE_DIR}/thirdparty/lzokay)
 target_compile_features(lo_menu_lzo PRIVATE cxx_std_17)
@@ -74,6 +75,7 @@ file(GLOB_RECURSE LO_RUNTIME_SOURCES CONFIGURE_DEPENDS
     "${LO_RUNTIME_ROOT}/*.h")
 list(FILTER LO_RUNTIME_SOURCES EXCLUDE REGEX "imports_stubs\\.cpp$")
 list(FILTER LO_RUNTIME_SOURCES EXCLUDE REGEX "updater/posix_ui\\.cpp$")
+list(FILTER LO_RUNTIME_SOURCES EXCLUDE REGEX "gpu/shader/portable_shader_pack\\.cpp$")
 
 set(LO_IMPORT_STUBS "${LO_RUNTIME_ROOT}/kernel/imports_stubs.cpp")
 add_custom_command(
@@ -85,6 +87,7 @@ add_custom_command(
     VERBATIM)
 
 add_executable(LostOdysseyRecomp ${LO_RUNTIME_SOURCES} ${LO_IMPORT_STUBS})
+lo_stage_portable_shader_pack(LostOdysseyRecomp)
 set(LO_BUILD_REVISION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/lo_build_revision.h")
 add_custom_target(LoBuildRevision
     COMMAND ${CMAKE_COMMAND} "-DSOURCE_ROOT=${CMAKE_SOURCE_DIR}" "-DOUTPUT=${LO_BUILD_REVISION_HEADER}"
@@ -123,6 +126,7 @@ target_compile_options(LostOdysseyRecomp PRIVATE -fno-strict-aliasing -Wno-switc
 target_compile_definitions(LostOdysseyRecomp PRIVATE NOMINMAX LO_SOURCE_VERSION="${LO_SOURCE_VERSION}")
 
 target_link_libraries(LostOdysseyRecomp PRIVATE
+    lo_portable_shader_pack
     lo_menu_lzo
     LostOdysseyRecompLib
     XenonUtils

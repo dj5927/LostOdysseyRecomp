@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from portable_shader_pack_payload import stage_portable_shader_pack
 from build_provenance import (source_state, read_stamp, validate_formal, validate_staged_binaries,
                               normalize_release_version, valid_source_version)
 
@@ -81,6 +82,7 @@ def main():
         shutil.copy2(ROOT / 'docs/INSTALLING.md', package / 'README.md')
         licenses = package / 'licenses'
         licenses.mkdir()
+        stage_portable_shader_pack(runtime.parent, package, licenses)
         shutil.copy2(ROOT / 'LICENSE', licenses / 'LostOdysseyRecomp.txt')
         shutil.copy2(ROOT / 'thirdparty/miniz-UNLICENSE.txt', licenses / 'miniz-UNLICENSE.txt')
         shutil.copy2(ROOT / 'thirdparty/nlohmann-json-LICENSE.txt', licenses / 'nlohmann-json-LICENSE.txt')

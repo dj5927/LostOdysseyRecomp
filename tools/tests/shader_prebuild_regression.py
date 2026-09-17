@@ -39,6 +39,7 @@ PRELUDE = r'''
 #include <gpu/shader/preparation_queue.h>
 #include <gpu/shader/binary_cache.h>
 #include <gpu/shader/dxc_compiler.h>
+#include <gpu/shader/portable_shader_pack.h>
 namespace fs=std::filesystem;
 static void Check(bool ok,const char* message) { if(!ok) throw std::runtime_error(message); }
 #define LOG_INFO(...) ((void)0)
@@ -84,11 +85,14 @@ struct Memory {
     std::vector<uint8_t> image=std::vector<uint8_t>(0x185C60);
     void* Translate(uint32_t address) {Check(address==0x82000000,"unexpected guest memory read");return image.data();}
 } g_memory;
+namespace settings { struct Config { bool skipShaderPrebuild=false; }; inline Config GetConfig() { return {}; } }
 namespace video {
 enum class PreparationStage { CachedShaders,CacheValidation,IndexedExtraction,FallbackScan };
 enum class PreparationUnit { Shaders,Entries,MiB,Files };
 static size_t pumps=0;
 void PumpEvents() {++pumps;}
+void ResetShaderPreparationSkip() {}
+bool ShaderPreparationSkipped() { return false; }
 void SetShaderPreparationProgress(uint32_t,uint32_t,PreparationStage=PreparationStage::CachedShaders,
     PreparationUnit=PreparationUnit::Shaders) {}
 }
@@ -120,6 +124,7 @@ struct Host {
     struct ScopedTimer {ScopedTimer(uint64_t&,bool){}};
     void ResetTimers() {}
     void PreparePositionEvidence(Shader&,const uint32_t*,uint32_t,uint64_t) {}
+    #include <gpu/shader/portable_shader_pack_renderer.inl>
 '''
 TAIL = r'''
 };
@@ -211,7 +216,7 @@ def main():
     cpp=out/'prebuild.cpp';cpp.write_text(PRELUDE+prepare+get+TAIL,encoding='utf-8')
     flags=['-std=c++20','-pthread','-I'+str(ROOT/'LostOdysseyRecomp')]
     flags+=['-O1','-g','-fsanitize=address,undefined','-fno-omit-frame-pointer'] if args.sanitize else ['-O2']
-    command=[args.cxx,*flags,str(cpp),'-o',str(out/'prebuild')]
+    command=[args.cxx,*flags,str(cpp),str(ROOT/'LostOdysseyRecomp/gpu/shader/portable_shader_pack.cpp'),'-lzstd','-o',str(out/'prebuild')]
     print('BUILD',' '.join(command),flush=True)
     build=subprocess.run(command,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=120)
     (out/'build.log').write_text(build.stdout,encoding='utf-8')
