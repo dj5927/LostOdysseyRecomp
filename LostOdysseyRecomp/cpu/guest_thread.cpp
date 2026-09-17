@@ -53,23 +53,20 @@ GuestThreadContext::~GuestThreadContext()
     g_pageAllocator.Free(g_pageAllocator.virtualRegion, g_memory.MapVirtual(thread));
 }
 
-static void GuestThreadFunc(GuestThreadHandle* hThread)
+static void GuestThreadFunc(std::shared_ptr<GuestThreadHandle::Control> state)
 {
-    hThread->suspended.wait(true);
-    GuestThread::Start(hThread->params);
-    hThread->finished = true;
-    hThread->finished.notify_all();
+    state->suspended.wait(true);
+    GuestThread::Start(state->params);
+    state->completion.Set();
 }
-
 GuestThreadHandle::GuestThreadHandle(const GuestThreadParams& params)
-    : params(params), suspended((params.flags & 0x1) != 0), thread(GuestThreadFunc, this)
+    : control(std::make_shared<Control>(params)), thread(GuestThreadFunc, control)
 {
 }
-
 GuestThreadHandle::~GuestThreadHandle()
 {
-    if (thread.joinable())
-        thread.join();
+    // Closing a handle is not a wait. The worker's shared control survives it.
+    if (thread.joinable()) thread.detach();
 }
 
 template <typename ThreadType>
@@ -84,28 +81,6 @@ static uint32_t CalcThreadId(const ThreadType& id)
 uint32_t GuestThreadHandle::GetThreadId() const
 {
     return CalcThreadId(thread.get_id());
-}
-
-uint32_t GuestThreadHandle::Wait(uint32_t timeout)
-{
-    if (timeout == INFINITE)
-    {
-        if (thread.joinable())
-            thread.join();
-        return STATUS_WAIT_0;
-    }
-
-    if (timeout == 0)
-        return finished ? STATUS_WAIT_0 : STATUS_TIMEOUT;
-
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
-    while (!finished)
-    {
-        if (std::chrono::steady_clock::now() >= deadline)
-            return STATUS_TIMEOUT;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-    return STATUS_WAIT_0;
 }
 
 uint32_t GuestThread::Start(const GuestThreadParams& params)
@@ -131,7 +106,7 @@ uint32_t GuestThread::Start(const GuestThreadParams& params)
     return ctx.ppcContext.r3.u32;
 }
 
-GuestThreadHandle* GuestThread::Start(const GuestThreadParams& params, uint32_t* threadId)
+std::shared_ptr<GuestThreadHandle> GuestThread::Start(const GuestThreadParams& params, uint32_t* threadId)
 {
     auto hThread = CreateKernelObject<GuestThreadHandle>(params);
 

@@ -1,16 +1,31 @@
-#include "gpu/shader/portable_shader_pack.h"
+#include "gpu/shader/portable_shader_contract.h"
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
 
 int main(int argc,char** argv) try {
-    if(argc!=3 || (std::string_view(argv[1])!="inspect" && std::string_view(argv[1])!="verify")) {
-        std::cerr<<"Usage: LoShaderPackTool <inspect|verify> path/to/portable_vk.lospv\n";
+    const auto command = argc > 1 ? std::string_view(argv[1]) : std::string_view{};
+    const bool runtime = command == "verify-runtime";
+    if ((runtime ? argc != 4 : argc != 3) ||
+        (command != "inspect" && command != "verify" && !runtime)) {
+        std::cerr << "Usage: LoShaderPackTool <inspect|verify> pack.lospv\n"
+                     "       LoShaderPackTool verify-runtime pack.lospv decrypted-image.bin\n";
         return 2;
     }
-    const bool verified=std::string_view(argv[1])=="verify";
-    const auto r=xenos::portable_pack::Reader::Inspect(std::filesystem::path(reinterpret_cast<const char8_t*>(argv[2])),verified);
+    const bool verified = command != "inspect";
+    const auto path = std::filesystem::path(reinterpret_cast<const char8_t*>(argv[2]));
+    xenos::portable_pack::Report r;
+    if (runtime) {
+        std::ifstream in(std::filesystem::path(reinterpret_cast<const char8_t*>(argv[3])), std::ios::binary);
+        std::vector<uint8_t> image(xenos::portable_pack::RuntimeXexBytes);
+        if (!in.read(reinterpret_cast<char*>(image.data()), std::streamsize(image.size())))
+            throw std::runtime_error("missing/short decrypted runtime image (use xexdump output)");
+        xenos::portable_pack::Reader reader(path, xenos::portable_pack::RuntimeContract(image));
+        reader.VerifyAll();
+        r = reader.Info();
+    } else r = xenos::portable_pack::Reader::Inspect(path, verified);
     std::cout<<"{\n  \"schema\": "<<xenos::portable_pack::Schema
         <<",\n  \"contract\": \""<<xenos::resources::Sha256Hex(r.contract)<<"\""
         <<",\n  \"records\": "<<r.records<<",\n  \"unique_binaries\": "<<r.uniqueBinaries
@@ -24,6 +39,6 @@ int main(int argc,char** argv) try {
         <<",\n  \"file_bytes\": "<<r.fileBytes
         <<",\n  \"file_mib\": "<<std::fixed<<std::setprecision(3)<<double(r.fileBytes)/1048576.0
         <<",\n  \"all_payloads_verified\": "<<(verified?"true":"false")
-        <<",\n  \"runtime_compatibility_verified\": false\n}\n";
+        <<",\n  \"runtime_compatibility_verified\": "<<(runtime?"true":"false")<<"\n}\n";
     return 0;
 } catch(const std::exception& e) {std::cerr<<"shader pack: "<<e.what()<<'\n';return 1;}

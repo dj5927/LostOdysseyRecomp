@@ -83,46 +83,29 @@ namespace gpu::geometry_prepare
 #endif
     }
 
-    // Preserve the old large-buffer sampling coverage, using exact comparisons
-    // instead of serial hash arithmetic. Small buffers include trailing bytes.
-    class SampledContent
+    // Guest PPC stores are not all instrumented with a write generation yet.
+    // A sparse sample cannot establish equality. Retain exact CPU-side bytes;
+    // never read the write-combined GPU upload heap and never hash every draw.
+    class ExactContent
     {
-        size_t sourceSize = 0;
-        std::vector<uint8_t> samples;
-        template<class Visitor> static bool Visit(size_t bytes, Visitor visitor)
-        {
-            if (bytes <= 8192) return visitor(0, bytes);
-            if (!visitor(0, 512) || !visitor(bytes - 512, 512)) return false;
-            const size_t step = (bytes - 1024) / 64;
-            for (size_t i = 0; i < 64; ++i)
-                if (!visitor(512 + i * step, 64)) return false;
-            return true;
-        }
+        std::vector<uint8_t> snapshot;
+        bool captured = false;
     public:
+        size_t Size() const { return snapshot.size(); }
         bool Matches(const uint8_t* data, size_t bytes) const
         {
-            if (sourceSize != bytes || samples.size() != (bytes <= 8192 ? bytes : 5120)) return false;
-            size_t position = 0;
-            return Visit(bytes, [&](size_t offset, size_t count) {
-                const bool equal = !count || (count == 64
-                    ? EqualSampleBlock64(data + offset, samples.data() + position)
-                    : !std::memcmp(data + offset, samples.data() + position, count));
-                position += count;
-                return equal;
-            });
+            return captured && snapshot.size() == bytes &&
+                (!bytes || std::memcmp(data, snapshot.data(), bytes) == 0);
         }
         void Capture(const uint8_t* data, size_t bytes)
         {
-            sourceSize = bytes;
-            samples.resize(bytes <= 8192 ? bytes : 5120);
-            size_t position = 0;
-            Visit(bytes, [&](size_t offset, size_t count) {
-                if (count) std::memcpy(samples.data() + position, data + offset, count);
-                position += count;
-                return true;
-            });
+            snapshot.resize(bytes);
+            if (bytes) std::memcpy(snapshot.data(), data, bytes);
+            captured = true;
         }
     };
+    // Source compatibility for diagnostics that used the old helper name.
+    using SampledContent = ExactContent;
 
     template<bool Wide, unsigned Endian>
     inline void Convert(const uint8_t* src, uint32_t* dst, uint32_t count)

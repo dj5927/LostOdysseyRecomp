@@ -70,7 +70,7 @@ namespace gpu::video
             }
         }
         std::atomic<uint64_t> g_shaderProgress{0};
-        bool g_vulkan = false;
+        std::atomic<bool> g_vulkan{false};
         constexpr uint64_t kProgressMask = (1ull << 28) - 1;
         const wchar_t* PreparationTitle(PreparationStage stage) {
             switch (stage) {
@@ -475,7 +475,9 @@ namespace gpu::video
 #if defined(LO_GPU_PLUME)
         diagnostics::InstallPlumeLog();
         const auto selection = backend::Select(*requested, [](backend::Backend candidate) -> std::string {
-            g_vulkan = candidate == backend::Backend::Vulkan;
+            g_vulkan.store(candidate == backend::Backend::Vulkan);
+            // Backend changes must also refresh the window thread's mode policy.
+            g_reapplyWindow.store(true);
             g_initializing = true;
             LOG_INFO("video: trying {}", backend::Name(candidate));
 #ifdef _WIN32
@@ -940,9 +942,9 @@ namespace gpu::video
     {
         if ((!g_available && !g_initializing) || !g_swapChain || g_swapChain->isEmpty())
             return false;
+        DisplayCompletion completion(g_displayChanges, displayTicket);
         if (!width || !height || size_t(width) > std::numeric_limits<size_t>::max() / height ||
             pixels.size() != size_t(width) * height || width > (UINT32_MAX - 255u) / 4u) {
-            g_displayChanges.Complete(displayTicket, false);
             return false;
         }
         // PreparePresentation has already finalized the output size. Do not
@@ -951,24 +953,36 @@ namespace gpu::video
         // Upload the untiled pixels; rows must be 256-byte aligned for D3D12.
         const uint32_t rowPitch = (width * 4 + 255) & ~255u;
         const uint64_t requiredBytes = uint64_t(rowPitch) * height;
-        WaitForPresentGpu();
-        if (requiredBytes > g_uploadCapacity) {
-            auto upload = g_device->createBuffer(plume::RenderBufferDesc::UploadBuffer(requiredBytes));
-            if (!upload) return false;
-            g_uploadBuffer = std::move(upload);
-            g_uploadCapacity = requiredBytes;
+        try {
+            WaitForPresentGpu();
+            // Stage allocations before acquiring an image or opening a command
+            // list. Failed resizing keeps the previous usable resources intact.
+            std::unique_ptr<plume::RenderBuffer> upload;
+            if (!g_uploadBuffer || requiredBytes > g_uploadCapacity) {
+                upload = g_device->createBuffer(plume::RenderBufferDesc::UploadBuffer(requiredBytes));
+                if (!upload) return false;
+            }
+            std::unique_ptr<plume::RenderTexture> cpuFrame;
+            if (g_presentation && (!g_cpuFrame || g_cpuWidth != width || g_cpuHeight != height)) {
+                cpuFrame = g_device->createTexture(plume::RenderTextureDesc::Texture2D(width, height, 1, kSwapChainFormat));
+                if (!cpuFrame) return false;
+            }
+            auto* uploadBuffer = upload ? upload.get() : g_uploadBuffer.get();
+            auto* mapped = static_cast<uint8_t*>(uploadBuffer->map());
+            if (!mapped) return false;
+            for (uint32_t y = 0; y < height; ++y)
+                memcpy(mapped + size_t(y) * rowPitch, &pixels[size_t(y) * width], size_t(width) * 4);
+            uploadBuffer->unmap();
+            if (upload) { g_uploadBuffer = std::move(upload); g_uploadCapacity = requiredBytes; }
+            if (cpuFrame) { g_cpuFrame = std::move(cpuFrame); g_cpuWidth = width; g_cpuHeight = height; }
+        } catch (const std::exception& error) {
+            LOG_WARNING("video: CPU presentation resource preparation failed: {}", error.what());
+            return false;
         }
-        auto* mapped = static_cast<uint8_t*>(g_uploadBuffer->map());
-        if (!mapped) return false;
-        for (uint32_t y = 0; y < height; y++)
-            memcpy(mapped + size_t(y) * rowPitch, &pixels[size_t(y) * width], size_t(width) * 4);
-        g_uploadBuffer->unmap();
 
-        WaitForPresentGpu();
         uint32_t imageIndex = 0;
         if (!g_swapChain->acquireTexture(g_acquireSemaphore.get(), &imageIndex))
         {
-            g_displayChanges.Complete(displayTicket, false);
             return false;
         }
         plume::RenderTexture* backBuffer = g_swapChain->getTexture(imageIndex);
@@ -976,10 +990,6 @@ namespace gpu::video
         const uint32_t copyHeight = std::min(height, g_swapChain->getHeight());
 
         g_commandList->begin();
-        if(!g_cpuFrame || g_cpuWidth!=width || g_cpuHeight!=height) {
-            g_cpuFrame=g_device->createTexture(plume::RenderTextureDesc::Texture2D(width,height,1,kSwapChainFormat));
-            g_cpuWidth=width; g_cpuHeight=height;
-        }
         auto* uploadTarget=g_presentation?g_cpuFrame.get():backBuffer;
         g_commandList->barriers(plume::RenderBarrierStage::COPY, plume::RenderTextureBarrier(uploadTarget, plume::RenderTextureLayout::COPY_DEST));
         plume::RenderBox box(0, 0, int32_t(copyWidth), int32_t(copyHeight), 0, 1);
@@ -1003,7 +1013,7 @@ namespace gpu::video
         if (presented) ++g_completedPresentCount;
         g_presentPending = true;
         g_lastPresentedImage=imageIndex; g_hasPresentedImage=true;
-        g_displayChanges.Complete(displayTicket, presented && !g_displayFailed.load());
+        completion.Complete(presented && !g_displayFailed.load());
         return presented;
     }
 #endif
@@ -1091,11 +1101,11 @@ namespace gpu::video
                 g_frameOnGpu = true;
                 if (g_swapChain->isEmpty())
                     return;
+                DisplayCompletion completion(g_displayChanges, displayTicket);
                 WaitForPresentGpu();
                 uint32_t imageIndex = 0;
                 if (!g_swapChain->acquireTexture(g_acquireSemaphore.get(), &imageIndex))
                 {
-                    g_displayChanges.Complete(displayTicket, false);
                     return;
                 }
                 plume::RenderTexture* backBuffer = g_swapChain->getTexture(imageIndex);
@@ -1128,7 +1138,7 @@ namespace gpu::video
                 if (presented) ++g_completedPresentCount;
                 g_presentPending = true;
                 g_lastPresentedImage=imageIndex; g_hasPresentedImage=true;
-                g_displayChanges.Complete(displayTicket, presented && !g_displayFailed.load());
+                completion.Complete(presented && !g_displayFailed.load());
                 return;
             }
         }

@@ -1,6 +1,6 @@
 // Compiles the exact production renderer .inl against explicit fake GPU/DXC
 // services. This tests the new integration methods, not the whole renderer.
-#include "gpu/shader/portable_shader_pack.h"
+#include "gpu/shader/portable_shader_contract.h"
 #include <array>
 #include <chrono>
 #include <cstdlib>
@@ -16,7 +16,7 @@ namespace xenos {
 std::string producer="local-compiler-A";
 const std::string& DxcIdentity() {return producer;}
 const char* GetShaderCommonHlsl(){return "test-only prelude";}
-namespace resources::variants {inline constexpr std::string_view DiscoveryIdentity="test-only discovery";}
+
 }
 #define LOG_INFO(...) do {} while(false)
 #define LOG_WARNING(...) do {} while(false)
@@ -30,7 +30,7 @@ struct Device {
 struct Shader {xenos::TranslatedShader info;std::unique_ptr<Module> shader;bool valid=false;};
 struct RendererFixture {
     bool vulkan=true;int renderFormat=1;
-    struct {uint32_t translatorVersion=23;std::string options="vulkan1.2;O3",variant="guest",compiler="local";} cacheIdentity;
+    xenos::cache::Identity cacheIdentity=xenos::cache::MakeIdentity(xenos::cache::Backend::Vulkan,"local");
     Device driver;Device* device=&driver;
     std::array<std::unordered_map<uint64_t,Shader>,2> shaders;
     #include "gpu/shader/portable_shader_pack_renderer.inl"

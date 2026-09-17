@@ -203,6 +203,16 @@ void TestContentReplacement(size_t bytes)
 
 int main()
 {
+    {
+        VertexCache bytes(100, 48);
+        bytes.emplace(1, Entry(1)); bytes.emplace(2, Entry(2)); bytes.emplace(3, Entry(3));
+        Check(bytes.size()==2 && bytes.CapturedBytes()==48, "snapshot byte budget");
+        auto huge=Entry(4); std::vector<uint8_t> payload(49); huge.content.Capture(payload.data(), payload.size());
+        bytes.emplace(4, std::move(huge));
+        Check(bytes.find(4)==bytes.end() && bytes.CapturedBytes()==48, "oversized entry bypass");
+        while (bytes.size()) bytes.erase(bytes.begin());
+        Check(bytes.CapturedBytes()==0, "snapshot accounting after slot erase");
+    }
     for (size_t capacity : {size_t(0), size_t(1), size_t(2), size_t(15), size_t(16), size_t(17), size_t(257), VertexCache::kCapacity})
         TestChurn(capacity);
     for (size_t capacity : {size_t(2), size_t(16), size_t(17)}) TestRecentUse(capacity);

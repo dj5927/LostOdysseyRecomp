@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURES = '''backend_selection host_ui_composite game_path user_paths notified_wait poll_wait
+FIXTURES = '''prerelease_audit backend_selection host_ui_composite game_path user_paths notified_wait poll_wait
 texture_key texture_descriptor_cache texture_layout geometry_prepare depth_clear_layout
 register_snapshot frame_pacer render_resolution render_timing render_arena_policy
 render_batch_policy resolve_copy_policy temporal_scene temporal_jitter temporal_math

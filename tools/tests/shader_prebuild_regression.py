@@ -39,7 +39,8 @@ PRELUDE = r'''
 #include <gpu/shader/preparation_queue.h>
 #include <gpu/shader/binary_cache.h>
 #include <gpu/shader/dxc_compiler.h>
-#include <gpu/shader/portable_shader_pack.h>
+#include <gpu/shader/portable_shader_contract.h>
+#include <gpu/shader/retry_state.h>
 namespace fs=std::filesystem;
 static void Check(bool ok,const char* message) { if(!ok) throw std::runtime_error(message); }
 #define LOG_INFO(...) ((void)0)
@@ -58,7 +59,7 @@ template<class... T> std::string format(std::string_view text,T&&... args) {
 }
 static uint32_t ByteSwap(uint32_t v) {return __builtin_bswap32(v);}
 static std::atomic<size_t> translations{0},compilations{0};
-static bool throwAllocation=false, rejectCompilation=false;
+static bool throwAllocation=false, rejectCompilation=false, transientCompilation=false;
 namespace xenos {
 static std::string compiler="fixture-compiler-A";
 const std::string& DxcIdentity() {return compiler;}
@@ -70,6 +71,7 @@ TranslatedShader TranslateShader(const uint32_t*,uint32_t,bool pixel) {
 }
 CompiledShader CompileHlsl(const std::string&,const char*,const char*,ShaderBinaryFormat,bool) {
     ++compilations;
+    if(transientCompilation) return {{},"transient fixture rejection",false,false};
     if(compiler.empty()) return {{},"unavailable fixture compiler",false,false};
     if(rejectCompilation) return {{},"deterministic fixture rejection",false,true};
     CompiledShader r;r.ok=true;r.bytecode.resize(44);std::memcpy(r.bytecode.data(),"DXBC",4);
@@ -89,25 +91,26 @@ namespace settings { struct Config { bool skipShaderPrebuild=false; }; inline Co
 namespace video {
 enum class PreparationStage { CachedShaders,CacheValidation,IndexedExtraction,FallbackScan };
 enum class PreparationUnit { Shaders,Entries,MiB,Files };
-static size_t pumps=0;
-void PumpEvents() {++pumps;}
-void ResetShaderPreparationSkip() {}
-bool ShaderPreparationSkipped() { return false; }
+static size_t pumps=0,skipAfter=0;
+static bool skipped=false;
+void PumpEvents() {++pumps;if(skipAfter && pumps>=skipAfter) skipped=true;}
+void ResetShaderPreparationSkip() {skipped=false;}
+bool ShaderPreparationSkipped() { return skipped; }
 void SetShaderPreparationProgress(uint32_t,uint32_t,PreparationStage=PreparationStage::CachedShaders,
     PreparationUnit=PreparationUnit::Shaders) {}
 }
 namespace taa_collection { template<class... T> void ObserveProgram(T&&...) {} }
 struct Capture {template<class... T> void Observe(T&&...) {}};
 struct Device {
-    bool fail=false;size_t calls=0;
+    bool fail=false,nullModule=false;size_t calls=0;
     std::unique_ptr<int> createShader(const void* bytes,size_t size,const char*,int) {
         ++calls;if(fail) throw std::runtime_error("injected device failure");
         Check(xenos::cache::CompleteContainer({static_cast<const uint8_t*>(bytes),size}),"invalid device bytecode");
-        return std::make_unique<int>(1);
+        return nullModule ? nullptr : std::make_unique<int>(1);
     }
 };
 struct Host {
-    struct Shader {std::unique_ptr<int> shader;xenos::TranslatedShader info;bool valid=false;};
+    struct Shader {std::unique_ptr<int> shader;xenos::TranslatedShader info;bool valid=false;xenos::retry::State retry;};
     std::unordered_map<uint64_t,Shader> shaders[2];
     Device ownedDevice;Device* device=&ownedDevice;
     bool vulkan=false,initializationModuleFailure=false,cpuTimingEnabled=false;
@@ -123,6 +126,7 @@ struct Host {
     }
     struct ScopedTimer {ScopedTimer(uint64_t&,bool){}};
     void ResetTimers() {}
+    static void CheckPreparationCancel() { video::PumpEvents(); if(video::ShaderPreparationSkipped()) throw xenos::preparation::Cancelled{}; }
     void PreparePositionEvidence(Shader&,const uint32_t*,uint32_t,uint64_t) {}
     #include <gpu/shader/portable_shader_pack_renderer.inl>
 '''
@@ -197,6 +201,40 @@ int main(int argc,char** argv) try {
     xenos::compiler.clear();
     Host unavailable(cache);unavailable.PrepareKnownShaders();
     Check(!fs::exists(bundle),"uncertified compiler published a bundle");
+    xenos::compiler="fixture-compiler-B";
+    Host transient(root/"on-demand-transient");transientCompilation=true;
+    const auto before=compilations.load();
+    Check(!transient.GetShader(true,words.data(),words.size(),hash),"transient compile unexpectedly succeeded");
+    transientCompilation=false;
+    Check(!transient.GetShader(true,words.data(),words.size(),hash) && compilations==before+1,"retry spun DXC on every draw");
+    std::this_thread::sleep_for(std::chrono::milliseconds(110));
+    Check(transient.GetShader(true,words.data(),words.size(),hash),"transient compiler failure permanently poisoned cache");
+    Host moduleRetry(root/"on-demand-module");moduleRetry.ownedDevice.fail=true;
+    Check(!moduleRetry.GetShader(true,words.data(),words.size(),hash),"module exception escaped");
+    moduleRetry.ownedDevice.fail=false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(110));
+    Check(moduleRetry.GetShader(true,words.data(),words.size(),hash),"module exception permanently poisoned cache");
+    Host nullRetry(root/"on-demand-null");nullRetry.ownedDevice.nullModule=true;
+    Check(!nullRetry.GetShader(true,words.data(),words.size(),hash),"null module marked valid");
+    nullRetry.ownedDevice.nullModule=false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(110));
+    Check(nullRetry.GetShader(true,words.data(),words.size(),hash),"null module permanently poisoned cache");
+    Host permanent(root/"on-demand-negative");rejectCompilation=true;
+    Check(!permanent.GetShader(true,words.data(),words.size(),hash),"deterministic rejection succeeded");
+    rejectCompilation=false;const auto rejectedCount=compilations.load();
+    std::this_thread::sleep_for(std::chrono::milliseconds(110));
+    Check(!permanent.GetShader(true,words.data(),words.size(),hash) && compilations==rejectedCount,"deterministic rejection was recompiled");
+    xenos::compiler="fixture-compiler-retry";
+    const auto bundleSize=fs::file_size(retryCache/"startup_dxil_v1.bundle");
+    video::skipAfter=video::pumps+2;
+    Host cancelledBundle(retryCache);cancelledBundle.PrepareKnownShaders();
+    Check(video::skipped && cancelledBundle.shaders[0].empty() && cancelledBundle.shaders[1].empty(),"cached startup ignored cancellation/rollback");
+    Check(fs::file_size(retryCache/"startup_dxil_v1.bundle")==bundleSize,"cancel overwrote complete bundle");
+    video::skipAfter=video::pumps+2;
+    Host cancelledScan(root/"cancelled-scan");cancelledScan.PrepareKnownShaders();
+    Check(video::skipped && !fs::exists(root/"cancelled-scan/startup_dxil_v1.bundle"),"scan cancellation published bundle");
+    video::skipAfter=0;
+    std::puts("PASS production GetShader transient/throw/null retry, bounded backoff, permanent negatives, cached/scan cancellation");
     std::puts("PASS production prebuild/GetShader: cold, warm/no game IO, compiler invalidation, checkpoint recovery, forced scan/retry, late capture, fatal module/allocation failures");
     std::puts("Translation, DXC and device calls are explicit fakes; no real GPU/game execution.");
     return 0;

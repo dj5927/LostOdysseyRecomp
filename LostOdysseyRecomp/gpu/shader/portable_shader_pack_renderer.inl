@@ -11,9 +11,7 @@ bool PortableExportRequested() const
 
 xenos::portable_pack::Digest PortableShaderContract(std::span<const uint8_t> xex) const
 {
-    return xenos::portable_pack::Contract(cacheIdentity.translatorVersion,
-        cacheIdentity.options, cacheIdentity.variant, xenos::GetShaderCommonHlsl(),
-        xenos::resources::variants::DiscoveryIdentity, xex);
+    return xenos::portable_pack::RuntimeContract(xex, cacheIdentity);
 }
 
 bool TryOpenPortableShaderPack(std::span<const uint8_t> xex)

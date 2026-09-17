@@ -9,7 +9,7 @@ namespace gpu::geometry_prepare
     struct VertexEntry
     {
         uint64_t offset;
-        SampledContent content;
+        ExactContent content;
         uint64_t lastFrame;
         uint8_t slot = 0;
     };
@@ -23,20 +23,28 @@ namespace gpu::geometry_prepare
         using Map = ankerl::unordered_dense::map<uint64_t, VertexEntry>;
         Map entries;
         size_t capacity;
+        size_t byteCapacity;
+        size_t capturedBytes = 0;
         size_t evictionCursor = 0;
         uint64_t evictions = 0;
 
     public:
         static constexpr size_t kCapacity = 65536;
         static constexpr size_t kEvictionCandidates = 16;
-        explicit VertexCache(size_t limit = kCapacity) : capacity(std::max(size_t(1), limit))
+        static constexpr size_t kByteCapacity = 256ull << 20;
+        explicit VertexCache(size_t limit = kCapacity, size_t bytes = kByteCapacity)
+            : capacity(std::max(size_t(1), limit)), byteCapacity(bytes)
         {
             entries.reserve(capacity);
         }
         auto begin() { return entries.begin(); }
         auto end() { return entries.end(); }
         auto find(uint64_t key) { return entries.find(key); }
-        auto erase(Map::iterator it) { return entries.erase(it); }
+        auto erase(Map::iterator it) {
+            capturedBytes -= it->second.content.Size();
+            return entries.erase(it);
+        }
+        size_t CapturedBytes() const { return capturedBytes; }
         size_t size() const { return entries.size(); }
         size_t bucket_count() const { return entries.bucket_count(); }
         uint64_t Evictions() const { return evictions; }
@@ -46,7 +54,11 @@ namespace gpu::geometry_prepare
             // Caller already checked/removed this key; no iterators or entry
             // references survive insertion. Sample a rotating bounded window,
             // keeping recently used buffers without a per-hit LRU list update.
-            if (entries.size() == capacity)
+            const size_t bytes = entry.content.Size();
+            // Oversized buffers remain usable for this draw, but are not cached.
+            if (bytes > byteCapacity) return;
+            while (!entries.empty() &&
+                (entries.size() == capacity || capturedBytes > byteCapacity - bytes))
             {
                 size_t victim = evictionCursor % entries.size();
                 const size_t count = std::min(kEvictionCandidates, entries.size());
@@ -58,10 +70,11 @@ namespace gpu::geometry_prepare
                         victim = candidate;
                 }
                 evictionCursor = (evictionCursor + count) % entries.size();
-                entries.erase(entries.begin() + victim);
+                erase(entries.begin() + victim);
                 ++evictions;
             }
-            entries.emplace(key, std::move(entry));
+            const auto [it, inserted] = entries.emplace(key, std::move(entry));
+            if (inserted) capturedBytes += bytes;
         }
     };
 }

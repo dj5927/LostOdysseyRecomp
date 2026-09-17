@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(LostOdysseyRecomp VERSION 0.5.20 LANGUAGES C CXX)
+project(LostOdysseyRecomp VERSION 0.6.0 LANGUAGES C CXX)
 include(GNUInstallDirs)
 # Source version, not a release/commit or clean-checkout assertion.
 # Capture before nested projects can replace PROJECT_VERSION in their scope.
@@ -11,7 +11,9 @@ set(BUILD_SHARED_LIBS OFF)
 
 # Sandy Bridge baseline (AVX): lets simde map VMX ops to real SSE4.1/AVX intrinsics
 # instead of scalar fallbacks (which pull in C23 roundeven*). Same as UnleashedRecomp.
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" LO_TARGET_PROCESSOR)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND
+   LO_TARGET_PROCESSOR MATCHES "^(x86_64|amd64|x64|i[3-6]86|x86)$")
     add_compile_options(-march=sandybridge)
 endif()
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

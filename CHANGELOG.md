@@ -8,11 +8,26 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
-- Planned maintenance and ongoing investigations.
+- 0.6.0 prerelease audit repairs: atomic multi-object waits, reference-counted
+  kernel handles and non-blocking thread close with independently owned worker state.
+- Retry transient shader/module failures with bounded backoff; preserve permanent
+  negative compilation results. Cancel every eager shader/PSO preparation phase.
+- Preserve presentation resources on allocation/map failure, resolve display
+  transactions, and synchronize backend selection with window policy updates.
+- Compare vertex cache content exactly with a bounded CPU snapshot budget; no
+  per-draw cryptographic hashing. Honor serial overrides and Linux memory limits.
+- Share the portable shader runtime contract with the release verifier; pin shader
+  inputs and gate releases on native/portable pack regressions. Guard x86 compiler
+  flags by target architecture. These changes do not certify gameplay or Deck FPS.
 
 ### 简体中文
 
-- 计划中的维护与持续排查。
+- 0.6.0预发布审计修复：原子化多对象等待、句柄引用管理及不阻塞的线程句柄关闭。
+- shader暂时失败可退避重试，确定性失败保留负缓存；取消覆盖shader和PSO准备各阶段。
+- 呈现资源分配或映射失败保留旧资源并结束显示事务，同步后端选择与窗口策略。
+- 顶点缓存采用有内存上限的精确内容比较，不增加逐draw加密哈希；修正串行优先级及Linux内存检测。
+- 发布工具共享runtime的shader兼容契约，固定输入版本，发布前执行回归；按目标架构限定x86编译参数。
+  本轮改动不代表已经通过游戏全流程或Steam Deck帧率验收。
 
 ## v0.5.20 — 2026-09-17 / Published / 已发布
 
