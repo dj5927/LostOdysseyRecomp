@@ -19,6 +19,11 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## Unreleased development
+
+- The in-game debug overlay now composes correctly across output resolutions and protects shared overlay state during concurrent access. Its software UI uses the intended RGBA channel order, HID locking covers the complete device operation, and guest pause uses cooperative safe points so overlay interaction does not suspend worker threads indefinitely.
+- Focused Windows regression tests pass after rebuilding: `LoHostUiCompositeTest`, `LoDebugOverlayTest` and `LoHidTest`. A complete Clang 22 Linux Release runtime also links successfully and recognizes `game_us/default.xex` during startup. The Linux check used `SDL_VIDEODRIVER=dummy`, so Vulkan window creation and real scene gameplay were not exercised.
+
 Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with the published Linux x64 AppImage available from the [v0.5.14 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14); see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides.
 
 ## New in v0.5.14
@@ -120,7 +125,7 @@ See the [installation guide](docs/INSTALLING.md) for accepted disc versions, fil
 | Settings menu | Original game fonts and menu styling; one-click Graphics save/apply and Now/Later restart choices |
 | Shader preparation | Built-in resource index, parallel compilation and cache reuse |
 | CPU use | Reduced unnecessary polling and reuse of rendering work |
-| Input and debug | Controller and keyboard input; English/Simplified Chinese F1 menu with capture, map information and same-map POI teleport |
+| Input and debug | Controller and keyboard input; English/Simplified Chinese in-game overlay debug menu (F1 or LB+RB) with capture, map information and same-map POI teleport |
 
 Published packages import game discs and supported DLC with **Files** or **Folder** in `LostOdysseyRecomp.exe`. The same built-in importer can be reopened when assets are missing. See the [installation guide](docs/INSTALLING.md#automatic-content-import) and [development status](docs/STATUS.md) for validation limits.
 
@@ -165,7 +170,7 @@ Keep the working directory consistent so the intended save/profile folders are u
 | D-pad / left stick | Arrow keys / I, J, K, L |
 | Left / right shoulder | Q / W |
 | Left / right trigger | E / R |
-| Debug menu | F1 |
+| Debug menu | F1 / Gamepad LB+RB |
 
 SDL-mapped controllers and the keyboard can be used together for player 1. Unmapped joysticks need an SDL controller mapping. See [input details](docs/notes/controller-input.md).
 

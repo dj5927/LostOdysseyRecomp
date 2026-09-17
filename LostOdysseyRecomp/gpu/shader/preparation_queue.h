@@ -24,7 +24,9 @@ namespace xenos::preparation
     inline size_t WorkerCount(unsigned logicalThreads, size_t jobs, bool forceSerial)
     {
         const unsigned requested = forceSerial ? 1u : (logicalThreads > 1 ? logicalThreads - 1 : 1u);
-        return std::min<size_t>(requested, jobs);
+        // DXC working sets are not covered by the result queue bound.
+        // Prefer predictable memory use on shared-memory handhelds.
+        return std::min<size_t>(std::min(requested, 4u), jobs);
     }
 
     struct QueueStats
@@ -65,6 +67,10 @@ namespace xenos::preparation
         std::deque<Result> ready;
         std::exception_ptr workerFailure;
 
+        auto cancel = [&] {
+            { std::lock_guard lock(mutex); cancelled = true; }
+            changed.notify_all();
+        };
         auto fail = [&](std::exception_ptr failure) {
             std::lock_guard lock(mutex);
             if (!workerFailure) workerFailure = failure;
@@ -96,14 +102,15 @@ namespace xenos::preparation
         {
             std::atomic<bool>& cancelled;
             std::condition_variable& changed;
+            std::mutex& mutex;
             bool armed = true;
             ~CancelBeforeWorkersJoin() noexcept
             {
                 if (!armed) return;
-                cancelled = true;
+                { std::lock_guard lock(mutex); cancelled = true; }
                 changed.notify_all();
             }
-        } cancelBeforeWorkersJoin{cancelled, changed};
+        } cancelBeforeWorkersJoin{cancelled, changed, mutex};
         workers.reserve(requestedWorkers);
         try {
             for (size_t i = 0; i < requestedWorkers; ++i)
@@ -140,16 +147,14 @@ namespace xenos::preparation
                     changed.notify_all();
                     if (!consume(std::move(result))) {
                         stats.cancelled = true;
-                        cancelled = true;
-                        changed.notify_all();
+                        cancel();
                         break;
                     }
                     ++stats.consumed;
                 }
             }
         } catch (...) {
-            cancelled = true;
-            changed.notify_all();
+            cancel();
             for (auto& thread : workers) thread.join();
             throw;
         }

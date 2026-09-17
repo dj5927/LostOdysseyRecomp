@@ -1,10 +1,43 @@
 #include <stdafx.h>
 #include <hid/hid.h>
+#include <debug/menu_overlay.h>
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
+#include <condition_variable>
+#include <future>
 
 std::atomic<uint32_t> g_presentedSwaps{0};
-namespace settings { bool FilterInput(uint16_t&, int16_t, int16_t) { return false; } }
+namespace
+{
+std::atomic<uint32_t> g_settingsFilterCalls{0};
+std::atomic<bool> g_overlayVisible{false};
+std::mutex g_overlayStubMutex;
+std::condition_variable g_overlayStubCv;
+bool g_blockOverlay = false;
+bool g_overlayEntered = false;
+}
+namespace settings
+{
+bool FilterInput(uint16_t&, int16_t, int16_t)
+{
+    ++g_settingsFilterCalls;
+    return false;
+}
+}
+namespace frame_timing { uint64_t InputTick() { return 0; } }
+namespace debug_menu
+{
+void ToggleOverlay()
+{
+    std::unique_lock lock(g_overlayStubMutex);
+    if (!g_blockOverlay) return;
+    g_overlayEntered = true;
+    g_overlayStubCv.notify_all();
+    g_overlayStubCv.wait(lock, [] { return !g_blockOverlay; });
+}
+bool IsOverlayVisible() { return g_overlayVisible.load(); }
+void HandleInput(InputAction) {}
+}
 
 static void Check(bool value, const char* message)
 {
@@ -56,6 +89,48 @@ int main()
     Check(sample().bRightTrigger == 255, "keyboard trigger");
     hid::ClearKeyboardState();
     Check(sample().bRightTrigger == 0, "focus loss releases keyboard");
+
+    g_overlayVisible = true;
+    g_settingsFilterCalls = 0;
+    SDL_JoystickSetVirtualButton(a, SDL_CONTROLLER_BUTTON_A, 1);
+    Check(sample().wButtons == 0, "debug overlay did not consume game input");
+    Check(g_settingsFilterCalls.load() == 0, "settings menu consumed debug overlay input");
+    SDL_JoystickSetVirtualButton(a, SDL_CONTROLLER_BUTTON_A, 0);
+    sample();
+    Check(g_settingsFilterCalls.load() == 0, "settings menu ran while debug overlay was visible");
+    g_overlayVisible = false;
+    sample();
+    Check(g_settingsFilterCalls.load() != 0, "settings input did not resume after debug overlay closed");
+
+    sample();
+    {
+        std::lock_guard lock(g_overlayStubMutex);
+        g_blockOverlay = true;
+        g_overlayEntered = false;
+    }
+    SDL_JoystickSetVirtualButton(a, SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 1);
+    SDL_JoystickSetVirtualButton(a, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 1);
+    auto menuAction = std::async(std::launch::async, sample);
+    {
+        std::unique_lock lock(g_overlayStubMutex);
+        Check(g_overlayStubCv.wait_for(lock, std::chrono::seconds(2), [] { return g_overlayEntered; }),
+              "debug menu action did not start");
+    }
+    auto keyboardEvent = std::async(std::launch::async, [] { hid::HandleKeyboardEvent(SDL_SCANCODE_Z, true); });
+    Check(keyboardEvent.wait_for(std::chrono::seconds(1)) == std::future_status::ready,
+          "debug menu action retained HID device lock");
+    {
+        std::lock_guard lock(g_overlayStubMutex);
+        g_blockOverlay = false;
+    }
+    g_overlayStubCv.notify_all();
+    menuAction.get();
+    keyboardEvent.get();
+    hid::ClearKeyboardState();
+    SDL_JoystickSetVirtualButton(a, SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 0);
+    SDL_JoystickSetVirtualButton(a, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 0);
+    sample();
+
     SDL_JoystickSetVirtualButton(b, SDL_CONTROLLER_BUTTON_B, 1);
     sample();
     SDL_JoystickClose(b);

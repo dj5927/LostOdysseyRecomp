@@ -184,16 +184,42 @@ uint32_t XexLoader::Load(const std::filesystem::path& xexPath)
     return s_entryPoint;
 }
 
+#include <host_ui/host_ui.h>
+#include <apu/audio.h>
+
 void XexLoader::StartTimeStampThread()
 {
     g_timeStampThread = std::thread([]()
     {
         auto* bundle = reinterpret_cast<KeTimeStampBundle*>(g_memory.Translate(s_keTimeStampBundle));
+        uint64_t pausedDuration100ns = 0;
+        uint64_t pauseStart100ns = 0;
+        bool wasPaused = false;
+
         while (true)
         {
-            bundle->interruptTime = HostInterruptTime100ns();
-            bundle->systemTime = HostSystemTime100ns();
-            bundle->tickCount = uint32_t(HostInterruptTime100ns() / 10000);
+            bool paused = host_ui::IsGamePaused();
+            if (paused != wasPaused)
+            {
+                apu::SetPaused(paused);
+                if (paused)
+                {
+                    pauseStart100ns = HostInterruptTime100ns();
+                }
+                else
+                {
+                    pausedDuration100ns += (HostInterruptTime100ns() - pauseStart100ns);
+                }
+                wasPaused = paused;
+            }
+
+            if (!paused)
+            {
+                uint64_t curInterrupt = HostInterruptTime100ns() - pausedDuration100ns;
+                bundle->interruptTime = curInterrupt;
+                bundle->systemTime = HostSystemTime100ns() - pausedDuration100ns;
+                bundle->tickCount = uint32_t(curInterrupt / 10000);
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     });

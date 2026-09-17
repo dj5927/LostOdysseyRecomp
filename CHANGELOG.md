@@ -4,9 +4,70 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
+## Unreleased / 未发布
+
+### English
+
+- Keep extraction and fixed/linked shader sources in bounded memory instead of
+  exporting and re-reading temporary sources during prebuild; retain compiled
+  checkpoints for interrupted-startup recovery.
+- Bind startup bundles to the current runtime/compiler contract, restore event
+  pumping and transactional error propagation, and fix cancellation wakeups.
+- Cap concurrent DXC preparation at four workers, release retained HLSL, and
+  decode only indexed CPX blocks. Preserve explicit diagnostic/full-scan controls.
+- Add game-data-free CPU/sanitizer and production-function regression coverage.
+  See [audit scope, evidence and remaining hardware checks](docs/MENU_SHADER_PREBUILD_AUDIT.md).
+
+
+- Menu branch fixes improve the in-game debug overlay across output resolutions and protect shared overlay state during concurrent access. The software UI now uses the intended RGBA channel order, HID locking covers the complete device operation, and guest pause uses cooperative safe points so overlay interaction does not suspend worker threads indefinitely.
+- Addressed code review report items R1 through R10:
+  - Decoupled host controller input pumping (`PumpHostInput`) and overlay presentation (`PresentHostOverlay`) from guest pause, and added SDL event pumping to GPU `WAIT_REG_MEM` loops (R1, R2).
+  - Replaced atomic wait in `InterruptMain` with `std::condition_variable` and integrated `host_ui::RequestStop()` to guarantee cancellable shutdown without lost wakeups (R5a, R5b).
+  - Implemented pause-aware active game clock (`GetActiveGameTimeMs`) and scene generation tracking for teleport and battle commands, preserving bookmarks and pending states across pauses, and provided accurate asynchronous status feedback in the debug overlay (R3, R9).
+  - Enabled custom settings on Linux via renderer capability check (`LO_GPU_PLUME`), isolated settings buffer caching from debug overlay compositing, guarded mouse click propagation under modal overlays, and corrected straight-alpha source-over blending math (R4, R7, R8, R10).
+  - Migrated `LoDebugMenuInteractionTest` to the host overlay model, covering navigation, state synchronization, and error handling (R6).
+- Addressed third-round code review report items R11 through R17:
+  - Synchronized `g_pixels` buffer, dimensions, and added exact-size validation in `SaveScreenshot` CPU fallback to eliminate out-of-bounds reads during menu presentation (R11).
+  - Deduplicated keyboard navigation between window event pump and host HID polling by removing raw key polling from `PumpHostInput` (R12).
+  - Implemented button release quarantine for overlay close actions (B button and LB+RB chord) to prevent consumed buttons from leaking to underlying settings and game simulation (R13).
+  - Added throttled 16ms host overlay presentation inside GPU `PM4_WAIT_REG_MEM` loops to ensure UI refreshes even when CP waits on paused guest conditions (R14).
+  - Propagated active presentation tickets from `DisplayChangeTracker` in `PresentHostOverlay` to properly resolve display change transactions (R15).
+  - Protected overlay status feedback with minimum display durations so immediate command rejections are not overwritten by stale service snapshots (R16).
+  - Configured platform-appropriate graphics backend choices and graceful manual-restart guidance on non-Windows platforms (R17).
+  - Relocated `LoDebugMenuInteractionTest` into the cross-platform test suite in CMake.
+- Maintained and expanded test suite: `LoHidTest`, `LoHostUiCompositeTest`, `LoDebugOverlayTest`, `LoDebugMenuInteractionTest`, and `LoMenuRenderTest` all built and passed.
+
+### 简体中文
+
+- menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
+- 完整修复代码审查报告 R1 至 R10 缺陷项：
+  - 将手柄宿主输入泵（`PumpHostInput`）与浮层呈现（`PresentHostOverlay`）与客户机暂停解耦，并在 GPU `WAIT_REG_MEM` 循环中注入事件泵，防止暂停期间卡死（R1, R2）。
+  - 使用 `std::condition_variable` 替换 `InterruptMain` 中的原子变量等待，并在退出流程接入 `host_ui::RequestStop()`，消除漏唤醒并确保可取消销毁（R5a, R5b）。
+  - 引入感知暂停的主动游戏时钟（`GetActiveGameTimeMs`）与场景代数（`sceneGeneration`），防止暂停超时误判失效并保留传送标记与胜负请求；浮层 UI 准确反馈异步命令状态，杜绝虚假成功提示（R3, R9）。
+  - 移除 Linux 设置菜单入口的平台宏限制，改为按渲染器能力启用（`LO_GPU_PLUME`）；拆分独立呈现缓冲隔离设置底图缓存，拦截模态下底层鼠标点击穿透，并修正 `ColorBlend` 的 straight-alpha source-over 混合算法（R4, R7, R8, R10）。
+  - 将废弃的原生窗口测试迁移为浮层交互测试 `LoDebugMenuInteractionTest`，覆盖模态切换、导航、错误反馈及光栅化渲染（R6）。
+- 完整修复第三轮代码审查报告 R11 至 R17 缺陷项：
+  - 同步菜单呈现时的 `g_pixels` 缓冲与元数据，并在 `SaveScreenshot` 的 CPU 回退分支增加严格尺寸一致性校验，根除截图越界读取隐患（R11）。
+  - 去除 `PumpHostInput` 中的按键重复轮询，统一由窗口事件泵处理键盘导航，解决方向与切页键双重触发问题（R12）。
+  - 引入按键释放隔离（Release Quarantine）机制，关闭浮层的 B 键及肩键组合（LB+RB）在物理松开前持续过滤，防止泄漏到底层设置及游戏（R13）。
+  - 在 GPU `PM4_WAIT_REG_MEM` 循环中增加 16ms 节拍的浮层独立呈现，解决等待停滞期间的菜单重绘饥饿问题（R14）。
+  - 浮层呈现接入 `DisplayChangeTracker` 的有效展示凭证（Presentation Ticket），修复暂停期间全屏切换事务挂起缺陷（R15）。
+  - 为浮层命令反馈增加最短保留时间，防止即时拒绝提示被过期的业务快照无条件覆盖（R16）。
+  - 在 Linux 平台上按实际能力展示唯一的 Vulkan 图形后端，并将重启对话框调整为友好的手动重启提示（R17）。
+  - 将 `LoDebugMenuInteractionTest` 测试目标移出 Windows 独占条件，加入跨平台测试套件。
+- 维持并扩充测试套件：`LoHidTest`、`LoHostUiCompositeTest`、`LoDebugOverlayTest`、`LoDebugMenuInteractionTest` 与 `LoMenuRenderTest` 全部重新编译并测试通过。
+
 ## Historical development checkpoints / 历史开发检查点
 
 ### English
+
+- In-game debug overlay and cross-platform settings rasterizer (unpublished development):
+  - Replace standalone Win32 debug dialog window with cross-platform in-game UI overlay rendered directly via swapchain blending, toggled with keyboard F1 or gamepad shoulder chord LB+RB.
+  - Automatically pause guest simulation while overlay is visible: freeze `KeTimeStampBundle` timestamp advances and pause audio streaming (`apu::SetPaused`), avoiding GPU CP synchronization deadlocks caused by suspended waiting threads.
+  - Full keyboard and gamepad navigation support: D-pad / left stick, A/Enter confirm, B/Escape return, LB/RB/Tab page switching between Overview and Teleport tabs.
+  - Settings menu completely removes Windows GDI dependencies, implementing a pure software 1280x720 cross-platform rasterizer rendered via the GPU swapchain, eliminating high-resolution (4K+) CPU rasterization slowdown and frame drops.
+  - Extract `host_ui` shared module providing software rasterization primitives, pixel buffer blending, and Unifont bitmap font decoding.
+  - Bounded verification: verified on Windows and Linux (RADV Vulkan) native builds with screenshot evidence retained.
 
 - Linux installer, importer, updater, and packaging support (unpublished development):
   - Retain embedded SDL installer UI (`ShowInstallerUI`) and built-in file browser on Linux without requiring desktop document portal integrations; missing `default.xex` or `--install` invokes host installer.
@@ -41,6 +102,14 @@ One record of completed changes, with unpublished work separated from verified r
 - Deploy the GitHub Issue triage workflow update at `600b08e` with authorized human `@codex` comment requests, per-comment deduplication, recent human discussion and bounded first-party code retrieval. Nineteen triage/mention checks and seven retrieval checks pass; a real public `@codex` reply remains to be observed.
 
 ### 简体中文
+
+- 游戏内调试浮层与跨平台设置菜单光栅化（未发布开发内容）：
+  - 调试菜单从独立 Win32 窗口改为通过交换链混合渲染的跨平台游戏内 UI 浮层（Overlay），支持键盘 F1 与手柄双肩键组合（LB+RB 同时按下）随时呼出与隐藏。
+  - 菜单呼出时自动暂停客户机模拟：冻结 `KeTimeStampBundle` 时间戳递增并暂停音频流（`apu::SetPaused`），避免挂起等待线程导致的 GPU CP 同步死锁。
+  - 支持全功能键盘及手柄导航：十字键／左摇杆导航、A/Enter 确认、B/Esc 返回、LB/RB/Tab 切换 Overview 与 Teleport 分页。
+  - 设置菜单彻底去除 Windows GDI 依赖，实现纯软件 1280x720 跨平台光栅化，并经由 GPU 交换链呈现，解决 4K 等高分辨率 CPU 渲染导致的菜单卡顿与掉帧。
+  - 提取 `host_ui` 共享模块，共用纯 CPU 光栅化基础原语、像素缓冲区混合与 Unifont 点阵字体解码。
+  - 定向验证：在 Windows 与 Linux（RADV Vulkan）原生构建下验证通过，并保留实机截图证据。
 
 - Linux 安装器、导入器、更新器与打包支持（未发布开发内容）：
   - Linux 保留内置 SDL 安装器界面（`ShowInstallerUI`）和内建文件浏览器，无需依赖桌面文档门户（portal）；缺少 `default.xex` 或指定 `--install` 时启动宿主安装器。

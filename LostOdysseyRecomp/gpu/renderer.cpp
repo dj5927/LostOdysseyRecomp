@@ -32,6 +32,7 @@
 #include "shader/preparation_queue.h"
 #include "shader/startup_cache.h"
 #include "shader/resource_scan.h"
+#include "shader/source_store.h"
 #include "shader/resource_xex.h"
 #include "shader/resource_variants.h"
 #include <kernel/io/file_system.h>
@@ -1845,23 +1846,21 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const auto bundlePath = std::filesystem::path(shaderCacheDir) /
                     (vulkan ? "startup_vk12_v1.bundle" : "startup_dxil_v1.bundle");
                 const auto xex = std::span<const uint8_t>(static_cast<const uint8_t*>(g_memory.Translate(0x82000000)), 0x185C60);
-                auto snapshot = [&](bool compiled = true, bool sources = true) {
-                    return startup::Snapshot(FileSystem::GetGameRoot(), shaderCacheDir, cacheIdentity, xex, compiled, sources);
-                };
-                const bool bundleEnabled = !compilerIdentity.empty() && !getenv("LO_SHADER_FULL_SCAN") &&
+                // Trust imported assets, not a cache file's self-reported identity.
+                // This hashes the already-loaded XEX and current compiler contract;
+                // no game/source/cache directory walk is needed for a warm start.
+                const auto bundleIdentity = compilerIdentity.empty() ? std::string{} :
+                    startup::RuntimeIdentity(FileSystem::GetGameRoot(), cacheIdentity, xex);
+                const bool bundleEnabled = !compilerIdentity.empty();
+                const bool reuseBundle = bundleEnabled && !getenv("LO_SHADER_FULL_SCAN") &&
                     !getenv("LO_SHADER_HLSL_DIR") && !retryFailures;
                 LOG_INFO("renderer: shader startup cache: {}, compiler identity {}", bundlePath.string(),
                     compilerIdentity.empty() ? "unavailable (persistent reuse disabled)" : compilerIdentity);
-                if (bundleEnabled) {
+                if (reuseBundle) {
                     uint32_t modules = 0, cachedFailures = 0;
                     double moduleMs = 0;
-                    const auto probeStarted = std::chrono::steady_clock::now();
                     try {
-                        const auto identity = snapshot();
-                        LOG_INFO("renderer: shader startup metadata snapshot: {:.0f} ms",
-                            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-probeStarted).count());
-                        video::SetShaderPreparationProgress(0, 1, video::PreparationStage::CachedShaders);
-                        auto loaded = startup::LoadTransactional(bundlePath, identity, cacheIdentity, [&](startup::Record&& record) {
+                        auto loaded = startup::LoadTransactional(bundlePath, bundleIdentity, cacheIdentity, [&](startup::Record&& record) {
                             auto& entry = shaders[record.info.isPixelShader ? 1 : 0][record.hash];
                             entry.info = std::move(record.info);
                             if (!record.failure.empty()) {
@@ -1877,11 +1876,13 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             entry.valid = entry.shader != nullptr;
                             if (!entry.valid) throw std::runtime_error("cached shader device module creation failed");
                             ++modules;
-                        }, [&] { shaders[0].clear(); shaders[1].clear(); }, [&] {
-                            if (identity != snapshot()) throw std::runtime_error("cache inputs changed while loading bundle");
-                        }, [] { video::PumpEvents(); });
-                        if (!loaded.ok) throw std::runtime_error(loaded.reason);
+                        }, [&] { shaders[0].clear(); shaders[1].clear(); }, [] {},
+                        [] { video::PumpEvents(); }, [](uint32_t done, uint32_t total) {
+                            video::SetShaderPreparationProgress(done, total, video::PreparationStage::CachedShaders,
+                                video::PreparationUnit::Shaders);
+                        }, false); // Keep metadata, not thousands of reconstructed HLSL strings.
                         video::SetShaderPreparationProgress(0, 0);
+                        if (!loaded.ok) throw std::runtime_error(loaded.reason);
                         LOG_INFO("renderer: startup bundle hit: {} records, {} modules ready, {} cached failures; 0 source content reads, 0 translations, 0 DXC attempts, {} bytes verified/read",
                             loaded.records, modules, cachedFailures, loaded.bytesRead);
                         LOG_INFO("renderer: startup bundle elapsed {:.0f} ms including {:.0f} ms device module creation; source discovery/expansion skipped",
@@ -1889,16 +1890,16 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         ResetTimers();
                         return;
                     } catch (const std::exception& e) {
-                        // Pass one is validation-only. Pass two and module creation
-                        // may still fail: discard all state before legacy fallback.
                         shaders[0].clear(); shaders[1].clear();
                         LOG_INFO("renderer: startup bundle fallback: {}", e.what());
                     }
                 } else LOG_INFO("renderer: startup bundle bypass: explicit scan/dump/retry or unavailable compiler identity");
-                std::string resourcesBefore;
-                if (bundleEnabled) try { resourcesBefore = snapshot(false, false); }
-                    catch (const std::exception& e) { LOG_WARNING("renderer: resource snapshot unavailable: {}", e.what()); }
                 video::SetShaderPreparationProgress(0, 1, video::PreparationStage::CacheValidation, video::PreparationUnit::Files);
+                video::PumpEvents();
+                xenos::resources::SourceStore sourceStore;
+                const xenos::resources::SourceSink saveSource = [&](bool pixel, std::span<const uint8_t> code) {
+                    sourceStore.Add(pixel, code);
+                };
                 const auto inventoryStarted = std::chrono::steady_clock::now();
                 const auto extracted = xenos::resources::Scan(FileSystem::GetGameRoot(), shaderCacheDir,
                     [](const xenos::resources::ScanProgress& progress) {
@@ -1918,7 +1919,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                                      : std::span<const xenos::resources::CpxIndexPackage>{xenos::resources::builtin::cpxPackages},
                        getenv("LO_SHADER_FULL_SCAN") ? std::span<const xenos::resources::CpxIndexArchive>{}
                                                      : std::span<const xenos::resources::CpxIndexArchive>{xenos::resources::builtin::cpxArchives},
-                       getenv("LO_SHADER_FULL_SCAN") != nullptr);
+                       getenv("LO_SHADER_FULL_SCAN") != nullptr, saveSource);
                 if (!extracted.error.empty()) LOG_WARNING("renderer: resource shader preparation: {}", extracted.error);
                 LOG_INFO("renderer: resource shader inventory: {} shaders ({})", extracted.shaders,
                     extracted.reused ? "reused" : "extracted");
@@ -1935,18 +1936,26 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         extracted.cpxPackages, extracted.indexedPackages, extracted.fallbackPackages, extracted.duplicatePackages,
                         extracted.decodedPackages, extracted.decodedBytes);
                 const auto source = std::filesystem::path(shaderCacheDir) / "source";
-                std::error_code ec;
-                std::filesystem::create_directories(source, ec);
-                if (ec) return;
                 const auto expansionStarted = std::chrono::steady_clock::now();
                 bool expansionComplete = true;
                 try {
                     const auto staticCount = xenos::resources::ExtractXexShaders(
-                        {static_cast<const uint8_t*>(g_memory.Translate(0x82000000)), 0x185C60}, source);
+                        xex, source, saveSource);
+                    const auto learned = sourceStore.ImportLearned(source);
+                    const xenos::resources::variants::SourceReader readSource =
+                        [&](uint64_t hash, uint32_t size, bool pixel, std::vector<uint8_t>& code) {
+                            return sourceStore.Read(hash, size, pixel, code);
+                        };
+                    std::set<uint64_t> fixedHashes;
                     const auto generated = xenos::resources::variants::GenerateFixedVariants(source,
-                        [&](uint64_t, std::span<const uint8_t> code) { xenos::resources::SaveSource(source, false, code); });
+                        [&](uint64_t hash, std::span<const uint8_t> code) {
+                            fixedHashes.insert(hash); saveSource(false, code);
+                        }, {}, readSource);
                     const auto linked = xenos::resources::variants::GenerateLinkedVariants(source,
-                        [&](uint64_t, std::span<const uint8_t> code) { xenos::resources::SaveSource(source, false, code); });
+                        [&](uint64_t, std::span<const uint8_t> code) { saveSource(false, code); },
+                        {}, readSource, &fixedHashes);
+                    LOG_INFO("renderer: shader prebuild sources: {} in memory, {} bytes, {} learned sources; 0 intermediate source writes",
+                        sourceStore.Size(), sourceStore.Bytes(), learned);
                     LOG_INFO("renderer: shader source expansion: {} static XEX, {} fixed VS candidates, {} verified bases, {} invalid bases",
                         staticCount, generated.generated, generated.verifiedBases, generated.invalidBases);
                     LOG_INFO("renderer: linked VS expansion: {} new candidates, {} verified VS bases, {} verified PS sources, {} invalid sources",
@@ -1958,26 +1967,18 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 LOG_INFO("renderer: shader source expansion elapsed: {:.0f} ms",
                     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - expansionStarted).count());
                 const auto enumerationStarted = std::chrono::steady_clock::now();
-                std::string sourcesBefore;
-                if (bundleEnabled && !resourcesBefore.empty()) try { sourcesBefore = snapshot(false); }
-                    catch (const std::exception& e) { LOG_WARNING("renderer: source snapshot unavailable: {}", e.what()); }
-                std::vector<std::filesystem::path> paths;
-                for (std::filesystem::directory_iterator it(source, ec), end; !ec && it != end; it.increment(ec)) {
-                    const auto name = it->path().filename().string();
-                    if (it->path().extension() == ".bin" && (name.starts_with("vs_") || name.starts_with("ps_")))
-                        paths.push_back(it->path());
-                }
-                std::sort(paths.begin(), paths.end());
+                // Freeze discovery before workers receive stable, read-only source pointers.
+                const auto jobs = sourceStore.Jobs();
                 std::unique_ptr<startup::Writer> bundleWriter;
-                if (bundleEnabled && !sourcesBefore.empty() && !ec && extracted.error.empty() && expansionComplete) {
+                if (bundleEnabled && extracted.error.empty() && expansionComplete) {
                     try {
                         bundleWriter = std::make_unique<startup::Writer>(bundlePath, xenos::GetShaderCommonHlsl());
                     } catch (const std::exception& e) { LOG_WARNING("renderer: startup bundle writer unavailable: {}", e.what()); }
                 }
-                LOG_INFO("renderer: shader source enumeration: {} files, {:.0f} ms", paths.size(),
+                LOG_INFO("renderer: shader source enumeration: {} memory records, {:.0f} ms", jobs.size(),
                     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - enumerationStarted).count());
                 const auto started = std::chrono::steady_clock::now();
-                // CPU translation, DXC and independent cache files run in
+                // CPU translation, DXC and recoverable compiler checkpoints run in
                 // parallel. A bounded queue avoids retaining every shader's
                 // HLSL and binary at once. Renderer maps and the device remain
                 // on the command processor thread.
@@ -2003,7 +2004,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     bool cachedFailure = false;
                 };
                 const unsigned logicalThreads = std::thread::hardware_concurrency();
-                const auto workerCount = xenos::preparation::WorkerCount(logicalThreads, paths.size(),
+                const auto workerCount = xenos::preparation::WorkerCount(logicalThreads, jobs.size(),
                     getenv("LO_SHADER_PREPARE_SERIAL") != nullptr);
                 const size_t readyCapacity = std::max<size_t>(8, workerCount * 2);
 
@@ -2011,21 +2012,15 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     PreparedSource item;
                     try {
                         const auto sourceStarted = std::chrono::steady_clock::now();
-                        const auto& path = paths[index];
-                        item.name = path.filename().string();
-                        std::ifstream in(path, std::ios::binary | std::ios::ate);
-                        const auto size = in.tellg();
-                        if (size < 12 || size > 0x40000 || size % 4 != 0)
-                            throw std::runtime_error("invalid microcode size");
-                        std::vector<uint32_t> words(size_t(size) / 4);
-                        in.seekg(0);
-                        if (!in.read(reinterpret_cast<char*>(words.data()), size))
-                            throw std::runtime_error("cannot read microcode");
-                        item.pixel = item.name.starts_with("ps_");
-                        const auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(words.data()), size_t(size));
-                        if (item.name != xenos::resources::SourceName(item.pixel, bytes))
-                            throw std::runtime_error("microcode hash does not match its filename");
-                        item.hash = Fnv1a(words.data(), size_t(size));
+                        const auto& input = *jobs[index];
+                        item.pixel = input.pixel;
+                        item.hash = input.hash;
+                        item.name = fmt::format("{}_{:016x}.bin", item.pixel ? "ps" : "vs", item.hash);
+                        // Microcode is validated once at ingestion, not exported and
+                        // read back once per compiler worker. memcpy supplies alignment.
+                        const size_t size = input.code.size();
+                        std::vector<uint32_t> words(size / 4);
+                        std::memcpy(words.data(), input.code.data(), size);
                         item.sourceUs = std::chrono::duration_cast<std::chrono::microseconds>(
                             std::chrono::steady_clock::now() - sourceStarted).count();
 
@@ -2080,12 +2075,13 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                     item.bytecode, &item.cacheWriteError);
                             }
                         }
-                    } catch (const std::exception& e) { item.error = e.what(); }
+                    } catch (const std::bad_alloc&) { throw; }
+                    catch (const std::exception& e) { item.error = e.what(); }
                     return item;
                 };
 
                 LOG_INFO("renderer: shader preparation: {} logical threads, {} requested workers, {} shaders, {} queued results max",
-                    logicalThreads, workerCount, paths.size(), readyCapacity);
+                    logicalThreads, workerCount, jobs.size(), readyCapacity);
 
                 uint32_t done = 0, failed = 0, modulesReady = 0, modulesFailed = 0;
                 size_t cacheHits = 0, cacheMissing = 0, cacheInvalid = 0, compileAttempts = 0, compiledCount = 0, cachedFailureCount = 0;
@@ -2102,13 +2098,18 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     compiledCount += item.compiled;
                     cachedFailureCount += item.cachedFailure;
                     if (bundleWriter) {
-                        if ((!item.error.empty() && !item.deterministicFailure) || !item.cacheWriteError.empty()) bundleWriter.reset();
+                        // A failed loose checkpoint does not invalidate the
+                        // successfully compiled record or the independent bundle.
+                        if (!item.error.empty() && !item.deterministicFailure) bundleWriter.reset();
                         else try { bundleWriter->Add({item.hash, item.info, item.bytecode, item.error}); }
                         catch (const std::exception& e) {
                             LOG_WARNING("renderer: startup bundle write abandoned: {}", e.what());
                             bundleWriter.reset();
                         }
                     }
+                    // A later explicit frame capture regenerates HLSL from that
+                    // draw's guest microcode; ordinary rendering uses metadata only.
+                    std::string{}.swap(item.info.hlsl);
                     if (item.cachePresent && !item.cacheValid)
                         SHADER_LOG_WARNING("cache-invalid", RendererByteFnv, "renderer: ignoring incomplete shader cache {}", item.cachePath);
                     if (!item.cacheWriteError.empty())
@@ -2123,7 +2124,12 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         Shader& entry = cache[item.hash];
                         entry.info = std::move(item.info);
                         const auto moduleStarted = std::chrono::steady_clock::now();
-                        entry.shader = device->createShader(item.bytecode.data(), item.bytecode.size(), "main", renderFormat);
+                        try {
+                            entry.shader = device->createShader(item.bytecode.data(), item.bytecode.size(), "main", renderFormat);
+                        } catch (const std::exception& e) {
+                            LOG_WARNING("renderer: shader device module creation failed: {}", e.what());
+                            entry.shader.reset();
+                        }
                         moduleUs += std::chrono::duration_cast<std::chrono::microseconds>(
                             std::chrono::steady_clock::now() - moduleStarted).count();
                         entry.valid = entry.shader != nullptr;
@@ -2138,27 +2144,27 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         }
                     }
                     ++done;
-                    video::SetShaderPreparationProgress(done, uint32_t(paths.size()));
+                    video::SetShaderPreparationProgress(done, uint32_t(jobs.size()));
                     video::PumpEvents();
-                    return true;
+                    return !initializationModuleFailure;
                 };
 
                 xenos::preparation::QueueStats queueStats;
                 try {
-                    queueStats = xenos::preparation::RunBounded<PreparedSource>(paths.size(), workerCount,
+                    queueStats = xenos::preparation::RunBounded<PreparedSource>(jobs.size(), workerCount,
                         readyCapacity, prepare, install, [] { video::PumpEvents(); });
                 } catch (const std::exception& e) {
+                    initializationModuleFailure = true;
+                    bundleWriter.reset();
                     LOG_WARNING("renderer: shader preparation queue stopped after {} shaders: {}", done, e.what());
                 }
                 if (queueStats.startFailures)
                     LOG_WARNING("renderer: started only {} shader workers: {}",
                         queueStats.startedWorkers, queueStats.startError);
                 video::SetShaderPreparationProgress(0, 0);
-                if (bundleWriter && done == paths.size()) {
+                if (bundleWriter && done == jobs.size()) {
                     try {
-                        if (sourcesBefore != snapshot(false) || resourcesBefore != snapshot(false, false))
-                            throw std::runtime_error("source/resource inputs changed during preparation");
-                        bundleWriter->Finish(snapshot());
+                        bundleWriter->Finish(bundleIdentity);
                         LOG_INFO("renderer: startup bundle published: {} records, {} bytes", done, std::filesystem::file_size(bundlePath));
                     } catch (const std::exception& e) { LOG_WARNING("renderer: startup bundle not published: {}", e.what()); }
                 }
@@ -2198,6 +2204,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 auto& cache = shaders[pixel ? 1 : 0];
                 auto it = cache.find(hash);
                 if (it != cache.end()) {
+                    if (!debugCaptureDir.empty() && it->second.valid && it->second.info.hlsl.empty()) {
+                        std::vector<uint32_t> swapped(count);
+                        for (uint32_t i = 0; i < count; ++i) swapped[i] = ByteSwap(words[i]);
+                        it->second.info.hlsl = xenos::TranslateShader(swapped.data(), count, pixel).hlsl;
+                    }
                     if(!pixel)PreparePositionEvidence(it->second,words,count,hash);
                     return it->second.valid ? &it->second : nullptr;
                 }
@@ -2217,6 +2228,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 for (uint32_t i = 0; i < count; i++)
                     swapped[i] = ByteSwap(words[i]);
                 entry.info = xenos::TranslateShader(swapped.data(), count, pixel);
+                struct ReleaseText {
+                    std::string& text;
+                    bool capture;
+                    ~ReleaseText() { if (!capture) std::string{}.swap(text); }
+                } releaseText{entry.info.hlsl, !debugCaptureDir.empty()};
                 // LO_SHADER_HLSL_DIR: write the generated HLSL under the same hash the
                 // draw trace prints, so a specific pass can be inspected offline.
                 if (const char* hlslDir = getenv("LO_SHADER_HLSL_DIR"))

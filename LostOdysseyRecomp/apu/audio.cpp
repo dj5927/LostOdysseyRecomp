@@ -172,4 +172,12 @@ namespace apu
             LOG_INFO("audio frames submitted: {} peak={} queued={} mute={} queue_drops={} queue_errors={}", n, peak,
                 g_device ? SDL_GetQueuedAudioSize(g_device) : 0, mute, queueDrops, queueErrors);
     }
+
+    void SetPaused(bool paused)
+    {
+        if (g_device)
+        {
+            SDL_PauseAudioDevice(g_device, paused ? 1 : 0);
+        }
+    }
 }

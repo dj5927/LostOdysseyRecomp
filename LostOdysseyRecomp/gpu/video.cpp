@@ -15,6 +15,9 @@
 #include <os/shader_log.h>
 #include <hid/hid.h>
 #include <debug/battle_menu.h>
+#include <debug/menu_overlay.h>
+#include <host_ui/host_ui.h>
+#include <host_ui/rasterizer.h>
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -212,6 +215,13 @@ namespace gpu::video
         bool g_hasPresentedImage=false;
         bool g_presentPending=false;
         bool g_forceSwapResize=false;
+        struct PresentationDisplayState {
+            uint64_t resizedTicket = 0;
+#ifdef _WIN32
+            int appliedMode = -1;
+            uint64_t appliedSize = 0, appliedTicket = 0;
+#endif
+        } g_presentationDisplay;
         constexpr plume::RenderFormat kSwapChainFormat = plume::RenderFormat::R8G8B8A8_UNORM;
         constexpr uint32_t kSwapChainBuffers = 3;
 
@@ -344,6 +354,7 @@ namespace gpu::video
         g_fence.reset(); g_commandList.reset(); g_queue.reset();
         g_device.reset(); g_interface.reset();
         g_hasPresentedImage = false; g_lastPresentedImage = 0; g_forceSwapResize = false;
+        g_presentationDisplay = {};
 #endif
     }
 
@@ -551,6 +562,59 @@ namespace gpu::video
     DisplayChangeResult QueryDisplayChange(uint64_t ticket) { return g_displayChanges.Query(ticket); }
 
     namespace {
+#if defined(LO_GPU_PLUME) && !defined(_WIN32)
+    static bool UploadAndPresentPixels(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height,
+                                       bool isMenu, uint64_t displayTicket, const PresentationOptions& presentationOptions);
+    static void RenderPreparationScreen(PreparationStage stage, PreparationUnit unit, uint32_t done, uint32_t total)
+    {
+        if (!g_swapChain || g_swapChain->isEmpty() || (!g_available && !g_initializing) || !g_presentation)
+            return;
+        const uint32_t width = g_swapChain->getWidth();
+        const uint32_t height = g_swapChain->getHeight();
+        if (!width || !height)
+            return;
+
+        static std::vector<uint32_t> s_prepPixels;
+        const size_t pixelCount = size_t(width) * height;
+        if (s_prepPixels.size() != pixelCount)
+            s_prepPixels.resize(pixelCount);
+
+        std::fill(s_prepPixels.begin(), s_prepPixels.end(), host_ui::MakeColor(255, 20, 24, 31));
+
+        host_ui::Rasterizer r(s_prepPixels.data(), width, height);
+        const int centerY = int(height) / 2;
+
+        const auto* titleStr = PreparationTitle(stage);
+        const float titleScale = (width >= 1280 && height >= 720) ? 2.0f : 1.5f;
+        const int titleW = r.MeasureWString(titleStr, titleScale);
+        r.DrawWString((int(width) - titleW) / 2, centerY - 85, titleStr, host_ui::MakeColor(255, 235, 238, 242), titleScale);
+
+        const std::wstring detail = std::to_wstring(done) + L" / " + std::to_wstring(total) + PreparationSuffix(unit);
+        const float detailScale = 1.0f;
+        const int countW = r.MeasureWString(detail, detailScale);
+        r.DrawWString((int(width) - countW) / 2, centerY - 35, detail, host_ui::MakeColor(255, 200, 205, 215), detailScale);
+
+        const int barWidth = std::min(480, std::max(0, int(width) - 80));
+        const int barHeight = 8;
+        const int barX = (int(width) - barWidth) / 2;
+        const int barY = centerY + 8;
+        r.FillRect(barX, barY, barWidth, barHeight, host_ui::MakeColor(255, 51, 58, 70));
+        const int fillW = int(total ? uint64_t(barWidth) * std::min(done, total) / total : 0);
+        if (fillW > 0)
+            r.FillRect(barX, barY, fillW, barHeight, host_ui::MakeColor(255, 111, 177, 218));
+
+        const std::wstring line1 = L"The game will continue automatically.";
+        const std::wstring line2 = L"Future launches reuse the shader cache.";
+        const uint32_t hintColor = host_ui::MakeColor(255, 157, 168, 184);
+        const int hint1W = r.MeasureWString(line1, 1.0f);
+        const int hint2W = r.MeasureWString(line2, 1.0f);
+        r.DrawWString((int(width) - hint1W) / 2, centerY + 45, line1, hintColor, 1.0f);
+        r.DrawWString((int(width) - hint2W) / 2, centerY + 68, line2, hintColor, 1.0f);
+
+        UploadAndPresentPixels(s_prepPixels, width, height, true, 0, PresentationOptions{});
+    }
+#endif
+
     void PumpWindowEvents()
     {
         static uint64_t shownProgress = 0;
@@ -588,6 +652,20 @@ namespace gpu::video
                 InvalidateRect(g_preparationWindow,nullptr,FALSE);
             } else if (g_preparationWindow) {
                 DestroyWindow(g_preparationWindow); g_preparationWindow=nullptr;
+            }
+#elif defined(LO_GPU_PLUME)
+            if (total && g_swapChain && !g_swapChain->isEmpty() && (g_available || g_initializing) && g_presentation) {
+                RenderPreparationScreen(stage, unit, done, total);
+            } else if (!total && shownProgress != 0 && g_swapChain && !g_swapChain->isEmpty() && (g_available || g_initializing) && g_presentation) {
+                const uint32_t width = g_swapChain->getWidth();
+                const uint32_t height = g_swapChain->getHeight();
+                if (width && height) {
+                    static std::vector<uint32_t> s_clearPixels;
+                    const size_t count = size_t(width) * height;
+                    if (s_clearPixels.size() != count)
+                        s_clearPixels.assign(count, host_ui::MakeColor(255, 0, 0, 0));
+                    UploadAndPresentPixels(s_clearPixels, width, height, true, 0, PresentationOptions{});
+                }
             }
 #endif
             shownProgress = progress;
@@ -661,6 +739,7 @@ namespace gpu::video
             g_displayChanges.WindowComplete(ticket, result == 0);
         }
         debug_menu::Update();
+        hid::PumpHostInput();
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -703,15 +782,37 @@ namespace gpu::video
                 g_windowResizeRequested = true;
             }
             if(event.type==SDL_MOUSEBUTTONDOWN) {
-                int w=0,h=0; SDL_GetWindowSize(g_window,&w,&h);
-                const float scale=std::min(w/1280.0f,h/720.0f);
-                if(scale>0) settings::PointerClick((event.button.x-(w-1280*scale)*0.5f)/scale,
-                    (event.button.y-(h-720*scale)*0.5f)/scale,event.button.button==SDL_BUTTON_RIGHT);
+                if (!debug_menu::IsOverlayVisible()) {
+                    int w=0,h=0; SDL_GetWindowSize(g_window,&w,&h);
+                    const float scale=std::min(w/1280.0f,h/720.0f);
+                    if(scale>0) settings::PointerClick((event.button.x-(w-1280*scale)*0.5f)/scale,
+                        (event.button.y-(h-720*scale)*0.5f)/scale,event.button.button==SDL_BUTTON_RIGHT);
+                }
             }
-            if (event.type == SDL_KEYDOWN && getenv("LO_TRACE_INPUT"))
-                LOG_INFO("video key: {} repeat {}", event.key.keysym.sym, event.key.repeat);
+            if (event.type == SDL_KEYDOWN)
+                LOG_INFO("video key: {} name: '{}' repeat {}", event.key.keysym.sym, SDL_GetKeyName(event.key.keysym.sym), event.key.repeat);
             if (event.type == SDL_KEYDOWN && !event.key.repeat && event.key.keysym.sym == SDLK_F1)
+            {
+                LOG_INFO("[host_ui] F1 key triggered!");
                 debug_menu::Toggle();
+            }
+            else if (event.type == SDL_KEYDOWN && !event.key.repeat && debug_menu::IsOverlayVisible())
+            {
+                switch (event.key.keysym.sym)
+                {
+                case SDLK_UP: debug_menu::HandleInput(debug_menu::InputAction::Up); break;
+                case SDLK_DOWN: debug_menu::HandleInput(debug_menu::InputAction::Down); break;
+                case SDLK_LEFT: debug_menu::HandleInput(debug_menu::InputAction::Left); break;
+                case SDLK_RIGHT: debug_menu::HandleInput(debug_menu::InputAction::Right); break;
+                case SDLK_RETURN:
+                case SDLK_KP_ENTER: debug_menu::HandleInput(debug_menu::InputAction::Confirm); break;
+                case SDLK_ESCAPE: debug_menu::HandleInput(debug_menu::InputAction::Cancel); break;
+                case SDLK_TAB:
+                case SDLK_q: debug_menu::HandleInput(debug_menu::InputAction::PrevTab); break;
+                case SDLK_e: debug_menu::HandleInput(debug_menu::InputAction::NextTab); break;
+                default: break;
+                }
+            }
             if (event.type == SDL_CONTROLLERDEVICEADDED || event.type == SDL_CONTROLLERDEVICEREMOVED)
                 hid::HandleControllerEvent(event.type, event.cdevice.which);
             if (event.type == SDL_QUIT)
@@ -725,6 +826,160 @@ namespace gpu::video
         }
     }
 
+#ifdef LO_GPU_PLUME
+    // Sole presentation-thread entry for mode changes and swap-chain recovery.
+    // Both guest frames and host-only frames call this BEFORE reading dimensions
+    // or rasterizing UI. The returned ticket belongs to these prepared operations.
+    static bool PreparePresentation(uint64_t& displayTicket, uint32_t& width, uint32_t& height)
+    {
+        if (!g_available || !g_swapChain)
+            return false;
+        displayTicket = g_displayChanges.PresentationTicket();
+        if (g_windowResizeRequested.exchange(false)) g_forceSwapResize = true;
+        if (displayTicket && displayTicket != g_presentationDisplay.resizedTicket) {
+            g_forceSwapResize = true;
+            g_presentationDisplay.resizedTicket = displayTicket;
+        }
+#ifdef _WIN32
+        const int mode = g_displayMode.load();
+        const uint64_t size = g_displaySize.load();
+        auto& applied = g_presentationDisplay;
+        if (!g_vulkan && mode >= 0 && (mode != applied.appliedMode || size != applied.appliedSize ||
+            (displayTicket && displayTicket != applied.appliedTicket))) {
+            WaitForPresentGpu();
+            auto* swap = static_cast<plume::D3D12SwapChain*>(g_swapChain.get());
+            const plume::WindowPixelContext pixels;
+            HRESULT result = swap->d3d->SetFullscreenState(FALSE, nullptr);
+            if (SUCCEEDED(result) && mode == int(settings::WindowMode::Exclusive)) {
+                DXGI_MODE_DESC target{};
+                target.Width = uint32_t(size >> 32); target.Height = uint32_t(size);
+                target.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                result = swap->d3d->ResizeTarget(&target);
+                if (SUCCEEDED(result)) result = swap->d3d->SetFullscreenState(TRUE, nullptr);
+            }
+            BOOL exclusive = FALSE;
+            const HRESULT queryResult = swap->d3d->GetFullscreenState(&exclusive, nullptr);
+            const bool modeApplied = SUCCEEDED(result) && SUCCEEDED(queryResult) &&
+                bool(exclusive) == (mode == int(settings::WindowMode::Exclusive));
+            if (applied.appliedMode == int(settings::WindowMode::Exclusive) && mode != applied.appliedMode)
+                g_reapplyWindow = true;
+            LOG_INFO("display mode: requested={} exclusive={} result={:#x}", mode, bool(exclusive), uint32_t(result));
+            // Flip-model buffers must be resized even for an equal-size transition.
+            g_forceSwapResize = true;
+            applied.appliedMode = mode; applied.appliedSize = size; applied.appliedTicket = displayTicket;
+            if (!modeApplied) {
+                g_displayFailed = true;
+                g_displayChanges.Complete(displayTicket, false);
+                return false;
+            }
+        }
+#endif
+        // Empty is recoverable: minimized Vulkan surfaces may have zero extent.
+        // Never return for isEmpty() before giving resize() a chance to recover.
+        if (g_forceSwapResize || g_swapChain->isEmpty() || g_swapChain->needsResize()) {
+            WaitForPresentGpu();
+            if (!g_swapChain->resize()) {
+                // Zero extent is transient. Retain the pending transaction and
+                // resize request until the window has a drawable extent again.
+                if (g_swapChain->getWidth() && g_swapChain->getHeight()) {
+                    if (g_forceSwapResize) g_displayFailed = true;
+                    g_displayChanges.Complete(displayTicket, false);
+                }
+                return false;
+            }
+            g_forceSwapResize = false;
+            g_hasPresentedImage = false;
+            LogOutputPixels("resized");
+        }
+        if (g_swapChain->isEmpty())
+            return false;
+        width = g_swapChain->getWidth();
+        height = g_swapChain->getHeight();
+        return width != 0 && height != 0;
+    }
+
+    // Publish pixels, dimensions and provenance together on the presentation thread.
+    static void CacheCpuFrame(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height)
+    {
+        g_pixels = pixels;
+        g_frameWidth = width;
+        g_frameHeight = height;
+        g_frameOnGpu = false;
+    }
+
+    static bool UploadAndPresentPixels(const std::vector<uint32_t>& pixels, uint32_t width, uint32_t height,
+                                       bool isMenu, uint64_t displayTicket, const PresentationOptions& presentationOptions)
+    {
+        if ((!g_available && !g_initializing) || !g_swapChain || g_swapChain->isEmpty())
+            return false;
+        if (!width || !height || size_t(width) > std::numeric_limits<size_t>::max() / height ||
+            pixels.size() != size_t(width) * height || width > (UINT32_MAX - 255u) / 4u) {
+            g_displayChanges.Complete(displayTicket, false);
+            return false;
+        }
+        // PreparePresentation has already finalized the output size. Do not
+        // resize a second time after the menu has been rasterized for that size.
+
+        // Upload the untiled pixels; rows must be 256-byte aligned for D3D12.
+        const uint32_t rowPitch = (width * 4 + 255) & ~255u;
+        const uint64_t requiredBytes = uint64_t(rowPitch) * height;
+        WaitForPresentGpu();
+        if (requiredBytes > g_uploadCapacity) {
+            auto upload = g_device->createBuffer(plume::RenderBufferDesc::UploadBuffer(requiredBytes));
+            if (!upload) return false;
+            g_uploadBuffer = std::move(upload);
+            g_uploadCapacity = requiredBytes;
+        }
+        auto* mapped = static_cast<uint8_t*>(g_uploadBuffer->map());
+        if (!mapped) return false;
+        for (uint32_t y = 0; y < height; y++)
+            memcpy(mapped + size_t(y) * rowPitch, &pixels[size_t(y) * width], size_t(width) * 4);
+        g_uploadBuffer->unmap();
+
+        WaitForPresentGpu();
+        uint32_t imageIndex = 0;
+        if (!g_swapChain->acquireTexture(g_acquireSemaphore.get(), &imageIndex))
+        {
+            g_displayChanges.Complete(displayTicket, false);
+            return false;
+        }
+        plume::RenderTexture* backBuffer = g_swapChain->getTexture(imageIndex);
+        const uint32_t copyWidth = std::min(width, g_swapChain->getWidth());
+        const uint32_t copyHeight = std::min(height, g_swapChain->getHeight());
+
+        g_commandList->begin();
+        if(!g_cpuFrame || g_cpuWidth!=width || g_cpuHeight!=height) {
+            g_cpuFrame=g_device->createTexture(plume::RenderTextureDesc::Texture2D(width,height,1,kSwapChainFormat));
+            g_cpuWidth=width; g_cpuHeight=height;
+        }
+        auto* uploadTarget=g_presentation?g_cpuFrame.get():backBuffer;
+        g_commandList->barriers(plume::RenderBarrierStage::COPY, plume::RenderTextureBarrier(uploadTarget, plume::RenderTextureLayout::COPY_DEST));
+        plume::RenderBox box(0, 0, int32_t(copyWidth), int32_t(copyHeight), 0, 1);
+        g_commandList->copyTextureRegion(
+            plume::RenderTextureCopyLocation::Subresource(uploadTarget),
+            plume::RenderTextureCopyLocation::PlacedFootprint(g_uploadBuffer.get(), kSwapChainFormat, width, height, 1, rowPitch / 4),
+            0, 0, 0, g_presentation?nullptr:&box);
+        // This upload came from guest tiled memory, not the processed GPU resolve.
+        // GPU-only scene-AA provenance cannot authorize skipping its legacy AA.
+        if(g_presentation) g_presentation->Draw(g_commandList.get(),g_cpuFrame.get(),backBuffer,width,height,
+            g_swapChain->getWidth(),g_swapChain->getHeight(),isMenu ? PresentationOptions{} : presentationOptions);
+        RecordPresentedSnapshot(backBuffer);
+        g_commandList->barriers(plume::RenderBarrierStage::NONE, plume::RenderTextureBarrier(backBuffer, plume::RenderTextureLayout::PRESENT));
+        g_commandList->end();
+
+        const plume::RenderCommandList* lists[] = { g_commandList.get() };
+        plume::RenderCommandSemaphore* waitSemaphore = g_acquireSemaphore.get();
+        plume::RenderCommandSemaphore* signalSemaphore = PresentSemaphore(imageIndex);
+        g_queue->executeCommandLists(lists, 1, &waitSemaphore, 1, &signalSemaphore, 1, g_fence.get());
+        const bool presented = g_swapChain->present(imageIndex, &signalSemaphore, 1);
+        if (presented) ++g_completedPresentCount;
+        g_presentPending = true;
+        g_lastPresentedImage=imageIndex; g_hasPresentedImage=true;
+        g_displayChanges.Complete(displayTicket, presented && !g_displayFailed.load());
+        return presented;
+    }
+#endif
+
     } // namespace
 
     uint64_t CompletedPresentCount() { return g_completedPresentCount; }
@@ -735,60 +990,61 @@ namespace gpu::video
             return;
 
 #ifdef LO_GPU_PLUME
-        if (g_windowResizeRequested.exchange(false)) g_forceSwapResize = true;
-        const auto displayTicket = g_displayChanges.PresentationTicket();
-        static uint64_t resizedDisplayTicket = 0;
-        if (displayTicket && displayTicket != resizedDisplayTicket) {
-            g_forceSwapResize = true;
-            resizedDisplayTicket = displayTicket;
-        }
-        if(g_swapChain) {
-#ifdef _WIN32
-            static int appliedMode=-1;
-            static uint64_t appliedSize=0;
-            static uint64_t appliedDisplayTicket=0;
-            const int mode=g_displayMode.load(); const uint64_t size=g_displaySize.load();
-            if(!g_vulkan && mode>=0 && (mode!=appliedMode || size!=appliedSize || (displayTicket && displayTicket!=appliedDisplayTicket))) {
-                auto* swap=static_cast<plume::D3D12SwapChain*>(g_swapChain.get());
-                const plume::WindowPixelContext pixels;
-                HRESULT result=swap->d3d->SetFullscreenState(FALSE,nullptr);
-                if(mode==int(settings::WindowMode::Exclusive)) {
-                    DXGI_MODE_DESC target{}; target.Width=uint32_t(size>>32); target.Height=uint32_t(size);
-                    target.Format=DXGI_FORMAT_R8G8B8A8_UNORM;
-                    result=swap->d3d->ResizeTarget(&target);
-                    if(SUCCEEDED(result)) result=swap->d3d->SetFullscreenState(TRUE,nullptr);
-                }
-                BOOL exclusive=FALSE; swap->d3d->GetFullscreenState(&exclusive,nullptr);
-                if(FAILED(result) || (mode==int(settings::WindowMode::Exclusive) && !exclusive)) {
-                    g_displayFailed=true;
-                    g_displayChanges.Complete(displayTicket, false);
-                }
-                if(appliedMode==int(settings::WindowMode::Exclusive) && mode!=appliedMode) g_reapplyWindow=true;
-                LOG_INFO("display mode: requested={} exclusive={} result={:#x}",mode,bool(exclusive),uint32_t(result));
-                // Flip-model swap chains require ResizeBuffers after a
-                // fullscreen transition even when the dimensions are unchanged.
-                g_forceSwapResize=true;
-                appliedMode=mode; appliedSize=size;
-                appliedDisplayTicket=displayTicket;
-            }
-#endif
-        }
-        // Resize before rasterizing host text so its glyphs match the actual output.
-        if (g_available && (g_forceSwapResize || g_swapChain->needsResize())) {
-            if(!g_swapChain->resize()) { if(g_forceSwapResize) g_displayFailed=true; g_displayChanges.Complete(displayTicket,false); return; }
-            g_forceSwapResize=false; g_hasPresentedImage=false;
-            LogOutputPixels("resized");
-        }
-        if (g_available && g_swapChain->isEmpty()) return;
-        const uint32_t menuWidth = g_available ? g_swapChain->getWidth() : 1280;
-        const uint32_t menuHeight = g_available ? g_swapChain->getHeight() : 720;
+        uint64_t displayTicket = 0;
+        uint32_t menuWidth = 1280, menuHeight = 720;
+        // Preserve headless CPU diagnostics; a live swap chain uses the same
+        // preparation transaction as overlay-only presentation.
+        if (g_available && !PreparePresentation(displayTicket, menuWidth, menuHeight))
+            return;
         renderer::SetOutputSize(menuWidth, menuHeight);
         const auto presentationConfig = settings::GetConfig();
         gpu::SetFrameRateTarget(presentationConfig.frameRate);
         const PresentationOptions presentationOptions{
             presentationConfig.antialiasing == 3 ? Antialiasing::SMAA : static_cast<Antialiasing>(presentationConfig.antialiasing),
             presentationConfig.scalingQuality ? ScalingFilter::Bicubic : ScalingFilter::Bilinear};
-        const bool menu=settings::DrawMenu(g_menuPixels,g_menuRevision,menuWidth,menuHeight);
+        // Debug / test trigger: auto-open overlay after N frames if LO_AUTO_OVERLAY is set
+        static int s_autoOverlayCountdown = []() {
+            const char* env = getenv("LO_AUTO_OVERLAY");
+            return env ? atoi(env) : -1;
+        }();
+        if (s_autoOverlayCountdown > 0) {
+            if (--s_autoOverlayCountdown == 0) {
+                LOG_INFO("[host_ui] LO_AUTO_OVERLAY triggered debug overlay!");
+                debug_menu::Toggle();
+                if (getenv("LO_AUTO_TAB")) {
+                    debug_menu::HandleInput(debug_menu::InputAction::NextTab);
+                }
+            }
+        }
+
+        const bool hasSettings = settings::DrawMenu(g_menuPixels, g_menuRevision, menuWidth, menuHeight);
+        const bool hasDebug = debug_menu::IsOverlayVisible();
+        const bool menu = hasSettings || hasDebug;
+        std::vector<uint32_t> menuPresentBuffer;
+        if (hasDebug) {
+            static host_ui::PixelBuffer s_debugOverlayBuf;
+            s_debugOverlayBuf.Resize(1280, 720);
+            s_debugOverlayBuf.Clear(0x00000000);
+            host_ui::Rasterizer r(s_debugOverlayBuf);
+            debug_menu::RenderOverlay(r);
+
+            // Blend the logical 720p debug overlay onto the current output-sized menu buffer.
+            if (!hasSettings) {
+                if (size_t(menuWidth) > std::numeric_limits<size_t>::max() / size_t(menuHeight)) {
+                    menuPresentBuffer.clear();
+                }
+                else {
+                    menuPresentBuffer.assign(size_t(menuWidth) * menuHeight, host_ui::MakeColor(204, 16, 16, 24));
+                }
+            }
+            else {
+                menuPresentBuffer = g_menuPixels;
+            }
+            host_ui::CompositeScaled(s_debugOverlayBuf, menuWidth, menuHeight, menuPresentBuffer);
+        }
+        else if (hasSettings) {
+            menuPresentBuffer = g_menuPixels;
+        }
         // Fast path: the frontbuffer was resolved on the GPU, copy it straight
         // into the swap chain. LO_PRESENT_CPU=1 forces the untiling path below.
         static const bool cpuPresent = getenv("LO_PRESENT_CPU") != nullptr;
@@ -805,10 +1061,6 @@ namespace gpu::video
                 g_frameHeight = sourceHeight;
                 g_frontbufferPhysical = physicalAddress & 0x1FFFFFFF;
                 g_frameOnGpu = true;
-                if (g_forceSwapResize || g_swapChain->needsResize()) {
-                    if(!g_swapChain->resize()) { if(g_forceSwapResize) g_displayFailed=true; g_displayChanges.Complete(displayTicket,false); return; }
-                    g_forceSwapResize=false; g_hasPresentedImage=false;
-                }
                 if (g_swapChain->isEmpty())
                     return;
                 WaitForPresentGpu();
@@ -855,10 +1107,13 @@ namespace gpu::video
 #endif
         g_frameOnGpu = false;
 
-        // Untile: 32bpp blocks, pitch rounded up to a 32-block macro tile.
 #ifdef LO_GPU_PLUME
-        if(menu) { width=menuWidth; height=menuHeight; g_pixels=g_menuPixels; g_frameWidth=width; g_frameHeight=height; }
-        else
+        if (menu)
+        {
+            CacheCpuFrame(menuPresentBuffer, menuWidth, menuHeight);
+            UploadAndPresentPixels(menuPresentBuffer, menuWidth, menuHeight, true, displayTicket, presentationOptions);
+            return;
+        }
 #endif
         {
         const uint32_t pitchBlocks = (width + 31) & ~31u;
@@ -881,72 +1136,58 @@ namespace gpu::video
         }
 
 #ifdef LO_GPU_PLUME
-        if (!g_available)
+        UploadAndPresentPixels(g_pixels, width, height, false, displayTicket, presentationOptions);
+#endif
+    }
+
+    bool IsHostOverlayActive()
+    {
+        return debug_menu::IsOverlayVisible() || settings::IsOpen();
+    }
+
+    void PresentHostOverlay()
+    {
+#ifdef LO_GPU_PLUME
+        if (!IsHostOverlayActive())
+            return;
+        uint64_t displayTicket = 0;
+        uint32_t menuWidth = 0, menuHeight = 0;
+        if (!PreparePresentation(displayTicket, menuWidth, menuHeight))
+            return;
+        renderer::SetOutputSize(menuWidth, menuHeight);
+
+        const bool hasSettings = settings::DrawMenu(g_menuPixels, g_menuRevision, menuWidth, menuHeight);
+        const bool hasDebug = debug_menu::IsOverlayVisible();
+        if (!hasSettings && !hasDebug)
             return;
 
-        if (g_forceSwapResize || g_swapChain->needsResize()) {
-            if(!g_swapChain->resize()) { if(g_forceSwapResize) g_displayFailed=true; g_displayChanges.Complete(displayTicket,false); return; }
-            g_forceSwapResize=false; g_hasPresentedImage=false;
+        std::vector<uint32_t> menuPresentBuffer;
+        if (hasDebug) {
+            static host_ui::PixelBuffer s_debugOverlayBuf;
+            s_debugOverlayBuf.Resize(1280, 720);
+            s_debugOverlayBuf.Clear(0x00000000);
+            host_ui::Rasterizer r(s_debugOverlayBuf);
+            debug_menu::RenderOverlay(r);
+
+            if (!hasSettings) {
+                if (size_t(menuWidth) > std::numeric_limits<size_t>::max() / size_t(menuHeight))
+                    menuPresentBuffer.clear();
+                else
+                    menuPresentBuffer.assign(size_t(menuWidth) * menuHeight, host_ui::MakeColor(204, 16, 16, 24));
+            } else {
+                menuPresentBuffer = g_menuPixels;
+            }
+            host_ui::CompositeScaled(s_debugOverlayBuf, menuWidth, menuHeight, menuPresentBuffer);
         }
-        if (g_swapChain->isEmpty())
+        else {
+            menuPresentBuffer = g_menuPixels;
+        }
+
+        if (menuPresentBuffer.empty())
             return;
 
-        // Upload the untiled pixels; rows must be 256-byte aligned for D3D12.
-        const uint32_t rowPitch = (width * 4 + 255) & ~255u;
-        const uint64_t requiredBytes = uint64_t(rowPitch) * height;
-        WaitForPresentGpu();
-        if (requiredBytes > g_uploadCapacity) {
-            auto upload = g_device->createBuffer(plume::RenderBufferDesc::UploadBuffer(requiredBytes));
-            if (!upload) return;
-            g_uploadBuffer = std::move(upload);
-            g_uploadCapacity = requiredBytes;
-        }
-        auto* mapped = static_cast<uint8_t*>(g_uploadBuffer->map());
-        if (!mapped) return;
-        for (uint32_t y = 0; y < height; y++)
-            memcpy(mapped + size_t(y) * rowPitch, &g_pixels[size_t(y) * width], size_t(width) * 4);
-        g_uploadBuffer->unmap();
-
-        WaitForPresentGpu();
-        uint32_t imageIndex = 0;
-        if (!g_swapChain->acquireTexture(g_acquireSemaphore.get(), &imageIndex))
-        {
-            g_displayChanges.Complete(displayTicket, false);
-            return;
-        }
-        plume::RenderTexture* backBuffer = g_swapChain->getTexture(imageIndex);
-        const uint32_t copyWidth = std::min(width, g_swapChain->getWidth());
-        const uint32_t copyHeight = std::min(height, g_swapChain->getHeight());
-
-        g_commandList->begin();
-        if(!g_cpuFrame || g_cpuWidth!=width || g_cpuHeight!=height) {
-            g_cpuFrame=g_device->createTexture(plume::RenderTextureDesc::Texture2D(width,height,1,kSwapChainFormat));
-            g_cpuWidth=width; g_cpuHeight=height;
-        }
-        auto* uploadTarget=g_presentation?g_cpuFrame.get():backBuffer;
-        g_commandList->barriers(plume::RenderBarrierStage::COPY, plume::RenderTextureBarrier(uploadTarget, plume::RenderTextureLayout::COPY_DEST));
-        plume::RenderBox box(0, 0, int32_t(copyWidth), int32_t(copyHeight), 0, 1);
-        g_commandList->copyTextureRegion(
-            plume::RenderTextureCopyLocation::Subresource(uploadTarget),
-            plume::RenderTextureCopyLocation::PlacedFootprint(g_uploadBuffer.get(), kSwapChainFormat, width, height, 1, rowPitch / 4),
-            0, 0, 0, g_presentation?nullptr:&box);
-        // This upload came from guest tiled memory, not the processed GPU resolve.
-        // GPU-only scene-AA provenance cannot authorize skipping its legacy AA.
-        if(g_presentation) g_presentation->Draw(g_commandList.get(),g_cpuFrame.get(),backBuffer,width,height,
-            g_swapChain->getWidth(),g_swapChain->getHeight(),menu ? PresentationOptions{} : presentationOptions);
-        RecordPresentedSnapshot(backBuffer);
-        g_commandList->barriers(plume::RenderBarrierStage::NONE, plume::RenderTextureBarrier(backBuffer, plume::RenderTextureLayout::PRESENT));
-        g_commandList->end();
-
-        const plume::RenderCommandList* lists[] = { g_commandList.get() };
-        plume::RenderCommandSemaphore* waitSemaphore = g_acquireSemaphore.get();
-        plume::RenderCommandSemaphore* signalSemaphore = PresentSemaphore(imageIndex);
-        g_queue->executeCommandLists(lists, 1, &waitSemaphore, 1, &signalSemaphore, 1, g_fence.get());
-        const bool presented = g_swapChain->present(imageIndex, &signalSemaphore, 1);
-        if (presented) ++g_completedPresentCount;
-        g_presentPending = true;
-        g_lastPresentedImage=imageIndex; g_hasPresentedImage=true;
-        g_displayChanges.Complete(displayTicket, presented && !g_displayFailed.load());
+        CacheCpuFrame(menuPresentBuffer, menuWidth, menuHeight);
+        UploadAndPresentPixels(menuPresentBuffer, menuWidth, menuHeight, true, displayTicket, PresentationOptions{});
 #endif
     }
 
@@ -1018,7 +1259,7 @@ namespace gpu::video
         }
         if (g_frameOnGpu && !renderer::ReadbackResolvedSurface(g_frontbufferPhysical, g_pixels, g_frameWidth, g_frameHeight))
             return false;
-        if (g_pixels.empty())
+        if (g_pixels.empty() || g_pixels.size() != size_t(g_frameWidth) * g_frameHeight)
             return false;
         FILE* f = fopen(path, "wb");
         if (!f)

@@ -19,6 +19,11 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## 未发布开发内容
+
+- 游戏内调试浮层现可在不同输出分辨率下正确合成，并保护并发访问中的共享浮层状态。软件 UI 使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
+- Windows 定向回归测试重新编译并通过：`LoHostUiCompositeTest`、`LoDebugOverlayTest` 和 `LoHidTest`。完整的 Clang 22 Linux Release runtime 也已成功链接，并在启动时识别 `game_us/default.xex`。Linux 检查使用了 `SDL_VIDEODRIVER=dummy`，因此未执行 Vulkan 窗口创建和真实场景游戏运行。
+
 Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flatpak 清单构建，Linux x64 AppImage 已随 [v0.5.14 发布版](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.14)提供；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。
 
 ## v0.5.14 新增
@@ -120,7 +125,7 @@ Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flat
 | 设置菜单 | 原版字体与菜单风格；图形设置单击保存并应用，需要重启时选择 Now/Later |
 | 着色器预编译 | 内置资源索引、多线程编译、缓存复用 |
 | CPU 使用率 | 减少不必要的轮询，复用渲染计算 |
-| 输入与调试 | 手柄和键盘输入；英文／简体中文 F1 菜单提供捕获、地图信息与同地图 POI 传送 |
+| 输入与调试 | 手柄和键盘输入；英文／简体中文游戏内浮层调试菜单（F1 或手柄 LB+RB）提供捕获、地图信息与同地图 POI 传送 |
 
 发布包通过 `LostOdysseyRecomp.exe` 的 **Files** 或 **Folder** 导入游戏光盘和受支持的 DLC。资源缺失时可再次打开同一内置导入器。验证边界见[安装说明](docs/INSTALLING.md#automatic-content-import)和[开发状态](docs/STATUS.md)。
 
@@ -165,7 +170,7 @@ Pop-Location
 | 十字键 / 左摇杆 | 方向键 / I、J、K、L |
 | 左 / 右肩键 | Q / W |
 | 左 / 右扳机 | E / R |
-| 调试菜单 | F1 |
+| 调试菜单 | F1 / 手柄 LB+RB |
 
 SDL 已映射手柄与键盘可同时用于玩家 1。未映射摇杆需要 SDL 手柄映射。见[输入说明](docs/notes/controller-input.md)。
 

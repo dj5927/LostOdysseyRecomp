@@ -17,6 +17,7 @@
 #include <notified_wait.h>
 #include <set>
 #include <mutex>
+#include <host_ui/host_ui.h>
 #include <fstream>
 #include <future>
 
@@ -256,13 +257,16 @@ namespace gpu
 
     void CommandProcessor::Shutdown()
     {
+        host_ui::RequestStop();
         {
             std::lock_guard lock(m_writePtrMutex);
             m_running = false;
         }
         m_writePtrChanged.notify_all();
-        m_interruptSignal++;
-        m_interruptSignal.notify_all();
+        {
+            std::lock_guard lock(m_interruptMutex);
+        }
+        m_interruptCv.notify_all();
         for (auto* t : { &m_worker, &m_vsync, &m_interruptThread })
             if (t->joinable())
                 t->join();
@@ -437,7 +441,19 @@ namespace gpu
                     });
                 }
                 if (m_running)
+                {
                     video::PumpEvents();
+                    if (video::IsHostOverlayActive())
+                    {
+                        static auto s_lastOverlayPresent = std::chrono::steady_clock::time_point{};
+                        const auto now = std::chrono::steady_clock::now();
+                        if (now - s_lastOverlayPresent >= std::chrono::milliseconds(16))
+                        {
+                            s_lastOverlayPresent = now;
+                            video::PresentHostOverlay();
+                        }
+                    }
+                }
                 continue;
             }
             if (timingIdle)
@@ -510,15 +526,12 @@ namespace gpu
         {
             std::pair<uint32_t, uint32_t> item;
             {
-                std::lock_guard lock(m_interruptMutex);
-                if (m_pendingInterrupts.empty())
-                {
-                    uint32_t signal = m_interruptSignal.load();
-                    m_interruptMutex.unlock();
-                    m_interruptSignal.wait(signal);
-                    m_interruptMutex.lock();
-                    continue;
-                }
+                std::unique_lock lock(m_interruptMutex);
+                m_interruptCv.wait(lock, [this] {
+                    return !m_running || !m_pendingInterrupts.empty();
+                });
+                if (!m_running && m_pendingInterrupts.empty())
+                    break;
                 item = m_pendingInterrupts.front();
                 m_pendingInterrupts.erase(m_pendingInterrupts.begin());
             }
@@ -549,8 +562,7 @@ namespace gpu
             std::lock_guard lock(m_interruptMutex);
             m_pendingInterrupts.emplace_back(source, cpu);
         }
-        m_interruptSignal++;
-        m_interruptSignal.notify_all();
+        m_interruptCv.notify_one();
     }
 
     uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t readIndex, uint32_t writeIndex)
@@ -910,6 +922,17 @@ namespace gpu
                 }
                 if (matched)
                     break;
+                video::PumpEvents();
+                if (video::IsHostOverlayActive())
+                {
+                    static auto s_lastWaitOverlayPresent = std::chrono::steady_clock::time_point{};
+                    const auto now = std::chrono::steady_clock::now();
+                    if (now - s_lastWaitOverlayPresent >= std::chrono::milliseconds(16))
+                    {
+                        s_lastWaitOverlayPresent = now;
+                        video::PresentHostOverlay();
+                    }
+                }
                 if (std::chrono::steady_clock::now() > deadline)
                 {
                     LOG_WARNING("WAIT_REG_MEM stalled 5s ({} {:#x} ref {:#x} mask {:#x} value {:#x}), still waiting", isMemory ? "mem" : "reg", pollRegAddr, ref, mask, value);
