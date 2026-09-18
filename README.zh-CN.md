@@ -21,13 +21,14 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 
 ## v0.5.20 新增
 
-已发布版本：[v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20)。提供 Windows x64 ZIP、Linux x64 AppImage 以及独立的便携式 Vulkan 着色器包 ZIP。
+已发布版本：[v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20)。提供 Windows x64 ZIP、Linux x64 AppImage（两个发布包均已内置便携式 Vulkan 着色器包，实现开箱即用零编译启动）以及独立的便携式 Vulkan 着色器包 ZIP。
 
-- 修正着色器尾声对无符号 EDRAM 格式（0、1、2、3、10、12，含 7e3 格式 `COLOR_2_10_10_10_FLOAT`）的物理范围截断，下限严格限制为 `0.0`，彻底修复 Issue #38 努玛拉城哲学者之间（Philosopher's Chamber）黑光灯具问题并杜绝色调映射 `log2` 计算产生 NaN 与全屏黑洞；着色器缓存版本号 `Version` 提升至 23 自动使旧版 DXIL 缓存失效。
-- 修复 `f2358` 场景阶梯与保存点光球处的 TAA 抖动闪烁：在 `PositionVPSlot` 中补充注册遗漏的静态场景与光照顶点着色器，消除帧间相机抖动相位不匹配。
-- 引入可重定位便携式 Vulkan 着色器包架构（`.lospv`），采用 SHA-256 去重与分块 Zstandard 压缩，包含 28,482 个着色器仅 169.9 MB，在 Linux/WSL2 实测 1.2 秒零编译启动与 0 次 DXC 调用。
-- 优化着色器与管线预构建并发效率，支持基于宿主内存动态缩放、按键即时跳过（ESC/空格/B 键）及 WSL 快速增量构建脚本（`tools/build_wsl.bat`）。
-- 完整合入 menu 分支的游戏内调试浮层与纯软件跨平台设置菜单，支持键盘与手柄全功能导航。
+- **内置便携式 Vulkan 着色器包（`.lospv`）**：彻底免去玩家首次启动的着色器编译等待。采用 SHA-256 去重与分块 Zstandard 压缩，包含 28,482 个着色器仅 169.9 MB，在 Linux/WSL2 实测 1.2 秒零编译瞬时启动与 0 次 DXC 调用。
+- **移除 PPC 预编译同步并改为在线全源码编译**：彻底废弃 PowerPC 预编译静态库远程同步机制（`LO_PREBUILT_PPC_DIR`、`ppc_sync.py`、`ppc_prebuilt.py`）；Windows 与 Linux CI 均统一从源码在线编译客户机 PowerPC 重编译库，精简构建管线并为未来 ARM64 等架构支持铺平道路。
+- **修复 Issue #38 努玛拉城黑光灯具**：修正着色器尾声对无符号 EDRAM 格式（0、1、2、3、10、12，含 7e3 格式 `COLOR_2_10_10_10_FLOAT`）的物理范围截断，下限严格限制为 `0.0`，彻底修复哲学者之间黑光灯具与全屏黑洞问题；着色器缓存版本号提升至 23。
+- **修复 `f2358` 场景 TAA 抖动闪烁**：在 `PositionVPSlot` 中补充注册遗漏的静态场景与光照顶点着色器，消除阶梯与保存点光球处的帧间相机抖动相位不匹配。
+- **优化着色器与管线预构建并发效率**：支持基于宿主物理内存与 CPU 线程动态缩放工作线程，增加按键即时跳过支持（ESC/空格/B 键）及 `settings.ini` 中的永久跳过选项。
+- **集成 menu 分支调试浮层与 WSL 构建脚本**：完整合入游戏内调试浮层与纯软件跨平台设置菜单，并提供 `tools/build_linux.sh` 与 `tools/build_wsl.bat` 快速增量构建脚本。
 
 Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flatpak 清单构建，Linux x64 AppImage 已随 [v0.5.20 发布版](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20)提供；请参阅[构建指南](docs/BUILDING.md)和[安装指南](docs/INSTALLING.md)。
 
@@ -128,7 +129,7 @@ Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flat
 | 语言设置 | 英语、日语、韩语、繁体中文、简体中文界面，以及游戏语言选择 |
 | 图形设置 | 最高 4K 的 Auto／手动内部分辨率、Off／FXAA／SMAA／实验性 TAA、标准／高质量滤波、30／60 FPS 及输出／显示控制；全屏和跨 DPI 仍需更多测试 |
 | 设置菜单 | 原版字体与菜单风格；图形设置单击保存并应用，需要重启时选择 Now/Later |
-| 着色器预编译 | 内置资源索引、多线程编译、缓存复用 |
+| 着色器预编译 | 内置便携式 Vulkan 着色器包（.lospv）、多线程自适应编译、即时跳过与缓存复用 |
 | CPU 使用率 | 减少不必要的轮询，复用渲染计算 |
 | 输入与调试 | 手柄和键盘输入；英文／简体中文游戏内浮层调试菜单（F1 或手柄 LB+RB）提供捕获、地图信息与同地图 POI 传送 |
 

@@ -99,6 +99,10 @@ One record of completed changes, with unpublished work separated from verified r
 - 移除 PowerPC 预编译静态库缓存与远程同步机制（`LO_PREBUILT_PPC_DIR`、`ppc_sync.py`、`ppc_prebuilt.py`）：
   - 所有平台（Windows 与 Linux）在 CI 及本地 Release 构建中均统一从重编译源码直接在线编译 `LostOdysseyRecompLib`，彻底消除特定平台的静态库依赖契约，为未来扩展更多硬件架构（如 ARM64）铺平道路。
   - 发布流程中通过 `tools/release/fetch_shader_pack.py` 自动获取便携式 Vulkan 着色器包，直接内置到 Windows 便携 ZIP 与 Linux AppImage 发布产物中（`shaders/portable_vk.lospv`）。
+- 将解包及固定/链接着色器源码保存在有界内存中，而非在预构建期间导出并重新读取临时源码；保留已编译检查点以供启动中断后恢复。
+- 将启动包绑定到当前运行时/编译器契约，恢复事件泵送与事务性错误传递，并修复取消唤醒机制。
+- 低内存环境下限制 DXC 预处理并发工作线程，释放保留的 HLSL，且仅解码索引后的 CPX 数据块。保留显式诊断/全量扫描控制。
+- 增加脱离游戏数据的 CPU/Sanitizer 以及生产功能回归测试覆盖。详见[审计范围、证据及剩余硬件检查](docs/MENU_SHADER_PREBUILD_AUDIT.md)。
 - menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
 - 完整修复代码审查报告 R1 至 R10 缺陷项：
   - 将手柄宿主输入泵（`PumpHostInput`）与浮层呈现（`PresentHostOverlay`）与客户机暂停解耦，并在 GPU `WAIT_REG_MEM` 循环中注入事件泵，防止暂停期间卡死（R1, R2）。
@@ -117,7 +121,7 @@ One record of completed changes, with unpublished work separated from verified r
   - 将 `LoDebugMenuInteractionTest` 测试目标移出 Windows 独占条件，加入跨平台测试套件。
 - 维持并扩充测试套件：`LoHidTest`、`LoHostUiCompositeTest`、`LoDebugOverlayTest`、`LoDebugMenuInteractionTest` 与 `LoMenuRenderTest` 全部重新编译并测试通过。
 
-Published at [GitHub Release v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) on 2026-09-17.
+Published at [GitHub Release v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) on 2026-09-17. / 已于 2026-09-17 发布于 [GitHub Release v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20)。
 
 ## Historical development checkpoints / 历史开发检查点
 
