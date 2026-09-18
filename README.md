@@ -19,9 +19,9 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
-## v0.6.0 release candidate
+## v0.6.0 release
 
-The v0.6.0 release is being prepared with Windows x64 and native Linux x64 packages. The Windows ZIP and Linux AppImage will bundle the portable Vulkan shader pack so supported installations can start without a long first-run compilation step. The bundle covers the tested shader set; an uncovered shader can still compile on demand and may cause a brief hitch.
+Published release: [v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0). It provides Windows x64 and native Linux x64 packages. The Windows ZIP and Linux AppImage bundle the portable Vulkan shader pack so supported installations can start without a long first-run compilation step. The bundle covers the tested shader set; an uncovered shader can still compile on demand and may cause a brief hitch.
 
 - **Large performance and stability pass**: repaired shader and pipeline preparation, wait and thread lifetime, presentation, clock, updater, geometry cache, and Linux runtime paths. The earlier 15 W measurements used sampled cache matching and are not final v0.6.0 FPS evidence; Steam Deck hardware acceptance remains open.
 - **Native Linux release**: Vulkan ELF and AppImage packaging are included in the release scope. Linux validation currently covers WSL2 with Mesa Dozen; native Linux GPU, AppImage update transactions, Steam Deck, and full-game playthrough remain open.
@@ -30,7 +30,7 @@ The v0.6.0 release is being prepared with Windows x64 and native Linux x64 packa
 
 The next **v0.7.0** milestone is planned to continue performance work and add quality-of-life features, DLSS/FSR scaling, frame generation, and a macOS release.
 
-The release candidate is not yet marked as published. Download links will be added after the GitHub Release and its assets are verified.
+The release packages and standalone shader pack are available from the [v0.6.0 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0). Release CI passed the required audit and Windows/Linux packaging gates. The published artifacts were verified against their SHA-256 sidecars; native Linux GPU, Steam Deck, AppImage update transactions, and full-game playthrough remain outside the verified scope.
 
 ## New in v0.5.20
 

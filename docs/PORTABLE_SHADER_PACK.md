@@ -1,8 +1,34 @@
-# Portable Vulkan shader pack — review candidate
+# Portable Vulkan shader pack — v0.6.0 release
 
 Base: `menu@257f3866e9f9f5d3e65550c86dce453290cf7ee4`.
 This change follows reblue's build/distribution separation; it does not copy its
 renderer or change Lost Odyssey's shader translation semantics.
+
+## v0.6.0 release
+
+The v0.6.0 GitHub Release was published on 2026-09-18. [Release CI
+35359206991](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991)
+passed the audit, Windows Release and Linux Release jobs. The standalone pack is
+available from the [v0.6.0 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0),
+with SHA-256
+`387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`.
+It reuses the v0.5.20 pack contents and contains 28,482 records under the v0.6.0
+asset name; this is release provenance rather than a claim of new shader coverage.
+
+The source-side verifier now permits the audited exception for the raw image
+contract `d5a2fab10441a46444b6b41ffcb4f1ba562bea75668a7b445fd43688aec67507`
+mapping to runtime contract
+`f6fd1179b50f6ff9b63d6be84c662d1337af6b7dfa78865a9a6c025509c9b77f`; other
+images retain direct contract verification. This is required because `XexLoader`
+patches import thunks before runtime shader preparation. The current local
+verification covered a real 28,482-record pack with all payloads and runtime
+compatibility, and `portable_shader_release_test.py` passed. Previous runtime
+logs also recorded pack hits in two runs, but they came from a 0.5.14 dirty
+source and are retained as supporting evidence only.
+
+The uploaded pack matches the audited contract through the release verifier and
+the published asset's sidecar and GitHub digest match. Native Linux GPU, Steam
+Deck, AppImage update transactions and full-game shader coverage remain unverified.
 
 ## Implemented
 

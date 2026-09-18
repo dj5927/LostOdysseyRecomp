@@ -1,6 +1,6 @@
 # Project status
 
-## v0.6.0 release candidate / v0.6.0 发布候选版
+## v0.6.0 published / v0.6.0 已发布
 
 The current main source repairs the remaining 0.6.0 audit findings. Large
 vertex and index cache hits compare complete source content; the index cache is
@@ -16,15 +16,25 @@ Focused evidence: Clang `-O2` vertex-cache, geometry and prerelease fixtures
 passed 3,668,947, 16,809,648 and 16,438 checks respectively; five benchmark
 save-safety cases passed; the independent WSL pause test passed; and isolated
 POSIX apply fixtures passed success cleanup and launch-failure rollback. These
-are release-candidate source checks. They do not establish full-game behavior, final
+are release source checks. They do not establish full-game behavior, final
 release-binary performance, a real AppImage update, a real Windows package
 transaction, or Steam Deck acceptance.
 
 定向证据：Clang `-O2` 顶点缓存、geometry 和 prerelease fixture 分别通过
 3,668,947、16,809,648 和 16,438 项检查；基准工具存档安全测试 5 项通过；
 WSL 独立暂停测试通过；POSIX 更新隔离 fixture 的成功清理和启动失败回滚通过。
-这些是发布候选源码检查，不代表全游戏行为、最终发布二进制性能、真实 AppImage
+这些是发布源码检查，不代表全游戏行为、最终发布二进制性能、真实 AppImage
 更新、真实 Windows 安装包事务或 Steam Deck 验收。
+
+v0.6.0 已于 2026-09-18T15:21:34Z 在 [GitHub Release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0)
+公开发布，来源为 annotated tag 的 commit
+`4b4b6c617172d43c7a73477881263e6e542d6cdf`。[Release CI 35359206991](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991)
+的审计、Windows Release 和 Linux Release 均通过。公开 Release 包含六个附件：Windows ZIP、Linux
+AppImage、独立 shader pack ZIP 及各自 SHA-256 校验文件；三个主体包的 hash 分别为
+`7ebcad6c2660ea6bcce801df3e6eb0f9bb6faef87e5108898618c1144031d161`、
+`46c1c10e9dbaf0dc5db490aa3fd2f5b195eea8ccdbd7e35a0996f978292d3901` 和
+`387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`。此前首次 CI 的
+shader 输入失败仍保留在该历史运行记录中；当前发布资产已完成 sidecar 与 GitHub digest 核对。
 
 2026-09-18 的真实光盘验证使用当前 importer 源码和只读目录
 `G:/ROMS/US`：`ScanContent` 找到 USA/Europe 四张光盘镜像，每张 15 个文件，
@@ -43,6 +53,13 @@ bytes, with matching Disc 1 metadata and XEX SHA-256. Staging and lock files
 were cleaned up. This covers real scanning and one Disc 1 transaction; it does
 not establish a four-disc install, interactive UI acceptance, gameplay or a
 full output byte comparison.
+
+The first release attempt recorded in [CI 35355375239](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35355375239)
+failed at portable shader-pack fetching because its private pinned input had no
+shader files, and the earlier fallback pack then failed runtime-contract verification. That historical Draft state is superseded by the published release and
+the successful [CI 35359206991](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991).
+The standalone pack reuses the v0.5.20 28,482-record pack contents under the v0.6.0
+asset name. This documents release provenance; it does not expand runtime validation.
 
 ## Published v0.5.20 — 2026-09-17
 

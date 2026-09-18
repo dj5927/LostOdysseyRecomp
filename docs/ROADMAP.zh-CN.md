@@ -6,7 +6,9 @@
 
 ## 交付
 
-[v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) 已于 2026-09-17T20:09:32Z 公开发布，为当前最新版本。Release CI、干净包来源、已核验的发布资产（Windows x64 ZIP、Linux x64 AppImage、独立便携式 Vulkan 着色器包 ZIP 及 SHA-256 校验文件）均通过。Windows 与 Linux 发布包均内置 `shaders/portable_vk.lospv`，实现零编译即时启动。Windows 与 Linux 构建均统一在 CI 中从源码在线编译客户机 PowerPC 重编译库，退役了 PPC 预编译同步机制。源码提交、hash 和验证边界见 [STATUS](STATUS.md)。
+[v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0) 已于 2026-09-18T15:21:34Z 从 `4b4b6c617172d43c7a73477881263e6e542d6cdf` 公开发布。[Release CI 35359206991](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991) 已通过审计、Windows Release 和 Linux Release 门槛。公开发布包含 Windows 与 Linux 发布包、独立便携式 Vulkan 着色器包及 SHA-256 校验文件。Windows ZIP、Linux AppImage 和 shader pack 的 hash 分别为 `7ebcad6c2660ea6bcce801df3e6eb0f9bb6faef87e5108898618c1144031d161`、`46c1c10e9dbaf0dc5db490aa3fd2f5b195eea8ccdbd7e35a0996f978292d3901` 和 `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`。原生 Linux GPU、Steam Deck、AppImage 更新事务和全流程游戏仍待验证。
+
+[v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) 作为上一里程碑保留记录。其 Release CI、包来源和六个公开资产均通过核验；其中引入的便携式 shader pack 与在线 PowerPC 源码编译继续包含在 v0.6.0 中。历史提交、hash 和验证边界见 [STATUS](STATUS.md)。
 
 <a id="v070-frame-generation"></a>
 ## v0.7.0 计划

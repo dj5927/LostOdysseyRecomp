@@ -19,9 +19,9 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
-## v0.6.0 发布候选版
+## v0.6.0 发布版
 
-v0.6.0 正在准备 Windows x64 与原生 Linux x64 发布包。Windows ZIP 与 Linux AppImage 将内置便携式 Vulkan 着色器包，让受支持的安装首次进入游戏时不再经历冗长的编译过程。着色器包覆盖当前测试过的集合，遗漏的着色器仍会按需编译，可能造成短暂卡顿。
+已发布版本：[v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0)。提供 Windows x64 与原生 Linux x64 发布包。Windows ZIP 与 Linux AppImage 内置便携式 Vulkan 着色器包，让受支持的安装首次进入游戏时不再经历冗长的编译过程。着色器包覆盖当前测试过的集合，遗漏的着色器仍会按需编译，可能造成短暂卡顿。
 
 - **大幅性能与稳定性改进**：修复 shader 与管线准备、等待与线程生命周期、呈现、时钟、更新器、几何缓存和 Linux 运行路径。此前 15W 测试使用了抽样缓存匹配，不能作为 0.6.0 最终 FPS 证据；Steam Deck 实机验收仍待完成。
 - **原生 Linux 发布**：发布范围包含 Vulkan ELF 与 AppImage。当前 Linux 验证覆盖 WSL2 Mesa Dozen；原生 Linux GPU、AppImage 更新事务、Steam Deck 和全流程游戏仍未验证。
@@ -30,7 +30,7 @@ v0.6.0 正在准备 Windows x64 与原生 Linux x64 发布包。Windows ZIP 与 
 
 下一阶段 **v0.7.0** 计划继续优化性能并加入 QOL 功能、DLSS/FSR Scaling、Frame Generation，同时发布 macOS 版本。
 
-当前仍是发布候选版，尚未标记为已发布。GitHub Release 及其资产完成核验后再补充下载链接。
+发布包和独立 shader pack 可从 [v0.6.0 发布页](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0)下载。Release CI 已通过必要的审计和 Windows/Linux 打包门槛，公开资产已与 SHA-256 校验文件核对。原生 Linux GPU、Steam Deck、AppImage 更新事务和全流程游戏仍不在已验证范围内。
 
 ## v0.5.20 新增
 

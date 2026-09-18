@@ -6,7 +6,9 @@
 
 ## Delivery
 
-[v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) is the latest release, published on 2026-09-17T20:09:32Z. Release CI, clean package provenance, verified release assets (Windows x64 ZIP, Linux x64 AppImage, standalone portable Vulkan shader pack ZIP, and SHA-256 sidecars) passed. Windows and Linux release packages bundle `shaders/portable_vk.lospv` for instant zero-compile startup. Both Windows and Linux builds compile guest PowerPC recompilation from source directly in CI, retiring the PPC prebuilt synchronization mechanism. See [STATUS](STATUS.md) for source commits, hashes and validation limits.
+[v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0) was published on 2026-09-18T15:21:34Z from `4b4b6c617172d43c7a73477881263e6e542d6cdf`. Release CI [`35359206991`](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991) passed the audit, Windows Release and Linux Release jobs. The public release contains Windows and Linux packages plus the standalone portable Vulkan shader pack and SHA-256 sidecars. The Windows ZIP, Linux AppImage and shader pack hashes are `7ebcad6c2660ea6bcce801df3e6eb0f9bb6faef87e5108898618c1144031d161`, `46c1c10e9dbaf0dc5db490aa3fd2f5b195eea8ccdbd7e35a0996f978292d3901` and `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`. Native Linux GPU, Steam Deck, AppImage update transactions and full-game playthrough remain open.
+
+[v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) remains the previous milestone record. Its release CI, package provenance and six public assets passed; the portable shader pack and direct online PowerPC source compilation introduced there continue in v0.6.0. See [STATUS](STATUS.md) for historical source commits and validation limits.
 
 <a id="v070-frame-generation"></a>
 ## v0.7.0 plans
