@@ -1,4 +1,5 @@
 #pragma once
+#include "motion_vector.h"
 #include "temporal_aa.h"
 #include "temporal_scene.h"
 
@@ -165,6 +166,7 @@ class HistoryOwner {
     uint64_t sparseReleaseSerial_=0;
     std::array<Image,2> depth_,history_;
     Image source_,display_;
+    Image motionVector_;
     struct RetiredImage { uint64_t serial; std::unique_ptr<plume::RenderTexture> texture; };
     std::vector<RetiredImage> retired_;
     std::array<Frame,2> frames_;
@@ -214,6 +216,7 @@ public:
             for(auto& image:history_)ok=Allocate(image,colorFormat_)&&ok;
             ok=Allocate(source_,colorFormat_)&&ok;
             ok=Allocate(display_,colorFormat_)&&ok;
+            ok=Allocate(motionVector_,plume::RenderFormat::R16G16_FLOAT)&&ok;
             if(!ok){width_=height_=0;return false;}
         }
         Matrix vp{};for(unsigned i=0;i<16;++i)vp[i]=std::bit_cast<float>(scene.Anchor().vpBits[i]);
@@ -240,7 +243,11 @@ public:
         Transition(commands,source_,plume::RenderTextureLayout::SHADER_READ);
         Transition(commands,history_[frame_%2],plume::RenderTextureLayout::COLOR_WRITE);
         Transition(commands,history_[(frame_+1)%2],plume::RenderTextureLayout::SHADER_READ);
+        if(motionVector_.texture) {
+            Transition(commands,motionVector_,plume::RenderTextureLayout::SHADER_READ);
+        }
         TemporalAAInputs in;in.rejectOutOfNeighborhoodHistory=colorReactive;in.stableGrid=stableGrid;in.currentColor=source_.texture.get();in.currentDepth=depth_[frame_%2].texture.get();in.historyColor=history_[(frame_+1)%2].texture.get();in.historyDepth=depth_[(frame_+1)%2].texture.get();in.output=history_[frame_%2].texture.get();
+        in.motionVector=motionVector_.texture.get();
         in.width=in.historyWidth=width_;in.height=in.historyHeight=height_;in.currentCamera=&*current.camera;in.previousCamera=previous.camera?&*previous.camera:nullptr;
         in.currentJitterX=jx;in.currentJitterY=jy;in.previousJitterX=previous.jx;in.previousJitterY=previous.jy;in.historyValid=reuse;in.rejectAllHistory=!allowHistory;
         if(sparse_&&!sparseReleaseSerial_&&sparse_->Ready()&&taa_collection::WantSparse()) {
@@ -264,6 +271,7 @@ public:
     const HistoryReuseDiagnostic& Diagnostics() const {return diagnostics_;}
     // Borrowed diagnostic view, SHADER_READ; restore that layout after a readback.
     plume::RenderTexture* CurrentDepth() const {return depth_[frame_%2].texture.get();}
+    plume::RenderTexture* CurrentMotionVector() const {return motionVector_.texture.get();}
     void ReleaseCompleted() {if(sparse_)sparse_->ReleaseCompleted();sparseReleaseSerial_=0;aa_.ReleaseCompleted();retired_.clear();}
     uint64_t RecordedSerial() const {return aa_.RecordedSerial();}
     void ReleaseCompletedThrough(uint64_t serial) {

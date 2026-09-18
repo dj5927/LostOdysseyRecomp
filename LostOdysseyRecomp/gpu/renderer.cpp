@@ -454,6 +454,7 @@ namespace gpu::renderer
             std::array<uint64_t, 2> bindingRecordedFrame{~0ull, ~0ull};
             temporal::SceneObservation temporalScene;
             std::shared_ptr<taa_collection::SparseDepthGPU> sparseCollector;
+            temporal::DrawTemporalTracker drawTemporalTracker;
             std::unique_ptr<temporal::HistoryOwner> temporalHistory;
             // Opt-in candidate, controlled through the local diagnostic file.
             // Separate owner: HDR is accumulated before bloom and tone mapping.
@@ -3489,6 +3490,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     temporalHistory->BeginFrame(frame,temporalEpoch,
                         taa_collection::DiagnosticsActive() || (diagnosticStart&&frame>=diagnosticFrame&&temporalFramesLogged<256) || (withTrace&&resolveTraceRemaining));
                     if (hdrTemporalHistory) hdrTemporalHistory->BeginFrame(frame, temporalEpoch, resolveTraceRemaining != 0);
+                    drawTemporalTracker.BeginFrame(frame);
                 }
                 taaInit.AddTo(tTaa);
                 std::optional<temporal::SceneResolve> temporalSceneCopy;
@@ -3943,6 +3945,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                     QueueResolveTrace(*tex,0xffff0001u);
                                     QueueResolveTrace(temporalDisplay,RenderFormat::R8G8B8A8_UNORM,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0002u);
                                     QueueResolveTrace(temporalHistory->CurrentDepth(),RenderFormat::R32_FLOAT,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0003u);
+                                    if(temporalHistory->CurrentMotionVector())
+                                        QueueResolveTrace(temporalHistory->CurrentMotionVector(),RenderFormat::R16G16_FLOAT,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0004u);
                                 }
                             }
                             if(!temporalDisplay && sceneAAEnabled && sceneProcessor && !sceneAABusy &&
@@ -4338,6 +4342,46 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     commandList->drawInstanced(indexCount, 1, uint32_t(baseVertex), 0);
                 }
                 drawsThisFrame++;
+
+                // Track draw temporal state for motion vector generation & correspondence
+                const int posSlot = temporal::PositionVPSlot(key.vs);
+                if (posSlot >= 0)
+                {
+                    temporal::DrawHistoryKey histKey{};
+                    histKey.vsHash = key.vs;
+                    histKey.baseVertex = uint32_t(baseVertex);
+                    histKey.startIndex = useIndices ? uint32_t(Reg(REG_VGT_INDX_OFFSET)) : 0;
+                    histKey.indexCount = indexCount;
+                    for (uint32_t slot = 0; slot < kVertexFetchSlots; ++slot)
+                    {
+                        if ((vs->info.vertexFetchSlotMask[slot >> 6] >> (slot & 63)) & 1)
+                        {
+                            histKey.vertexFetchAddress = Reg(REG_FETCH_CONSTANTS + slot * 2) & ~3u;
+                            break;
+                        }
+                    }
+
+                    // Only record if explicit environment flag is enabled during development to prevent CPU overhead
+                    static const bool enableDrawTracking = getenv("LO_ENABLE_MV_DRAW_TRACKING") && strcmp(getenv("LO_ENABLE_MV_DRAW_TRACKING"), "1") == 0;
+                    if (enableDrawTracking)
+                    {
+                        const float* vpPtr = nullptr;
+                        if (posSlot + 4 <= 256)
+                        {
+                            vpPtr = reinterpret_cast<const float*>(&vsConstants[posSlot]);
+                        }
+
+                        const float* bonePtr = nullptr;
+                        uint32_t boneCount = 0;
+                        if (vs->info.usesRelativeConstants)
+                        {
+                            bonePtr = reinterpret_cast<const float*>(&vsConstants[64]);
+                            boneCount = 128 * 4; // c64..c191
+                        }
+
+                        drawTemporalTracker.RecordDraw(histKey, vpPtr, bonePtr, boneCount);
+                    }
+                }
                 // Offline vertex replay: capture one frame of relative-addressed
                 // draws with their constants, indices and current guest streams.
                 // Stream files are swapped CPU snapshots, not upload-heap reads.

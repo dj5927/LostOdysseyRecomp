@@ -18,8 +18,10 @@ struct TemporalAAInputs
     // All textures are single-sample 2D, exact declared dimensions, mip zero.
     // Colors/output: RGBA8_UNORM, depths: R32_FLOAT host reverse depth (0 clear).
     // Optional current reactive mask: R8_UNORM or R32_FLOAT, >0 rejects history.
+    // Optional explicit motion vector: RG16_FLOAT (vx, vy in render pixels).
     plume::RenderTexture *currentColor=nullptr, *currentDepth=nullptr;
     plume::RenderTexture *historyColor=nullptr, *historyDepth=nullptr;
+    plume::RenderTexture *motionVector=nullptr;
     // stableGrid=false: current jittered raster grid, paired with currentDepth.
     // stableGrid=true: stable display color; retain raw currentDepth separately.
     plume::RenderTexture *output=nullptr, *reactiveMask=nullptr;

@@ -36,7 +36,7 @@ struct Constants
 static_assert(sizeof(Constants)==144);
 void DefineSet(RenderDescriptorSetBuilder& set, bool vulkan)
 {
-    set.begin(); for(uint32_t i=0;i<5;++i) set.addTexture(i); set.addSampler(vulkan?5:0); if(vulkan) set.addConstantBuffer(6); set.end();
+    set.begin(); for(uint32_t i=0;i<6;++i) set.addTexture(i); set.addSampler(vulkan?6:0); if(vulkan) set.addConstantBuffer(7); set.end();
 }
 temporal::Matrix Multiply(const temporal::Matrix& a,const temporal::Matrix& b)
 {
@@ -54,12 +54,13 @@ Texture2D<float> currentDepth:register(t1);
 Texture2D<float4> historyColor:register(t2);
 Texture2D<float> historyDepth:register(t3);
 Texture2D<float> reactiveMask:register(t4);
+Texture2D<float2> motionVector:register(t5);
 #ifdef __spirv__
-[[vk::binding(5,0)]]
+[[vk::binding(6,0)]]
 #endif
 SamplerState linearClamp:register(s0);
 #ifdef __spirv__
-[[vk::binding(6,0)]]
+[[vk::binding(7,0)]]
 #endif
 cbuffer Parameters:register(b0) {
  row_major float4x4 transform;
@@ -95,14 +96,21 @@ float4 stablePixel(float4 position) {
  if(!active)return rejected(center);
  if(reactive){float mask=reactiveMask.Load(int3(p,0));if(!isfinite(mask)||mask>0)return rejected(center);}
  float d=currentDepth.Load(int3(p,0));if(!isfinite(d)||d<=0||d>1)return rejected(center);
- // Reconstruct the stable display center p: its current raster coordinate is
- // p+Jcurrent. The matrix removes Jcurrent exactly once. History COLOR lookup
- // subtracts Jprevious; raw history DEPTH keeps that raster displacement.
+ float2 raw=0,q=0;
+ if(pad0&4) {
+  float2 mv=motionVector.Load(int3(p,0)).xy;
+  if(all(isfinite(mv))) {
+   q=position.xy+mv;
+   raw=q+jitter.zw;
+  }
+ }
  float2 raster=position.xy+jitter.xy;
  float4 clip=mul(float4(raster,1-d,1),transform);
- if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z))))return rejected(center);
- float2 raw=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
- float2 q=raw-jitter.zw;
+ if(all(raw==0)) {
+  if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z))))return rejected(center);
+  raw=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
+  q=raw-jitter.zw;
+ }
  if(!all(isfinite(raw))||any(raw<.5)||any(raw>imageSize.zw-.5)||any(q<.5)||any(q>imageSize.zw-.5))return rejected(center);
  // Fixed radius-one support, paired NEAR/FAR endpoints, not a set-intersection
  // test. A silhouette pixel represents coverage of two surfaces. Requiring every
@@ -144,15 +152,24 @@ float4 stablePixel(float4 position) {
  return accumulate(center,history,lo,hi);
 }
 float4 pixel(float4 position:SV_Position):SV_Target {
- if(pad0)return stablePixel(position);
+ if(pad0&1)return stablePixel(position);
  int2 p=int2(position.xy);float4 center=currentColor.Load(int3(p,0));
  if(!active) return rejected(center);
  if(reactive) { float mask=reactiveMask.Load(int3(p,0));if(!isfinite(mask)||mask>0) return rejected(center); }
  float d=currentDepth.Load(int3(p,0));
  if(!isfinite(d)||d<=0||d>1) return rejected(center);
  float4 clip=mul(float4(position.xy,1-d,1),transform);
- if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z)))) return rejected(center);
- float2 q=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
+ float2 q=0;
+ if(pad0&4) {
+  float2 mv=motionVector.Load(int3(p,0)).xy;
+  if(all(isfinite(mv))) {
+   q=position.xy+mv;
+  }
+ }
+ if(all(q==0)) {
+  if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z)))) return rejected(center);
+  q=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
+ }
  float predicted=1-clip.z/clip.w;
  if(!all(isfinite(q))||!isfinite(predicted)||predicted<=0||predicted>1||any(q<.5)||any(q>imageSize.zw-.5)) return rejected(center);
  int2 first=int2(floor(q-.5)),last=min(first+1,int2(imageSize.zw)-1);
@@ -268,19 +285,20 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
         c.previousScaleBias[2]=float(previous.width*.5*(1+previous.halfPixelNdcX)+in.previousJitterX);
         c.previousScaleBias[3]=float(previous.height*.5*(1-previous.halfPixelNdcY)+in.previousJitterY);
         c.size[2]=float(in.historyWidth);c.size[3]=float(in.historyHeight);c.active=1;c.reactive=in.reactiveMask?1u:0u;
+        c.pad0|=0u; // Disabled by default until host MV render pass is fully populated
     }
     Impl::Pending pending;RenderDescriptorSetBuilder set;DefineSet(set,p.vulkan);pending.set=set.create(p.device);
     const RenderTexture* attachments[]={in.output};pending.framebuffer=p.device->createFramebuffer(RenderFramebufferDesc(attachments,1));
     if(!pending.set||!pending.framebuffer)return fail("Temporal descriptor/framebuffer allocation failed");
     // Inactive shader returns before accessing fallback descriptors.
-    std::array<RenderTexture*,5> inputs={in.currentColor,active?in.currentDepth:in.currentColor,active?in.historyColor:in.currentColor,active?in.historyDepth:in.currentColor,active&&in.reactiveMask?in.reactiveMask:in.currentColor};
-    for(uint32_t i=0;i<5;++i)pending.set->setTexture(i,inputs[i],RenderTextureLayout::SHADER_READ);
-    pending.set->setSampler(5,p.sampler.get());
+    std::array<RenderTexture*,6> inputs={in.currentColor,active?in.currentDepth:in.currentColor,active?in.historyColor:in.currentColor,active?in.historyDepth:in.currentColor,active&&in.reactiveMask?in.reactiveMask:in.currentColor,active&&in.motionVector?in.motionVector:in.currentColor};
+    for(uint32_t i=0;i<6;++i)pending.set->setTexture(i,inputs[i],RenderTextureLayout::SHADER_READ);
+    pending.set->setSampler(6,p.sampler.get());
     if(p.vulkan) {
         pending.constants=p.device->createBuffer(RenderBufferDesc::UploadBuffer(sizeof(Constants),RenderBufferFlag::CONSTANT));
         if(!pending.constants){p.error="Temporal constants allocation failed";return false;}
         auto* mapped=pending.constants->map();memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
-        pending.set->setBuffer(6,pending.constants.get(),sizeof(c));
+        pending.set->setBuffer(7,pending.constants.get(),sizeof(c));
     }
 
     pending.serial=p.recordedSerial+1;p.pending.push_back(std::move(pending));++p.recordedSerial;auto& resources=p.pending.back();
@@ -305,13 +323,13 @@ bool TemporalAA::ReconstructDisplay(RenderCommandList* commands,const TemporalDi
     Impl::Pending pending;RenderDescriptorSetBuilder set;DefineSet(set,p.vulkan);pending.set=set.create(p.device);
     const RenderTexture* attachments[]={in.output};pending.framebuffer=p.device->createFramebuffer(RenderFramebufferDesc(attachments,1));
     if(!pending.set||!pending.framebuffer){p.error="Display descriptor/framebuffer allocation failed";return false;}
-    for(uint32_t i=0;i<5;++i)pending.set->setTexture(i,in.jitteredColor,RenderTextureLayout::SHADER_READ);
-    pending.set->setSampler(5,p.sampler.get());
+    for(uint32_t i=0;i<6;++i)pending.set->setTexture(i,in.jitteredColor,RenderTextureLayout::SHADER_READ);
+    pending.set->setSampler(6,p.sampler.get());
     if(p.vulkan) {
         pending.constants=p.device->createBuffer(RenderBufferDesc::UploadBuffer(sizeof(Constants),RenderBufferFlag::CONSTANT));
         if(!pending.constants){p.error="Temporal constants allocation failed";return false;}
         auto* mapped=pending.constants->map();memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
-        pending.set->setBuffer(6,pending.constants.get(),sizeof(c));
+        pending.set->setBuffer(7,pending.constants.get(),sizeof(c));
     }
     pending.serial=p.recordedSerial+1;p.pending.push_back(std::move(pending));++p.recordedSerial;auto& resources=p.pending.back();
     commands->setFramebuffer(resources.framebuffer.get());RenderViewport viewport(0,0,float(in.width),float(in.height));RenderRect scissor(0,0,in.width,in.height);
