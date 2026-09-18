@@ -21,13 +21,14 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 
 ## New in v0.5.20
 
-Published release: [v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20). It provides a Windows x64 ZIP, a Linux x64 AppImage, and a standalone portable Vulkan shader pack ZIP.
+Published release: [v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20). It provides a Windows x64 ZIP, a Linux x64 AppImage (both release packages bundle the portable Vulkan shader pack for instant zero-compile startup), and a standalone portable Vulkan shader pack ZIP.
 
-- Corrected host EDRAM format clamping for unsigned formats (0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_10_FLOAT`) with a strict `0.0` lower bound, resolving Issue #38 inverted and black light fixtures ("anti-lights emitting darkness") in Numara Castle (Philosopher's Chamber). Shader cache `Version` is bumped to 23.
-- Resolved TAA inter-frame phase jitter flicker on stairs and the save point light sphere in `f2358` by registering missing static scene and lighting vertex shaders in `PositionVPSlot`.
-- Added relocatable portable Vulkan shader pack architecture (`.lospv`) with SHA-256 deduplication and Zstandard block compression, achieving 1.2s zero-compile startup on Linux/WSL2 across 28,482 shaders.
-- Optimized shader and pipeline prebuilding concurrency and throughput with host RAM adaptive scaling, interactive skip support (ESC/Space/B), and fast WSL incremental build scripts (`tools/build_wsl.bat`).
-- Completed in-game debug overlay and cross-platform settings software rasterizer (menu branch) with full keyboard and controller navigation.
+- **Bundled portable Vulkan shader pack (`.lospv`)**: Eliminates first-run shader compilation for end users. The relocatable format features SHA-256 deduplication and Zstandard block compression, packaging 28,482 shaders down to 169.9 MB with verified 1.2s zero-compile startup on Linux/WSL2 with 0 DXC calls.
+- **PowerPC source-only online build**: Completely removed the PowerPC prebuilt synchronization mechanism (`LO_PREBUILT_PPC_DIR`, `ppc_sync.py`, `ppc_prebuilt.py`); both Windows and Linux CI now compile guest PowerPC code directly from source, simplifying the build pipeline and preparing for future ARM64 architecture support.
+- **Issue #38 lighting fix**: Corrected host EDRAM format clamping for unsigned formats (0, 1, 2, 3, 10, 12, including 7e3 `COLOR_2_10_10_FLOAT`) with a strict `0.0` lower bound, resolving inverted/black light fixtures ("anti-lights emitting darkness") in Numara Castle (Philosopher's Chamber). Bumped shader cache `Version` from 22 to 23.
+- **TAA jitter fix**: Resolved inter-frame phase jitter flicker on stairs and the save point light sphere in `f2358` by registering missing static scene and lighting vertex shaders in `PositionVPSlot`.
+- **Shader prebuild scaling & skip**: Dynamically scales concurrent DXC and pipeline workers based on host RAM and CPU threads. Interactive skip support (ESC, Space, Controller B) and `skip_shader_prebuild` setting in `settings.ini`.
+- **In-game debug overlay & WSL build**: Merged menu branch with in-game debug overlay, pure software cross-platform settings rasterizer, and fast WSL incremental build scripts (`tools/build_linux.sh` / `tools/build_wsl.bat`).
 
 Linux first-playable support is available as a source-built Vulkan ELF or source-built Flatpak manifest, with the published Linux x64 AppImage available from the [v0.5.20 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20); see the [build](docs/BUILDING.md) and [installation](docs/INSTALLING.md) guides.
 
@@ -128,7 +129,7 @@ See the [installation guide](docs/INSTALLING.md) for accepted disc versions, fil
 | Language settings | English, Japanese, Korean, Traditional and Simplified Chinese interface options; game language selection |
 | Graphics settings | Auto/manual internal resolution up to 4K, Off/FXAA/SMAA/experimental TAA, Standard/High filtering, 30/60 FPS and output/display controls; fullscreen and mixed DPI need more testing |
 | Settings menu | Original game fonts and menu styling; one-click Graphics save/apply and Now/Later restart choices |
-| Shader preparation | Built-in resource index, parallel compilation and cache reuse |
+| Shader preparation | Bundled portable Vulkan shader pack (.lospv), memory-adaptive parallel compilation, interactive skip, and cache reuse |
 | CPU use | Reduced unnecessary polling and reuse of rendering work |
 | Input and debug | Controller and keyboard input; English/Simplified Chinese in-game overlay debug menu (F1 or LB+RB) with capture, map information and same-map POI teleport |
 

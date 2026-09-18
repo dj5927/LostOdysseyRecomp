@@ -199,6 +199,47 @@ void TestContentReplacement(size_t bytes)
         Check(!found->second.content.Matches(oldSource.data(), oldSource.size()), "replacement does not retain old samples");
     }
 }
+
+void TestIndexCache()
+{
+    using gpu::geometry_prepare::ConvertIndices;
+    using gpu::geometry_prepare::IndexCache;
+    using gpu::geometry_prepare::IndexEntry;
+    using gpu::geometry_prepare::IndexKey;
+    IndexCache cache(4);
+    std::vector<uint8_t> src(64);
+    for (size_t i = 0; i < src.size(); ++i) src[i] = uint8_t(i * 17 + 3);
+    constexpr uint32_t count = 16;
+    const size_t srcBytes = size_t(count) * 2;
+    const IndexKey key{0x12000000u, count, 4u, 0u, 2u};
+    Check(cache.find(key) == cache.end(), "absent index key misses");
+    std::vector<uint32_t> converted(count);
+    ConvertIndices(src.data(), converted.data(), count, false, 2u);
+    IndexEntry entry;
+    entry.data = converted;
+    entry.content.Capture(src.data(), srcBytes);
+    entry.lastFrame = 7;
+    cache.emplace(key, std::move(entry));
+    auto found = cache.find(key);
+    Check(found != cache.end(), "stored index key hits");
+    Check(found->second.data == converted, "cached output matches conversion");
+    Check(found->second.content.Matches(src.data(), srcBytes), "unchanged index source matches");
+    src[0] ^= 0x40;
+    Check(!found->second.content.Matches(src.data(), srcBytes), "mutated index source misses");
+    src[0] ^= 0x40;
+    Check(cache.find(IndexKey{0x12000000u, count, 13u, 0u, 2u}) == cache.end(), "primitive type participates in index key");
+    Check(cache.find(IndexKey{0x12000000u, count, 4u, 1u, 2u}) == cache.end(), "index width participates in index key");
+    Check(cache.find(IndexKey{0x12000000u, count, 4u, 0u, 1u}) == cache.end(), "endian mode participates in index key");
+    for (uint32_t i = 0; i < 100; ++i) {
+        IndexEntry filler;
+        filler.data = converted;
+        filler.content.Capture(src.data(), srcBytes);
+        filler.lastFrame = i;
+        cache.emplace(IndexKey{0x13000000u + i, count, 4u, 0u, 2u}, std::move(filler));
+    }
+    Check(cache.size() == 4, "index churn respects capacity");
+    Check(cache.bucket_count() != 0, "index buckets reserved before first insertion");
+}
 }
 
 int main()
@@ -218,6 +259,7 @@ int main()
     for (size_t capacity : {size_t(2), size_t(16), size_t(17)}) TestRecentUse(capacity);
     for (size_t capacity : {size_t(1), size_t(2), size_t(15), size_t(16), size_t(17), size_t(257)}) TestSlotReset(capacity);
     for (size_t bytes : {size_t(1), size_t(8192), size_t(8196), size_t(16384)}) TestContentReplacement(bytes);
+    TestIndexCache();
     std::printf("vertex cache: %llu checks passed (bounded metadata fixture; no GPU or game)\n",
         static_cast<unsigned long long>(checks));
 }

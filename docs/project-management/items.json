@@ -4914,17 +4914,17 @@
     {
       "key": "release-reuse-local-ppc-static-library",
       "title": "Reuse a locally built PPC static library in release workflows",
-      "body": "<!-- lo-project:release-reuse-local-ppc-static-library -->\n\n## Direct-main synchronization — implementation and local validation complete\n\nEach authorized PPC synchronization reuses its frozen bundle and pushes that bundle directly to the private repository `main`; it creates no branch. The immutable commit receipt is retained locally. Matching input identity is a no-op. The sync preserves unrelated private-repository files and uses at most four concurrent retry attempts.\n\nThe release workflow snapshots private `main` over SSH, validates the PPC fingerprint and contract, records the receipt commit locally, and only then restores the library. Twenty-three PPC sync tests, including six bare-Git integrations, passed once; two synthetic workflow checks and actionlint also passed. Hosted Release CI has not yet validated this implementation.\n\n## Historical delivery\n\nCI 34726533463 retrieved an immutable runner cache, restored and checked `LostOdysseyRecompLib.lib` without generated PPC compilation or a new library link. That v0.5.6 delivery evidence, prior producers, and representation proof remain historical.\n\n## Sources\n\n- `out/v0.5.6/release/ci-ppc-consumption.json`\n- `out/v0.5.6/release/ppc-ci-upload.json`\n- `out/v0.5.6/release/public-download-check.json`\n",
+      "body": "<!-- lo-project:release-reuse-local-ppc-static-library -->\n\n## Direct-main synchronization — implementation and local validation complete\n\nEach authorized PPC synchronization reuses its frozen bundle and pushes that bundle directly to the private repository `main`; it creates no branch. The immutable commit receipt is retained locally. Matching input identity is a no-op. The sync preserves unrelated private-repository files and uses at most four concurrent retry attempts.\n\nThe release workflow snapshots private `main` over SSH, validates the PPC fingerprint and contract, records the receipt commit locally, and only then restores the library. Twenty-three PPC sync tests, including six bare-Git integrations, passed once; two synthetic workflow checks and actionlint also passed. Hosted Release CI has not yet validated this implementation.\n\n## Historical delivery and supersession\n\nCI 34726533463 retrieved an immutable runner cache, restored and checked `LostOdysseyRecompLib.lib` without generated PPC compilation or a new library link. That v0.5.6 delivery evidence, prior producers, and representation proof remain historical. Superseded and retired in v0.5.20 by online source compilation for both Windows and Linux in CI.\n\n## Sources\n\n- `out/v0.5.6/release/ci-ppc-consumption.json`\n- `out/v0.5.6/release/ppc-ci-upload.json`\n- `out/v0.5.6/release/public-download-check.json`\n",
       "issue_url": null,
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Release Engineering",
         "Status": "Done",
-        "Delivery": "Released",
+        "Delivery": "Superseded",
         "Release": "v0.5.6",
         "Start date": "2026-09-10",
-        "Target date": null,
-        "Evidence": "Direct-main PPC synchronization implementation and local validation are complete: frozen-bundle push, matching-identity no-op, no branch creation, local immutable commit receipt and SSH main snapshot/validate/local-record/restore workflow. Twenty-three sync tests (including six bare-Git integrations), two synthetic workflow checks and actionlint passed. Hosted Release CI has not yet validated it; published v0.5.6 consumption evidence remains historical."
+        "Target date": "2026-09-17",
+        "Evidence": "Direct-main PPC synchronization implementation and local validation are complete; validated in v0.5.6/v0.5.8 CI. Superseded and retired in v0.5.20 (commits 9a1617a, 693042d, 03f0d9f): PPC prebuilt caching and remote sync were removed in favor of direct online source compilation in CI for all platforms."
       },
       "source_refs": [
         "out/ppc-auto-sync-evidence/build-sync.log",
@@ -5278,11 +5278,12 @@
     {
       "key": "issue-38-numara-castle-inverted-lights",
       "title": "[Bug] Numara Castle has inverted lights",
-      "body": "<!-- lo-project:issue-38-numara-castle-inverted-lights -->\n\nIssue #38 reports inverted/black lights (\"anti-lights emitting darkness\") in Numara Castle (Philosopher's Chamber).\n\n## Root cause and repair\n\n- Root cause: The Xenos translator shader epilogue clamped unsigned 7e3 EDRAM format (`COLOR_2_10_10_10_FLOAT`) to `[-31.875, 31.875]`. Additive light blending wrote negative light values to the host EDRAM target, causing subsequent tone-mapping `log2` to produce NaNs and pitch black voids.\n- Repair: In `LostOdysseyRecomp/gpu/renderer.cpp` and `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`, enforced a strict `0.0` lower bound for unsigned EDRAM formats (formats 0, 1, 2, 3, 10, 12). Bumped shader cache `Version` from 22 to 23 in `LostOdysseyRecomp/gpu/shader/cache.h` to invalidate stale cached DXIL binaries.\n\n## Recorded validation\n\n- Verification confirmed black diamond voids eliminated and lantern lighting and bloom cleanly restored in Philosopher's Chamber.\n- Test suite passing (`LoTemporalJitterTest`, `LoMenuRenderTest`).\n\n## Status and delivery boundary\n\nImplemented and verified on `menu` branch (commit `7484518`), pushed to `origin/menu` and `github/menu`. Pending PR/release merge into main and reporter acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/38\n- https://github.com/freefrank/LostOdysseyRecomp/commit/7484518\n- `LostOdysseyRecomp/gpu/renderer.cpp`\n- `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`\n- `LostOdysseyRecomp/gpu/shader/cache.h`\n- `docs/STATUS.md`\n- `CHANGELOG.md`\n",
+      "body": "<!-- lo-project:issue-38-numara-castle-inverted-lights -->\n\nIssue #38 reports inverted/black lights (\"anti-lights emitting darkness\") in Numara Castle (Philosopher's Chamber).\n\n## Root cause and repair\n\n- Root cause: The Xenos translator shader epilogue clamped unsigned 7e3 EDRAM format (`COLOR_2_10_10_10_FLOAT`) to `[-31.875, 31.875]`. Additive light blending wrote negative light values to the host EDRAM target, causing subsequent tone-mapping `log2` to produce NaNs and pitch black voids.\n- Repair: In `LostOdysseyRecomp/gpu/renderer.cpp` and `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`, enforced a strict `0.0` lower bound for unsigned EDRAM formats (formats 0, 1, 2, 3, 10, 12). Bumped shader cache `Version` from 22 to 23 in `LostOdysseyRecomp/gpu/shader/cache.h` to invalidate stale cached DXIL binaries.\n\n## Recorded validation\n\n- Verification confirmed black diamond voids eliminated and lantern lighting and bloom cleanly restored in Philosopher's Chamber.\n- Test suite passing (`LoTemporalJitterTest`, `LoMenuRenderTest`).\n\n## Status and delivery boundary\n\nFixed in commit `7484518` on branch `menu`, merged via PR #43 and published in release `v0.5.20`. Issue #38 closed with release and commit reference.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/38\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20\n- https://github.com/freefrank/LostOdysseyRecomp/commit/7484518\n- `LostOdysseyRecomp/gpu/renderer.cpp`\n- `LostOdysseyRecomp/gpu/shader/xenos_translator.cpp`\n- `LostOdysseyRecomp/gpu/shader/cache.h`\n- `docs/STATUS.md`\n- `CHANGELOG.md`\n",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/38",
       "record_type": "issue",
       "source_refs": [
         "https://github.com/freefrank/LostOdysseyRecomp/issues/38",
+        "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20",
         "https://github.com/freefrank/LostOdysseyRecomp/commit/7484518",
         "LostOdysseyRecomp/gpu/renderer.cpp",
         "LostOdysseyRecomp/gpu/shader/xenos_translator.cpp",
@@ -5293,21 +5294,22 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Graphics",
-        "Status": "Awaiting validation",
-        "Delivery": "Validated",
-        "Release": null,
+        "Status": "Done",
+        "Delivery": "Released",
+        "Release": "v0.5.20",
         "Start date": "2026-09-15",
-        "Target date": null,
-        "Evidence": "Implemented on menu branch (commit 7484518). Unsigned EDRAM formats clamped to [0.0, 31.875] in renderer.cpp and xenos_translator.cpp, preventing negative light accumulation and tone-mapping log2 NaNs / black voids. Shader cache Version bumped to 23. Test suite passing (LoTemporalJitterTest, LoMenuRenderTest). Pending PR/release merge and reporter acceptance."
+        "Target date": "2026-09-17",
+        "Evidence": "Issue #38 closed 2026-09-17. Unsigned EDRAM formats clamped to [0.0, 31.875] in renderer.cpp and xenos_translator.cpp (commit 7484518), eliminating negative light accumulation and tone-mapping log2 NaNs / pitch black voids in Numara Castle's Philosopher's Chamber. Shader cache Version bumped to 23. PR #43 merged into main and published in v0.5.20 (https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20). Test suite passing (LoTemporalJitterTest, LoMenuRenderTest)."
       }
     },
     {
       "key": "f2358-taa-jitter-flicker",
       "title": "Fix scene f2358 TAA jitter flicker on stairs and save point",
-      "body": "<!-- lo-project:f2358-taa-jitter-flicker -->\n\nFix inter-frame camera jitter phase mismatch in scene `f2358` (stairs and save point light sphere).\n\n## Implementation and validation\n\nCommit `7484518` on branch `menu` registers missing static scene and lighting vertex shaders (`0x69e9adcf2e1b6887`, `0x6a8c2c78737dc94c`, `0xa20d6099a44e2cd5` to Slot 7 and `0x6761469677f921c6` to Slot 8) in `PositionVPSlot` (`LostOdysseyRecomp/gpu/temporal_scene.h`).\n\n`LoTemporalJitterTest` passed with 2,319,037 checks and render comparisons match inter-frame jitter phases. Broader scene coverage and player visual acceptance remain tracked.\n\n## Delivery boundary\n\nImplemented on `menu` branch pending PR/release merge. This is bounded scene validation for `f2358`, not full-game visual acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/commit/7484518\n- `LostOdysseyRecomp/gpu/temporal_scene.h`\n- `docs/ROADMAP.md`\n- `docs/STATUS.md`\n",
+      "body": "<!-- lo-project:f2358-taa-jitter-flicker -->\n\nFix inter-frame camera jitter phase mismatch in scene `f2358` (stairs and save point light sphere).\n\n## Implementation and validation\n\nCommit `7484518` registers missing static scene and lighting vertex shaders (`0x69e9adcf2e1b6887`, `0x6a8c2c78737dc94c`, `0xa20d6099a44e2cd5` to Slot 7 and `0x6761469677f921c6` to Slot 8) in `PositionVPSlot` (`LostOdysseyRecomp/gpu/temporal_scene.h`).\n\n`LoTemporalJitterTest` passed with 2,319,037 checks and render comparisons match inter-frame jitter phases. Broader scene coverage and player visual acceptance remain tracked.\n\n## Delivery boundary\n\nMerged via PR #43 and published in release `v0.5.20`. This is bounded scene validation for `f2358`, not full-game visual acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20\n- https://github.com/freefrank/LostOdysseyRecomp/commit/7484518\n- `LostOdysseyRecomp/gpu/temporal_scene.h`\n- `docs/ROADMAP.md`\n- `docs/STATUS.md`\n",
       "issue_url": null,
       "record_type": "backlog",
       "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20",
         "https://github.com/freefrank/LostOdysseyRecomp/commit/7484518",
         "LostOdysseyRecomp/gpu/temporal_scene.h",
         "docs/ROADMAP.md#current-feedback-and-regression-work",
@@ -5317,11 +5319,109 @@
         "Kind": "Bug",
         "Area": "TAA and shadows",
         "Status": "Done",
-        "Delivery": "Validated",
-        "Release": null,
+        "Delivery": "Released",
+        "Release": "v0.5.20",
         "Start date": "2026-09-16",
-        "Target date": null,
-        "Evidence": "Commit 7484518 on branch menu registers missing static scene and lighting vertex shaders (0x69e9adcf2e1b6887, 0x6a8c2c78737dc94c, 0xa20d6099a44e2cd5 to Slot 7 and 0x6761469677f921c6 to Slot 8) in PositionVPSlot (temporal_scene.h). LoTemporalJitterTest passed with 2,319,037 checks; render comparisons confirm inter-frame jitter phase alignment on f2358 stairs and save point. Pending PR/release merge; broader scene coverage and player visual acceptance remain tracked."
+        "Target date": "2026-09-17",
+        "Evidence": "Commit 7484518 registers missing static scene and lighting vertex shaders (0x69e9adcf2e1b6887, 0x6a8c2c78737dc94c, 0xa20d6099a44e2cd5 to Slot 7 and 0x6761469677f921c6 to Slot 8) in PositionVPSlot (temporal_scene.h). LoTemporalJitterTest passed with 2,319,037 checks; render comparisons confirm inter-frame jitter phase alignment on f2358 stairs and save point. PR #43 merged into main and published in v0.5.20 (https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20). Broader scene coverage and player visual acceptance remain tracked."
+      }
+    },
+    {
+      "key": "portable-vulkan-shader-pack",
+      "title": "Portable Vulkan shader pack (.lospv)",
+      "body": "<!-- lo-project:portable-vulkan-shader-pack -->\n\nImplement relocatable, self-contained Vulkan shader pack (.lospv) with Zstandard compression for instant startup without first-run compilation.\n\n## Implementation and validation\n\n- Relocatable `.lospv` container format encapsulating 28,482 SPIR-V shaders and TranslatedShader metadata without raw HLSL, debug logs, or build failures.\n- SHA-256 bytecode deduplication and Zstandard chunked block compression (~1 MiB blocks) compressing bundle to 169.9 MB.\n- Runtime lazy loading and memory-mapped block decoding eliminates first-run compilation on Vulkan (WSL2 Linux verified 1.2s zero-compile startup with 0 DXC calls).\n- Fully decoupled from host filesystem paths and host DXC DLL identities for cross-platform reuse (Windows/Linux/Steam Deck, x86-64/ARM64).\n- Bundled automatically into Windows x64 ZIP and Linux x64 AppImage release archives via `tools/release/fetch_shader_pack.py` and published as standalone release asset in v0.5.20.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20\n- https://github.com/freefrank/LostOdysseyRecomp/commit/260b0bc\n- `LostOdysseyRecomp/gpu/shader/shader_pack.h`\n- `LostOdysseyRecomp/gpu/shader/shader_pack.cpp`\n- `tools/release/package_shader_bundle.py`\n- `tools/release/fetch_shader_pack.py`\n",
+      "issue_url": null,
+      "record_type": "backlog",
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/260b0bc",
+        "LostOdysseyRecomp/gpu/shader/shader_pack.h",
+        "LostOdysseyRecomp/gpu/shader/shader_pack.cpp",
+        "tools/release/package_shader_bundle.py",
+        "tools/release/fetch_shader_pack.py"
+      ],
+      "fields": {
+        "Kind": "Feature",
+        "Area": "Shaders",
+        "Status": "Done",
+        "Delivery": "Released",
+        "Release": "v0.5.20",
+        "Start date": "2026-09-16",
+        "Target date": "2026-09-17",
+        "Evidence": "Implemented relocatable portable Vulkan shader pack (.lospv) with SHA-256 bytecode deduplication and Zstandard chunked block compression (28,482 shaders in 169.9 MB). Decoupled from host paths and DXC DLL hashes; verified 1.2s zero-compile startup on WSL2 Linux with 0 DXC calls. Bundled automatically in Windows x64 ZIP and Linux x64 AppImage release packages and published as standalone ZIP in v0.5.20."
+      }
+    },
+    {
+      "key": "shader-preparation-optimization",
+      "title": "Optimize shader and pipeline preparation throughput and options",
+      "body": "<!-- lo-project:shader-preparation-optimization -->\n\nScale worker concurrency by host resources, prioritize main game shaders, and support interactive skip and persistence.\n\n## Implementation and validation\n\n- Worker scaling by host resources: hosts with >= 8 GB physical RAM use `logicalThreads - 1` concurrency; hosts with < 8 GB retain a safe 4-worker limit to prevent OOM.\n- Added `LO_SHADER_WORKERS` and `LO_PIPELINE_WORKERS` environment variables for explicit concurrency tuning.\n- Removed Windows `MOVEFILE_WRITE_THROUGH` synchronous flush flag on disk cache writes, relying on OS write caching to eliminate small-file disk seek stalls.\n- Priority prebuilding: primary XEX and core game shaders (priority 0) compile first, predictive variants (priority 1) follow.\n- Interactive and configured skip: pressing ESC, Space, or gamepad B safely skips remaining startup prebuild while persisting already-compiled shaders. Added `skip_shader_prebuild` in `settings.ini`.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20\n- https://github.com/freefrank/LostOdysseyRecomp/commit/b00b478\n- https://github.com/freefrank/LostOdysseyRecomp/commit/9e8e49e\n- https://github.com/freefrank/LostOdysseyRecomp/commit/257f386\n- `LostOdysseyRecomp/gpu/shader/cache.cpp`\n- `LostOdysseyRecomp/gpu/shader/compiler.cpp`\n",
+      "issue_url": null,
+      "record_type": "backlog",
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/b00b478",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/9e8e49e",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/257f386",
+        "LostOdysseyRecomp/gpu/shader/cache.cpp",
+        "LostOdysseyRecomp/gpu/shader/compiler.cpp"
+      ],
+      "fields": {
+        "Kind": "Feature",
+        "Area": "Shader preparation",
+        "Status": "Done",
+        "Delivery": "Released",
+        "Release": "v0.5.20",
+        "Start date": "2026-09-16",
+        "Target date": "2026-09-17",
+        "Evidence": "Optimized startup shader prebuild: dynamic worker scaling based on host RAM (<8GB capped to 4 workers, >=8GB scales to logicalThreads - 1), LO_SHADER_WORKERS/LO_PIPELINE_WORKERS overrides, priority ordering (priority 0 main shaders first), interactive skip (ESC/Space/B) and skip_shader_prebuild INI setting, and removed MOVEFILE_WRITE_THROUGH disk flushing bottleneck. Published in v0.5.20."
+      }
+    },
+    {
+      "key": "ppc-prebuilt-sync-removal-online-compilation",
+      "title": "Remove PPC prebuilt sync and compile all sources online in CI",
+      "body": "<!-- lo-project:ppc-prebuilt-sync-removal-online-compilation -->\n\nRetire PPC prebuilt library caching and remote sync mechanism; compile guest PowerPC recompilation from source in CI for all target platforms.\n\n## Implementation and validation\n\n- Removed `ppc_sync.py`, `ppc_prebuilt.py`, `LO_PREBUILT_PPC_DIR` and associated release workflow download steps.\n- Both Windows x64 and Linux x64 CI workflows compile `LostOdysseyRecompLib` PowerPC recompilation sources online directly during build.\n- Eliminates architecture-specific static library caching and prepares the build system for clean multi-architecture portability (such as ARM64).\n- Release CI for v0.5.20 verified clean end-to-end online source compilation for all release artifacts.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20\n- https://github.com/freefrank/LostOdysseyRecomp/commit/9a1617a\n- https://github.com/freefrank/LostOdysseyRecomp/commit/693042d\n- https://github.com/freefrank/LostOdysseyRecomp/commit/03f0d9f\n- `.github/workflows/release.yml`\n",
+      "issue_url": null,
+      "record_type": "backlog",
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/9a1617a",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/693042d",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/03f0d9f",
+        ".github/workflows/release.yml"
+      ],
+      "fields": {
+        "Kind": "Infrastructure",
+        "Area": "Release Engineering",
+        "Status": "Done",
+        "Delivery": "Released",
+        "Release": "v0.5.20",
+        "Start date": "2026-09-17",
+        "Target date": "2026-09-17",
+        "Evidence": "Removed PPC prebuilt caching and remote synchronization mechanism (LO_PREBUILT_PPC_DIR, ppc_sync.py, ppc_prebuilt.py). Windows and Linux CI workflows compile LostOdysseyRecompLib from source online. Simplifies build pipeline and enables clean multi-architecture compilation. Verified in v0.5.20 release CI."
+      }
+    },
+    {
+      "key": "wsl-linux-build-scripts",
+      "title": "Add WSL and Linux build scripts for on-demand ELF compilation",
+      "body": "<!-- lo-project:wsl-linux-build-scripts -->\n\nProvide dedicated incremental build scripts for Linux ELF compilation on native Linux and under Windows WSL2.\n\n## Implementation and validation\n\n- Added `tools/build_linux.sh` for native Linux incremental builds with automatic dependency discovery.\n- Added `tools/build_wsl.bat` for launching WSL2 Linux builds directly from Windows development environments.\n- Integrated portable shader pack packaging (`tools/release/package_shader_bundle.py`) into automated build and release staging.\n- Verified on WSL2 Manjaro with clang 18 and CMake Ninja generators.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20\n- https://github.com/freefrank/LostOdysseyRecomp/commit/6081fcc\n- `tools/build_linux.sh`\n- `tools/build_wsl.bat`\n- `tools/release/package_shader_bundle.py`\n",
+      "issue_url": null,
+      "record_type": "backlog",
+      "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20",
+        "https://github.com/freefrank/LostOdysseyRecomp/commit/6081fcc",
+        "tools/build_linux.sh",
+        "tools/build_wsl.bat",
+        "tools/release/package_shader_bundle.py"
+      ],
+      "fields": {
+        "Kind": "Infrastructure",
+        "Area": "Tools",
+        "Status": "Done",
+        "Delivery": "Released",
+        "Release": "v0.5.20",
+        "Start date": "2026-09-16",
+        "Target date": "2026-09-17",
+        "Evidence": "Added tools/build_linux.sh and tools/build_wsl.bat for fast incremental Linux ELF builds under WSL2/Linux environments, and integrated package_shader_bundle.py into release staging. Verified on WSL2 Manjaro. Published in v0.5.20."
       }
     }
   ]

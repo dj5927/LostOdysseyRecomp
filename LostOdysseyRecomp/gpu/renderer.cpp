@@ -376,6 +376,8 @@ namespace gpu::renderer
             using VertexEntry = geometry_prepare::VertexEntry;
             std::vector<uint32_t> indexScratch, primitiveScratch;
             geometry_prepare::VertexCache vertexCache;
+            geometry_prepare::IndexCache indexCache;
+            uint64_t indexCacheHits = 0, indexCacheMisses = 0;
             void ResetSlotArena(uint32_t i)
             {
                 gpuSlots[i].arenaOffset = 0;
@@ -4044,20 +4046,57 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     return;
                 }
 
-                // Index buffer / primitive conversion.
+                // Index buffer / primitive conversion. Static geometry skips
+                // ConvertIndices and primitive expansion on a content-sample
+                // hit; the cached output is already post-expansion.
                 auto& indices = indexScratch;
                 if (!info.indexed) indices.clear();
                 bool useIndices = false;
                 RenderFormat indexFormat = RenderFormat::R32_UINT;
                 uint32_t indexCount = info.indexCount;
+                bool indexCached = false;
+                bool indexRefresh = false;
+                uint32_t indexSrcCount = 0;
+                const uint8_t* indexSrc = nullptr;
+                size_t indexSrcBytes = 0;
+                geometry_prepare::IndexKey indexKey{};
                 if (info.indexed)
                 {
-                    uint32_t count = std::min<uint32_t>(info.indexCount, info.indexBufferWords);
-                    indices.resize(count);
-                    const uint8_t* src = Phys(info.indexBase);
-                    geometry_prepare::ConvertIndices(src, indices.data(), count, info.index32, info.indexEndian);
-                    useIndices = true;
+                    indexSrcCount = std::min<uint32_t>(info.indexCount, info.indexBufferWords);
+                    indexSrc = Phys(info.indexBase);
+                    indexSrcBytes = size_t(indexSrcCount) * (info.index32 ? 4 : 2);
+                    if (indexSrcCount >= geometry_prepare::IndexCache::kMinCount)
+                    {
+                        indexKey = { info.indexBase, indexSrcCount, info.primitiveType,
+                            uint8_t(info.index32 ? 1 : 0), uint8_t(info.indexEndian & 3) };
+                        auto it = indexCache.find(indexKey);
+                        if (it != indexCache.end() && it->second.content.Matches(indexSrc, indexSrcBytes))
+                        {
+                            indices = it->second.data;
+                            it->second.lastFrame = frame;
+                            ++indexCacheHits;
+                            useIndices = true;
+                            indexCached = true;
+                        }
+                        else
+                        {
+                            // Convert below, then refresh the entry in place:
+                            // the key is unchanged, so no erase/emplace churn.
+                            // A missing key is inserted after expansion.
+                            indexRefresh = (it != indexCache.end());
+                            indices.resize(indexSrcCount);
+                            geometry_prepare::ConvertIndices(indexSrc, indices.data(), indexSrcCount, info.index32, info.indexEndian);
+                            useIndices = true;
+                        }
+                    }
+                    else
+                    {
+                        indices.resize(indexSrcCount);
+                        geometry_prepare::ConvertIndices(indexSrc, indices.data(), indexSrcCount, info.index32, info.indexEndian);
+                        useIndices = true;
+                    }
                 }
+                if (!indexCached)
                 switch (info.primitiveType)
                 {
                 case 13: // quad list -> triangle list
@@ -4093,6 +4132,28 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
                 default:
                     break;
+                }
+                if (info.indexed && !indexCached && indexSrcCount >= geometry_prepare::IndexCache::kMinCount)
+                {
+                    // Store the post-expansion result against the source
+                    // samples; a later identical draw copies it verbatim.
+                    // A present key is refreshed in place without
+                    // erase/emplace churn.
+                    geometry_prepare::IndexEntry entry;
+                    entry.data = indices;
+                    entry.content.Capture(indexSrc, indexSrcBytes);
+                    entry.lastFrame = frame;
+                    if (indexRefresh)
+                    {
+                        auto it = indexCache.find(indexKey);
+                        if (it != indexCache.end())
+                            it->second = std::move(entry);
+                        else
+                            indexCache.emplace(indexKey, std::move(entry));
+                    }
+                    else
+                        indexCache.emplace(indexKey, std::move(entry));
+                    ++indexCacheMisses;
                 }
                 if (useIndices)
                     indexCount = uint32_t(indices.size());
@@ -5483,6 +5544,13 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         r.frame, r.descriptorBatchLimit, r.descriptorSplits, r.uploadSplits, r.arenaSplits, r.descriptorHits, r.descriptorMisses);
                 r.descriptorSplits = r.uploadSplits = r.arenaSplits = 0;
                 r.descriptorHits = r.descriptorMisses = 0;
+            }
+            if (render_timing::Enabled() || g_renderer->frame % 60 == 0)
+            {
+                auto& r = *g_renderer;
+                LOG_INFO("index cache frame={} hits={} misses={} entries={} evictions={} scope=current_frame_index_conversion_cache",
+                    r.frame, r.indexCacheHits, r.indexCacheMisses, r.indexCache.size(), r.indexCache.Evictions());
+                r.indexCacheHits = r.indexCacheMisses = 0;
             }
             if (render_timing::Enabled()) {
                 Renderer& r = *g_renderer;
