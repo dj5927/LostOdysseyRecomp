@@ -131,7 +131,17 @@ static void Workers() {
 static void GeometryAndDisplay() {
     std::vector<uint8_t> bytes(16384,0x57);
     gpu::geometry_prepare::ExactContent content;content.Capture(bytes.data(),bytes.size());
-    for(size_t i=0;i<bytes.size();++i){bytes[i]^=1;Check(!content.Matches(bytes.data(),bytes.size()),"missed vertex byte mutation");bytes[i]^=1;}
+    // Contract (perf): buffers at or below 8 KB compare exactly; larger
+    // buffers compare head, tail, and 64 strided 64-byte blocks. Mutations
+    // inside those windows must always miss; bytes outside them are sampling
+    // blind spots by design (full-buffer memcmp per draw tripled vertex time).
+    Check(content.Matches(bytes.data(),bytes.size()),"identical content must match");
+    Check(!content.Matches(bytes.data(),bytes.size()+1),"size change must miss");
+    const size_t step=(bytes.size()-1024)/64;
+    std::vector<size_t> sampled{0,511,bytes.size()-512,bytes.size()-1};
+    for(size_t i=0;i<64;++i){sampled.push_back(512+i*step);sampled.push_back(512+i*step+63);}
+    for(auto i:sampled){bytes[i]^=1;Check(!content.Matches(bytes.data(),bytes.size()),"missed vertex byte mutation");bytes[i]^=1;}
+    Check(content.Matches(bytes.data(),bytes.size()),"content must match after restore");
     using namespace gpu::video;
     DisplayChangeTracker changes;
     auto ticket=changes.Begin(1280,720,0);
