@@ -69,6 +69,14 @@ target_link_libraries(LoUpdaterSdlUiTest PRIVATE SDL2::SDL2-static)
 if(WIN32)
     target_link_libraries(LoUpdaterSdlUiTest PRIVATE bcrypt)
 endif()
+add_executable(LoUpdaterGamePromptTest EXCLUDE_FROM_ALL
+    ${CMAKE_SOURCE_DIR}/tools/tests/updater_game_prompt_test.cpp
+    ${LO_RUNTIME_ROOT}/updater/game_prompt.cpp)
+target_include_directories(LoUpdaterGamePromptTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoUpdaterGamePromptTest PRIVATE cxx_std_20)
+target_compile_definitions(LoUpdaterGamePromptTest PRIVATE SDL_MAIN_HANDLED)
+target_link_libraries(LoUpdaterGamePromptTest PRIVATE SDL2::SDL2-static)
+
 set(LO_PRIVATE_DIR ${CMAKE_SOURCE_DIR}/LostOdysseyRecompLib/private)
 
 # Logging stubs for every kernel import without an implementation. Regenerated

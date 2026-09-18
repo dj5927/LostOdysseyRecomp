@@ -471,6 +471,9 @@ namespace gpu
             if (m_readPtrWritebackPhysical)
                 *reinterpret_cast<be<uint32_t>*>(TranslatePhysical(m_readPtrWritebackPhysical)) = m_readPtrIndex;
         }
+        // The window must be destroyed on the same worker that initialized it,
+        // including when an accepted update stops the worker before gameplay.
+        video::Shutdown();
     }
 
     // The vblank ISR runs on its own guest thread so a CP-triggered interrupt

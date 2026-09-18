@@ -4,6 +4,16 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
+## Unreleased / 未发布
+
+### English
+
+- Move the automatic update check and consent prompt into the initialized game window on Windows and Linux. The game now shows a checking state and release notes with **Install** or **Later** actions in the same window before guest gameplay starts. Keyboard, mouse and controller input are supported; accepting an update closes the graphics window before the helper applies it. Download progress continues to use the existing updater window. Declining or an unavailable update continues into the game. Headless and background runs skip this automatic UI, and the standalone updater remains unchanged. The Windows main runtime build and focused `LoUpdaterGamePromptTest` pass, alongside the earlier source syntax checks; actual game-window acceptance, physical controller input, live network updating and release publication remain unverified.
+
+### 简体中文
+
+- Windows 和 Linux 的自动更新检查与确认提示改为在游戏窗口初始化后进行。进入游戏前，同一个窗口会显示检查状态、发布说明以及“安装”或“稍后”操作，支持键盘、鼠标和手柄输入；接受更新时会先关闭图形窗口，再由 helper 执行替换。下载进度仍使用现有的更新器窗口。拒绝更新或无法访问更新服务时继续进入游戏。无头和后台运行会跳过这套自动界面，独立更新器行为保持不变。Windows 主运行时构建和 `LoUpdaterGamePromptTest` 专项测试已通过，之前的修改文件语法检查也已通过；真实游戏窗口中的接受流程、实体手柄输入、在线更新和发布状态仍未验证。
+
 ## v0.6.0 — 2026-09-18 / Published / 已发布
 
 ### English
