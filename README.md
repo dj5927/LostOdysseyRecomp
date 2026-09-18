@@ -57,7 +57,7 @@ Published Windows x64 package: [v0.5.12](https://github.com/freefrank/LostOdysse
 
 Published Windows x64 package: [v0.5.11](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11).
 
-- Lower-layer GPU failures now record the API, raw error code and resource context, while startup and early allocation failures retain environment, build and memory details. WinHTTP failures preserve raw errors, repeated failures are rate-limited, and GPU adapter/renderer formatting has an emergency fallback. Issues #6 and #22 remain under investigation; these diagnostics do not claim either report is fixed.
+- Lower-layer GPU failures now record the API, raw error code and resource context, while startup and early allocation failures retain environment, build and memory details. WinHTTP failures preserve raw errors, repeated failures are rate-limited, and GPU adapter/renderer formatting has an emergency fallback. At the v0.5.11 checkpoint these diagnostics did not claim either report fixed; Issues [#6](https://github.com/freefrank/LostOdysseyRecomp/issues/6) and [#22](https://github.com/freefrank/LostOdysseyRecomp/issues/22) are now closed, while their technical validation limits remain documented in [STATUS](docs/STATUS.md).
 
 ## New in v0.5.10
 

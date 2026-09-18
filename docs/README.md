@@ -19,8 +19,8 @@
 | [Synchronization](PUBLISHING.md) | One public history, Gitea/GitHub dual push and archive policy |
 | [Debug requirements](debug-menu-requirements.md) | Available and requested controls |
 | [Settings menu](notes/settings-menu.md) | Options, language, presentation and validation boundaries |
-| [Documentation agent](agents/documentation.md) | On-demand synchronization workflow and review checks |
-| [Project management agent](agents/project-management.md) | Event-triggered Project/TODO synchronization, evidence and documentation handoff |
+| [Documentation workflow](../AGENTS.md) | On-demand synchronization workflow and review checks |
+| [Project management workflow](project-management/README.md) | Event-triggered Project/TODO synchronization, evidence and documentation handoff |
 | [Research index](notes/README.md) | Subsystem evidence |
 
 The main README is English, with a separate Chinese translation. Most engineering notes are Chinese. Dated experiments preserve their original scope and are not current support promises.

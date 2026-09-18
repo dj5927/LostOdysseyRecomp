@@ -4147,13 +4147,13 @@
     {
       "key": "startup-allocation-reporter-validation",
       "title": "Confirm Issue 6 recovery on the original machine",
-      "body": "<!-- lo-project:startup-allocation-reporter-validation -->\n\nIssue #6 is OPEN. Three v0.5.4 reporter logs on 2026-09-11 each record `reserve any address` with Win32/preferred error 6; on 2026-09-12 the reporter stated that the same failure persists after a clean extraction.\n\n## Scope and completion criteria\n\n- [ ] Obtain the requested Windows edition/version/build, architecture, compatibility-mode/layer, RAM/pagefile, ZIP version and whether an older build worked\n- [ ] Obtain the latest complete clean-extraction log\n- [ ] Correlate the failing operation, original OS error and address-mapping context without treating a suggested API change as a diagnosed cause\n- [ ] Obtain a reporter recovery result before calling the issue fixed\n\n## Validation and acceptance\n\nThe historic v0.4.0 diagnostic enhancement remains implemented, but its allocation checks do not prove original-machine recovery. The new logs establish recurrence only; no repair, root cause or successful reporter acceptance is recorded.\n\nstage_detail: Awaiting validation\n\nrelated_issue_url: https://github.com/freefrank/LostOdysseyRecomp/issues/6\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559\n",
+      "body": "<!-- lo-project:startup-allocation-reporter-validation -->\n\nIssue #6 is CLOSED as of 2026-09-18. Three v0.5.4 reporter logs on 2026-09-11 each record `reserve any address` with Win32/preferred error 6; on 2026-09-12 the reporter stated that the same failure persists after a clean extraction.\n\n## Scope and completion criteria\n\n- [ ] Obtain the requested Windows edition/version/build, architecture, compatibility-mode/layer, RAM/pagefile, ZIP version and whether an older build worked\n- [ ] Obtain the latest complete clean-extraction log\n- [ ] Correlate the failing operation, original OS error and address-mapping context without treating a suggested API change as a diagnosed cause\n- [ ] Obtain a reporter recovery result before calling the issue fixed\n\n## Validation and acceptance\n\nThe historic v0.4.0 diagnostic enhancement remains implemented, but its allocation checks do not prove original-machine recovery. The new logs establish recurrence only; no repair, root cause or successful reporter acceptance is recorded.\n\nstage_detail: Closed without recorded reporter recovery\n\nrelated_issue_url: https://github.com/freefrank/LostOdysseyRecomp/issues/6\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637745092\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5637986308\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5638017337\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5647622343\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6#issuecomment-5648995559\n",
       "issue_url": null,
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Startup validation",
-        "Status": "Awaiting validation",
-        "Delivery": "Awaiting validation",
+        "Status": "Done",
+        "Delivery": "Implemented",
         "Release": null,
         "Start date": null,
         "Target date": null
@@ -4300,7 +4300,7 @@
     {
       "key": "issue-3-report",
       "title": "Save and Crash the game",
-      "body": "<!-- lo-project:issue-3-report -->\n\nThe maintainer stated that v0.2.2 should fix the report, and the issue was closed after an earlier reopen. Original-reporter gameplay confirmation is not recorded.\n\nTracker state: CLOSED. Dates represent report creation and closure, not implementation or acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/3#issuecomment-5564456493\n",
+      "body": "<!-- lo-project:issue-3-report -->\n\nThe maintainer stated that v0.2.2 should fix the report, and the issue was closed after an earlier reopen. The issue is closed; original-reporter gameplay confirmation is not recorded.\n\nTracker state: CLOSED. Dates represent report creation and closure, not implementation or acceptance.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/3#issuecomment-5564456493\n",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/3",
       "record_type": "issue",
       "source_refs": [
@@ -4310,17 +4310,17 @@
         "Kind": "Bug",
         "Area": "Save & Storage",
         "Status": "Done",
-        "Delivery": "Awaiting validation",
+        "Delivery": "Implemented",
         "Release": "v0.2.2",
         "Start date": "2026-09-06",
         "Target date": "2026-09-07",
-        "Evidence": "The maintainer stated that v0.2.2 should fix the report, and the issue was closed after an earlier reopen. Original-reporter gameplay confirmation is not recorded. https://github.com/freefrank/LostOdysseyRecomp/issues/3#issuecomment-5564456493"
+        "Evidence": "The maintainer stated that v0.2.2 should fix the report, and the issue was closed after an earlier reopen. The issue is closed; original-reporter gameplay confirmation is not recorded. https://github.com/freefrank/LostOdysseyRecomp/issues/3#issuecomment-5564456493"
       }
     },
     {
       "key": "issue-6-report",
       "title": "[Bug]  failed to reserve the 4 GiB guest address space",
-      "body": "<!-- lo-project:issue-6-report -->\n\nIssue #6 is OPEN. Its historic v0.5.4 logs recorded `reserve any address` with Win32/preferred error 6; the root cause and reporter acceptance remain unknown/pending.\n\nStartup and lower-layer logging shipped in v0.5.11 from `624729cdb1263b96061b1fa14d4d1c5ba0b50239`; Release CI 34797755460 succeeded. The implementation records early allocation failure context, OS/build/architecture/GPU data, Plume D3D12/Vulkan failures, and independent updater WinHTTP failures while retaining snapshots, retention and EmergencyWrite. The candidate implementation/validation identity `d8cdf39ca637-dirty` and selected fixtures are historical evidence.\n\nThe same candidate EXE performed bounded D3D12 and Vulkan startup-log checks: both recorded the added fields; D3D12 reached guest swap #181, while Vulkan stopped after confirming logs. These are logging checks only, not full game/backend or reporter acceptance.\n\nThe v0.5.11 package passed clean provenance, 50 payload hashes/CRC and four anonymous public asset checks. The former v0.5.6 Release association is historical only.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11\n- https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34797755460\n- out/v0.5.11/release/delivery-verification.json\n- out/diagnostic-logging-20260914/local-log-check.json\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6\n",
+      "body": "<!-- lo-project:issue-6-report -->\n\nIssue #6 is CLOSED as of 2026-09-18. Its historic v0.5.4 logs recorded `reserve any address` with Win32/preferred error 6; the root cause and reporter acceptance remain unknown/pending.\n\nStartup and lower-layer logging shipped in v0.5.11 from `624729cdb1263b96061b1fa14d4d1c5ba0b50239`; Release CI 34797755460 succeeded. The implementation records early allocation failure context, OS/build/architecture/GPU data, Plume D3D12/Vulkan failures, and independent updater WinHTTP failures while retaining snapshots, retention and EmergencyWrite. The candidate implementation/validation identity `d8cdf39ca637-dirty` and selected fixtures are historical evidence.\n\nThe same candidate EXE performed bounded D3D12 and Vulkan startup-log checks: both recorded the added fields; D3D12 reached guest swap #181, while Vulkan stopped after confirming logs. These are logging checks only, not full game/backend or reporter acceptance.\n\nThe v0.5.11 package passed clean provenance, 50 payload hashes/CRC and four anonymous public asset checks. The former v0.5.6 Release association is historical only.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11\n- https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34797755460\n- out/v0.5.11/release/delivery-verification.json\n- out/diagnostic-logging-20260914/local-log-check.json\n- https://github.com/freefrank/LostOdysseyRecomp/issues/6\n",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/6",
       "record_type": "issue",
       "source_refs": [
@@ -4333,12 +4333,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Runtime",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.11",
         "Start date": "2026-09-07",
         "Target date": null,
-        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #6 remains OPEN with unknown root cause and no reporter acceptance; v0.5.6 is historical only. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11"
+        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #6 is CLOSED; its root cause and reporter acceptance remain unrecorded; v0.5.6 is historical only. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11"
       }
     },
     {
@@ -5207,7 +5207,7 @@
     {
       "key": "issue-22-renderer-init-report",
       "title": "[Bug] D3D12/Vulkan renderer initialization failed",
-      "body": "<!-- lo-project:issue-22-renderer-init-report -->\n\nIssue #22 is OPEN and reports D3D12/Vulkan renderer initialization failure on a Windows 10 ROG Ally. Its root cause and reporter acceptance remain unknown/pending.\n\nStartup and lower-layer logging shipped in v0.5.11 from `624729cdb1263b96061b1fa14d4d1c5ba0b50239`; Release CI 34797755460 succeeded. The implementation records startup environment/build/GPU data and Plume D3D12/Vulkan failure context, while retaining existing snapshot and emergency paths. The candidate implementation/validation identity `d8cdf39ca637-dirty` and selected fixtures are historical evidence.\n\nThe same candidate EXE performed bounded D3D12 and Vulkan startup-log checks: both recorded the added fields; D3D12 reached guest swap #181, while Vulkan stopped after confirming logs. These are logging checks only, not an Issue #22 reproduction, full backend acceptance or reporter acceptance.\n\nThe v0.5.11 package passed clean provenance, 50 payload hashes/CRC and four anonymous public asset checks.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11\n- https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34797755460\n- out/v0.5.11/release/delivery-verification.json\n- out/diagnostic-logging-20260914/local-log-check.json\n- https://github.com/freefrank/LostOdysseyRecomp/issues/22\n",
+      "body": "<!-- lo-project:issue-22-renderer-init-report -->\n\nIssue #22 is CLOSED as of 2026-09-18 and reports D3D12/Vulkan renderer initialization failure on a Windows 10 ROG Ally. Its root cause and reporter acceptance remain unknown/pending.\n\nStartup and lower-layer logging shipped in v0.5.11 from `624729cdb1263b96061b1fa14d4d1c5ba0b50239`; Release CI 34797755460 succeeded. The implementation records startup environment/build/GPU data and Plume D3D12/Vulkan failure context, while retaining existing snapshot and emergency paths. The candidate implementation/validation identity `d8cdf39ca637-dirty` and selected fixtures are historical evidence.\n\nThe same candidate EXE performed bounded D3D12 and Vulkan startup-log checks: both recorded the added fields; D3D12 reached guest swap #181, while Vulkan stopped after confirming logs. These are logging checks only, not an Issue #22 reproduction, full backend acceptance or reporter acceptance.\n\nThe v0.5.11 package passed clean provenance, 50 payload hashes/CRC and four anonymous public asset checks.\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11\n- https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34797755460\n- out/v0.5.11/release/delivery-verification.json\n- out/diagnostic-logging-20260914/local-log-check.json\n- https://github.com/freefrank/LostOdysseyRecomp/issues/22\n",
       "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/22",
       "record_type": "issue",
       "source_refs": [
@@ -5216,12 +5216,12 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Runtime logging",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.11",
         "Start date": "2026-09-13",
         "Target date": null,
-        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #22 remains OPEN with unknown root cause and no reporter acceptance. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11"
+        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #22 is CLOSED; its root cause and reporter acceptance remain unrecorded. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11"
       }
     },
     {

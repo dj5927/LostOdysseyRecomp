@@ -57,7 +57,7 @@ Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flat
 
 已发布 Windows x64 包：[v0.5.11](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11)。
 
-- 底层 GPU 失败现记录 API、原始错误 code 和资源上下文；启动与早期分配失败会保留环境、构建和内存信息。WinHTTP 失败保留原始错误，重复失败会限频，GPU adapter/renderer 格式化失败有应急兜底。Issue #6 和 #22 仍在调查；这些诊断不宣称修复任一报告。
+- 底层 GPU 失败现记录 API、原始错误 code 和资源上下文；启动与早期分配失败会保留环境、构建和内存信息。WinHTTP 失败保留原始错误，重复失败会限频，GPU adapter/renderer 格式化失败有应急兜底。v0.5.11 当时的说明没有宣称诊断增强已修复任一报告；Issue [#6](https://github.com/freefrank/LostOdysseyRecomp/issues/6) 和 [#22](https://github.com/freefrank/LostOdysseyRecomp/issues/22) 现已关闭，技术验证边界仍见[状态页](docs/STATUS.md)。
 
 ## v0.5.10 新增
 

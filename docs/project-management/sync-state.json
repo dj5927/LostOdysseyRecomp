@@ -1889,12 +1889,12 @@
       "fields": {
         "Kind": "Infrastructure",
         "Area": "Startup validation",
-        "Status": "Awaiting validation",
-        "Delivery": "Awaiting validation",
+        "Status": "Done",
+        "Delivery": "Implemented",
         "Source key": "startup-allocation-reporter-validation"
       },
       "title": "Confirm Issue 6 recovery on the original machine",
-      "body_sha256": "5aaa17a6f5aa48e49a324d90cd5d8ccb814cd56cf905942592f476a9b75ac028"
+      "body_sha256": "a7adfec9f0f2e6bfaef1dd5520a6124ae0fb33c8defa0d568c1eb76dc76b8c1c"
     },
     "recompiler-remaining-contracts": {
       "id": "PVTI_lAHOAAsUY84Biy1azg56fO0",
@@ -1978,11 +1978,11 @@
         "Kind": "Bug",
         "Area": "Save & Storage",
         "Status": "Done",
-        "Delivery": "Awaiting validation",
+        "Delivery": "Implemented",
         "Release": "v0.2.2",
         "Start date": "2026-09-06",
         "Target date": "2026-09-07",
-        "Evidence": "The maintainer stated that v0.2.2 should fix the report, and the issue was closed after an earlier reopen. Original-reporter gameplay confirmation is not recorded. https://github.com/freefrank/LostOdysseyRecomp/issues/3#issuecomment-5564456493",
+        "Evidence": "The maintainer stated that v0.2.2 should fix the report, and the issue was closed after an earlier reopen. The issue is closed; original-reporter gameplay confirmation is not recorded. https://github.com/freefrank/LostOdysseyRecomp/issues/3#issuecomment-5564456493",
         "Source key": "issue-3-report"
       }
     },
@@ -1991,11 +1991,11 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Runtime",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.11",
         "Start date": "2026-09-07",
-        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #6 remains OPEN with unknown root cause and no reporter acceptance; v0.5.6 is historical only. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11",
+        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #6 is CLOSED; its root cause and reporter acceptance remain unrecorded; v0.5.6 is historical only. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11",
         "Source key": "issue-6-report"
       }
     },
@@ -2518,11 +2518,11 @@
       "fields": {
         "Kind": "Bug",
         "Area": "Runtime logging",
-        "Status": "In Progress",
+        "Status": "Done",
         "Delivery": "Released",
         "Release": "v0.5.11",
         "Start date": "2026-09-13",
-        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #22 remains OPEN with unknown root cause and no reporter acceptance. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11",
+        "Evidence": "Released v0.5.11 at 2026-09-14T02:09:50Z from 624729c; CI 34797755460 succeeded and consumed PPC key 921d26c.../private ad34fdc.... ZIP 44,304,683 B SHA-256 5de068c4...6944e132; clean provenance, 50 payload hashes/CRC and four anonymous HTTP 200 size/hash/API-digest asset checks passed. The selected logging fixtures and bounded D3D12/Vulkan log checks are reused, not rerun. #22 is CLOSED; its root cause and reporter acceptance remain unrecorded. https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.11",
         "Source key": "issue-22-renderer-init-report"
       }
     },
