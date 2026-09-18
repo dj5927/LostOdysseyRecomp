@@ -55,6 +55,8 @@ int main()
     escape.key.keysym.sym = SDLK_ESCAPE;
     if (!updater::game_prompt::HandleEvent(escape, 7, 1280, 720)) return 9;
     if (declined.wait_for(1s) != std::future_status::ready || declined.get()) return 10;
-    std::cout << "game window update prompt: checking, render, install and later passed\n";
+    SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
+    if (updater::game_prompt::ConfirmBeforeImport("v0.7.0", "No display", 0)) return 11;
+    std::cout << "startup update prompt: render, install, later and headless guard passed\n";
     return 0;
 }

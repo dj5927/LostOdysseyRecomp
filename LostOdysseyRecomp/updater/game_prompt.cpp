@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <cstdlib>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -107,8 +108,17 @@ bool Confirm(std::string_view version, std::string_view changelog, uint32_t uiLa
 
 bool ConfirmBeforeImport(std::string_view version, std::string_view changelog, uint32_t uiLanguage)
 {
+    const char* requestedDriver = std::getenv("SDL_VIDEODRIVER");
+    if (requestedDriver && std::string_view(requestedDriver) == "dummy")
+        return false;
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0)
         return false;
+    if (const char* driver = SDL_GetCurrentVideoDriver();
+        driver && std::string_view(driver) == "dummy")
+    {
+        SDL_Quit();
+        return false;
+    }
     SDL_Window* window = SDL_CreateWindow("Lost Odyssey Recomp",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720,
         SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
