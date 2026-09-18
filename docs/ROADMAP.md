@@ -4,9 +4,11 @@
 
 `[ ]` outstanding · `[~]` in progress · `[x]` has bounded evidence. The [public maintainer Project](https://github.com/users/freefrank/projects/3) is the current work-item source of truth. This mirror keeps direction, open work and validation limits; implementation, player acceptance and release status are separate.
 
-v0.6.1 is the current pending release candidate. Its updater changes are implemented and locally checked, but the tag, public release assets and live update transaction remain pending. See the [status record](STATUS.md) and [changelog](../CHANGELOG.md#v061--pending-publication--待发布).
+v0.6.1 was published on 2026-09-18T17:49:18Z from `ebd2ef13969a28fcabf26a4eb2dafa9c09ca965d`. [Release CI 35374267882](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35374267882) passed the Windows/Linux release jobs and focused regressions. The release assets and validation limits are recorded in the [status record](STATUS.md).
 
 ## Delivery
+
+[v0.6.1](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1) is the current published release. Its updater checks for updates before import on Windows and Linux; live update transactions, physical controller input and GUI acceptance remain open.
 
 [v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0) was published on 2026-09-18T15:21:34Z from `4b4b6c617172d43c7a73477881263e6e542d6cdf`. Release CI [`35359206991`](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991) passed the audit, Windows Release and Linux Release jobs. The public release contains Windows and Linux packages plus the standalone portable Vulkan shader pack and SHA-256 sidecars. The Windows ZIP, Linux AppImage and shader pack hashes are `7ebcad6c2660ea6bcce801df3e6eb0f9bb6faef87e5108898618c1144031d161`, `46c1c10e9dbaf0dc5db490aa3fd2f5b195eea8ccdbd7e35a0996f978292d3901` and `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`. Native Linux GPU, Steam Deck, AppImage update transactions and full-game playthrough remain open.
 

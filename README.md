@@ -19,9 +19,11 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
-## v0.6.1 candidate
+## v0.6.1 release
 
-The next candidate moves the automatic update check ahead of game-data import on Windows and Linux. When a newer release is found, the app-branded SDL bootstrap prompt shows the release notes and **Install** or **Later** actions, with keyboard, mouse and controller input. Accepting applies the update and relaunches before import; declining or an offline check continues normally. Download progress remains in the existing updater window. This candidate is not published yet; see the [pending changelog entry](CHANGELOG.md#v061--pending-publication--待发布).
+Published release: [v0.6.1](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1). It checks for updates before importing game data on Windows and Linux. A newer release opens an app-branded prompt with release notes and **Install** or **Later** actions; accepting applies the update and relaunches before import. Download progress remains in the existing updater window.
+
+Release CI [35374267882](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35374267882) passed the Windows and Linux release jobs and focused regressions. Live update acceptance, physical controller input and network downloading remain unverified.
 
 ## v0.6.0 release
 

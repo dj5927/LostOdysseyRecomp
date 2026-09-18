@@ -4,7 +4,7 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## v0.6.1 — 2026-09-18
+## v0.6.1 — 2026-09-18 / Published / 已发布
 
 ### English
 
@@ -17,6 +17,10 @@ One record of completed changes, with unpublished work separated from verified r
 - Windows 和 Linux 现在会在导入游戏资料前检查更新。版本已是最新或无法联网时继续正常流程；无头和后台运行会跳过自动界面。
 - 发现新版本时，带有应用品牌的提示会显示发布说明以及“安装”和“稍后”操作。提示支持键盘和鼠标，手柄输入也接入同一提示；接受后在导入前应用更新并重新启动。下载进度仍使用现有的更新器窗口。
 - Windows 运行时构建、Windows/Linux 更新提示专项测试和修改后的 Linux 语法检查已通过。在线更新接受、实体手柄输入和网络下载仍未验证。
+
+Published at [GitHub Release v0.6.1](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1) from `ebd2ef13969a28fcabf26a4eb2dafa9c09ca965d`. Release CI `35374267882` passed the Windows and Linux release jobs and their focused regressions. The Windows ZIP, Linux AppImage and standalone shader pack SHA-256 values are `fb0fdfc823c53515eac300d7596c7bfe98127402ba90476dd093b8c82e80c689`, `5ef83615d4eb16922e51f74ebaf6002aedd51bbb1bb2eb3dd19964a79317b47c` and `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`; public sidecars returned HTTP 200.
+
+已从 `ebd2ef13969a28fcabf26a4eb2dafa9c09ca965d` 发布到 [GitHub Release v0.6.1](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1)。Release CI `35374267882` 的 Windows/Linux 发布任务及两平台定向回归均通过。Windows ZIP、Linux AppImage 和独立 shader pack 的 SHA-256 分别为 `fb0fdfc823c53515eac300d7596c7bfe98127402ba90476dd093b8c82e80c689`、`5ef83615d4eb16922e51f74ebaf6002aedd51bbb1bb2eb3dd19964a79317b47c` 和 `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`；公开 sidecar 均返回 HTTP 200。
 
 ## v0.6.0 — 2026-09-18 / Published / 已发布
 

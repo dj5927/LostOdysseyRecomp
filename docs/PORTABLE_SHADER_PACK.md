@@ -1,18 +1,18 @@
-# Portable Vulkan shader pack — v0.6.0 release
+# Portable Vulkan shader pack — v0.6.1 release
 
 Base: `menu@257f3866e9f9f5d3e65550c86dce453290cf7ee4`.
 This change follows reblue's build/distribution separation; it does not copy its
 renderer or change Lost Odyssey's shader translation semantics.
 
-## v0.6.0 release
+## v0.6.1 release
 
-The v0.6.0 GitHub Release was published on 2026-09-18. [Release CI
-35359206991](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991)
-passed the audit, Windows Release and Linux Release jobs. The standalone pack is
-available from the [v0.6.0 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0),
+The v0.6.1 GitHub Release was published on 2026-09-18. [Release CI
+35374267882](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35374267882)
+passed the Windows and Linux Release jobs and focused regressions. The standalone pack is
+available from the [v0.6.1 release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1),
 with SHA-256
 `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`.
-It reuses the v0.5.20 pack contents and contains 28,482 records under the v0.6.0
+It is byte-identical to the v0.6.0 pack and contains 28,482 records under the v0.6.1
 asset name; this is release provenance rather than a claim of new shader coverage.
 
 The source-side verifier now permits the audited exception for the raw image

@@ -1,10 +1,12 @@
 # Project status
 
-## v0.6.1 candidate / v0.6.1 候选版本
+## v0.6.1 published / v0.6.1 已发布
 
-The automatic updater now checks for a newer release before game-data import on Windows and Linux. A newer release opens an app-branded SDL prompt with release notes and Install/Later actions; accepting applies the update and relaunches before import, while declining or an offline check continues normally. Headless and background runs skip this UI. Commits `807eb1c`, `89859ed` and `929e27a` contain the change. Windows runtime build, focused Windows/Linux prompt tests and changed Linux syntax checks passed. Live network update acceptance, physical controller input and GUI acceptance remain unverified. v0.6.1 is not tagged or published.
+The automatic updater now checks for a newer release before game-data import on Windows and Linux. A newer release opens an app-branded SDL prompt with release notes and Install/Later actions; accepting applies the update and relaunches before import, while declining or an offline check continues normally. Headless and background runs skip this UI. Windows runtime build, focused Windows/Linux prompt tests and changed Linux syntax checks passed. Live network update acceptance, physical controller input and GUI acceptance remain unverified.
 
-Windows 和 Linux 的自动更新器现会在导入游戏资料前检查新版本。发现新版本时打开带有应用品牌的 SDL 提示，显示发布说明以及“安装／稍后”操作；接受后在导入前应用更新并重新启动，拒绝更新或无法联网时继续正常流程。无头和后台运行会跳过这套界面。改动位于提交 `807eb1c`、`89859ed` 和 `929e27a`。Windows 运行时构建、Windows/Linux 更新提示专项测试和修改后的 Linux 语法检查已通过；在线更新接受、实体手柄和 GUI 验收仍未验证。v0.6.1 尚未打标签或发布。
+Windows 和 Linux 的自动更新器现会在导入游戏资料前检查新版本。发现新版本时打开带有应用品牌的 SDL 提示，显示发布说明以及“安装／稍后”操作；接受后在导入前应用更新并重新启动，拒绝更新或无法联网时继续正常流程。无头和后台运行会跳过这套界面。Windows 运行时构建、Windows/Linux 更新提示专项测试和修改后的 Linux 语法检查已通过；在线更新接受、实体手柄和 GUI 验收仍未验证。
+
+v0.6.1 已于 2026-09-18T17:49:18Z 从 `ebd2ef13969a28fcabf26a4eb2dafa9c09ca965d` 发布到 [GitHub Release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1)。[Release CI 35374267882](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35374267882) 的 Windows/Linux 发布任务及两平台定向回归均通过。公开六个资产的 sidecar 均返回 HTTP 200；Windows ZIP、Linux AppImage 和 shader pack 的 SHA-256 分别为 `fb0fdfc823c53515eac300d7596c7bfe98127402ba90476dd093b8c82e80c689`、`5ef83615d4eb16922e51f74ebaf6002aedd51bbb1bb2eb3dd19964a79317b47c` 和 `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`。该 shader pack 与 v0.6.0 字节相同。
 
 ## v0.6.0 published / v0.6.0 已发布
 

@@ -1,6 +1,6 @@
 # Installing Lost Odyssey Recomp
 
-This guide describes the published [v0.6.0 package](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0), with Direct3D 12 and Vulkan graphics backends. The importer and updater are built into **LostOdysseyRecomp.exe**; there is no separate `InstallGame.exe` or `LostOdysseyUpdater.exe`.
+This guide describes the published [v0.6.1 package](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1), with Direct3D 12 and Vulkan graphics backends. The importer and updater are built into **LostOdysseyRecomp.exe**; there is no separate `InstallGame.exe` or `LostOdysseyUpdater.exe`.
 
 1. Extract the entire package to a writable folder, outside Program Files. Keep the main executable, validated DXC v1.8.2407 DLL pair and license files together.
 2. Run **LostOdysseyRecomp.exe** directly. If game files are missing, the built-in importer opens; select your source and review its recognition result before importing.
@@ -114,7 +114,7 @@ published installation without retaining those folders.
 
 This section describes running the native Linux unbundled executable.
 
-The v0.6.0 release includes native Linux x64 packaging. Download the AppImage from the [v0.6.0 GitHub Release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0), or build the native ELF locally following [BUILDING.md](BUILDING.md). The AppImage update path, native Linux GPU coverage and Steam Deck experience still require the validation described below.
+The v0.6.1 release includes native Linux x64 packaging. Download the AppImage from the [v0.6.1 GitHub Release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1), or build the native ELF locally following [BUILDING.md](BUILDING.md). The AppImage update path, native Linux GPU coverage and Steam Deck experience still require the validation described below.
 
 ### Flatpak source manifest
 
