@@ -19,6 +19,10 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## v0.6.1 candidate
+
+The next candidate moves the automatic update check ahead of game-data import on Windows and Linux. When a newer release is found, the app-branded SDL bootstrap prompt shows the release notes and **Install** or **Later** actions, with keyboard, mouse and controller input. Accepting applies the update and relaunches before import; declining or an offline check continues normally. Download progress remains in the existing updater window. This candidate is not published yet; see the [pending changelog entry](CHANGELOG.md#v061--pending-publication--待发布).
+
 ## v0.6.0 release
 
 Published release: [v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0). It provides Windows x64 and native Linux x64 packages. The Windows ZIP and Linux AppImage bundle the portable Vulkan shader pack so supported installations can start without a long first-run compilation step. The bundle covers the tested shader set; an uncovered shader can still compile on demand and may cause a brief hitch.

@@ -4,15 +4,19 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## Unreleased / 未发布
+## v0.6.1 — 2026-09-18
 
 ### English
 
-- Run the automatic update check before importing game data on Windows and Linux. The network check completes before any SDL bootstrap window is created; only a newer release opens the app-branded prompt with release notes and **Install** or **Later** actions. Keyboard, mouse and controller input are supported; accepting an update closes the prompt, applies the update and relaunches before import. Download progress continues to use the existing updater window. An up-to-date or offline check proceeds without opening the prompt; declining a shown update closes it and continues into the importer, or into normal game startup when existing data is already available. Headless and background runs skip this automatic UI, and the standalone updater remains unchanged. The Windows runtime build, Windows and Linux focused prompt tests, and changed Linux source syntax checks pass. Actual update acceptance, physical controller input, live network updating and release publication remain unverified.
+- Check for updates before importing game data on Windows and Linux. Up-to-date and offline checks continue normally; headless and background runs skip the automatic UI.
+- When a newer release is available, an app-branded prompt shows its release notes with **Install** and **Later** actions. Keyboard and mouse input are supported, with controller input wired through the same prompt; accepting applies the update and relaunches before import. Download progress remains in the existing updater window.
+- Windows runtime build, focused Windows/Linux prompt tests and changed Linux syntax checks pass. Live update acceptance, physical controller input and network downloading remain unverified.
 
 ### 简体中文
 
-- Windows 和 Linux 的自动更新检查改为在导入游戏资料之前进行。网络检查会在创建任何 SDL 引导窗口前完成；只有发现新版本时才打开带有应用品牌的提示窗口，显示发布说明以及“安装”或“稍后”操作。支持键盘、鼠标和手柄输入；接受更新时关闭提示窗口，由 helper 执行更新并在导入前重新启动。下载进度仍使用现有的更新器窗口。版本已是最新或无法联网时不会打开提示窗口；拒绝已显示的更新后关闭窗口，并在没有现有资料时继续进入导入器，已有资料则继续正常启动游戏。无头和后台运行会跳过这套自动界面，独立更新器行为保持不变。Windows 运行时构建、Windows 和 Linux 更新提示专项测试，以及修改后的 Linux 源文件语法检查均已通过。真实更新接受流程、实体手柄输入、在线更新和发布状态仍未验证。
+- Windows 和 Linux 现在会在导入游戏资料前检查更新。版本已是最新或无法联网时继续正常流程；无头和后台运行会跳过自动界面。
+- 发现新版本时，带有应用品牌的提示会显示发布说明以及“安装”和“稍后”操作。提示支持键盘和鼠标，手柄输入也接入同一提示；接受后在导入前应用更新并重新启动。下载进度仍使用现有的更新器窗口。
+- Windows 运行时构建、Windows/Linux 更新提示专项测试和修改后的 Linux 语法检查已通过。在线更新接受、实体手柄输入和网络下载仍未验证。
 
 ## v0.6.0 — 2026-09-18 / Published / 已发布
 

@@ -1,5 +1,11 @@
 # Project status
 
+## v0.6.1 candidate / v0.6.1 候选版本
+
+The automatic updater now checks for a newer release before game-data import on Windows and Linux. A newer release opens an app-branded SDL prompt with release notes and Install/Later actions; accepting applies the update and relaunches before import, while declining or an offline check continues normally. Headless and background runs skip this UI. Commits `807eb1c`, `89859ed` and `929e27a` contain the change. Windows runtime build, focused Windows/Linux prompt tests and changed Linux syntax checks passed. Live network update acceptance, physical controller input and GUI acceptance remain unverified. v0.6.1 is not tagged or published.
+
+Windows 和 Linux 的自动更新器现会在导入游戏资料前检查新版本。发现新版本时打开带有应用品牌的 SDL 提示，显示发布说明以及“安装／稍后”操作；接受后在导入前应用更新并重新启动，拒绝更新或无法联网时继续正常流程。无头和后台运行会跳过这套界面。改动位于提交 `807eb1c`、`89859ed` 和 `929e27a`。Windows 运行时构建、Windows/Linux 更新提示专项测试和修改后的 Linux 语法检查已通过；在线更新接受、实体手柄和 GUI 验收仍未验证。v0.6.1 尚未打标签或发布。
+
 ## v0.6.0 published / v0.6.0 已发布
 
 The current main source repairs the remaining 0.6.0 audit findings. Large

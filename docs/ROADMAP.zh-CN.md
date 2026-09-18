@@ -4,6 +4,8 @@
 
 `[ ]` 待完成 · `[~]` 进行中 · `[x]` 在所述范围内已有证据。[公开维护者 Project](https://github.com/users/freefrank/projects/3) 是当前工作项的事实来源。本镜像只保留方向、未完成事项和验证边界；实现、玩家验收和发布状态彼此独立。
 
+v0.6.1 是当前待发布候选版本。更新器改动已实现并完成本地定向检查，但标签、公开发布资产和真实更新事务仍待完成。详见[状态记录](STATUS.md)与[更新日志](../CHANGELOG.md#v061--pending-publication--待发布)。
+
 ## 交付
 
 [v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0) 已于 2026-09-18T15:21:34Z 从 `4b4b6c617172d43c7a73477881263e6e542d6cdf` 公开发布。[Release CI 35359206991](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991) 已通过审计、Windows Release 和 Linux Release 门槛。公开发布包含 Windows 与 Linux 发布包、独立便携式 Vulkan 着色器包及 SHA-256 校验文件。Windows ZIP、Linux AppImage 和 shader pack 的 hash 分别为 `7ebcad6c2660ea6bcce801df3e6eb0f9bb6faef87e5108898618c1144031d161`、`46c1c10e9dbaf0dc5db490aa3fd2f5b195eea8ccdbd7e35a0996f978292d3901` 和 `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`。原生 Linux GPU、Steam Deck、AppImage 更新事务和全流程游戏仍待验证。

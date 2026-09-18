@@ -19,6 +19,10 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## v0.6.1 候选版本
+
+下一候选版本将在 Windows 和 Linux 上把自动更新检查提前到游戏资料导入之前。发现新版本时，带有应用品牌的 SDL 引导提示会显示发布说明以及“安装”或“稍后”操作，并支持键盘、鼠标和手柄输入。接受更新后会在导入前应用更新并重新启动；拒绝更新或无法联网时继续正常流程。下载进度仍使用现有的更新器窗口。本候选版本尚未公开发布，详见[待发布更新日志](CHANGELOG.md#v061--pending-publication--待发布)。
+
 ## v0.6.0 发布版
 
 已发布版本：[v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0)。提供 Windows x64 与原生 Linux x64 发布包。Windows ZIP 与 Linux AppImage 内置便携式 Vulkan 着色器包，让受支持的安装首次进入游戏时不再经历冗长的编译过程。着色器包覆盖当前测试过的集合，遗漏的着色器仍会按需编译，可能造成短暂卡顿。
