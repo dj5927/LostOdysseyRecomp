@@ -22,7 +22,18 @@ int main(int argc,char** argv) try {
         std::vector<uint8_t> image(xenos::portable_pack::RuntimeXexBytes);
         if (!in.read(reinterpret_cast<char*>(image.data()), std::streamsize(image.size())))
             throw std::runtime_error("missing/short decrypted runtime image (use xexdump output)");
-        xenos::portable_pack::Reader reader(path, xenos::portable_pack::RuntimeContract(image));
+        auto expected = xenos::portable_pack::RuntimeContract(image);
+        // xexdump's image precedes XexLoader's import-thunk writes. The
+        // supported Disc 1 image and the pack captured from the loaded guest
+        // have this audited contract pair; other images use the direct value.
+        if (xenos::resources::Sha256Hex(expected) ==
+            "d5a2fab10441a46444b6b41ffcb4f1ba562bea75668a7b445fd43688aec67507") {
+            const auto stored = xenos::portable_pack::Reader::Inspect(path);
+            if (xenos::resources::Sha256Hex(stored.contract) ==
+                "f6fd1179b50f6ff9b63d6be84c662d1337af6b7dfa78865a9a6c025509c9b77f")
+                expected = stored.contract;
+        }
+        xenos::portable_pack::Reader reader(path, expected);
         reader.VerifyAll();
         r = reader.Info();
     } else r = xenos::portable_pack::Reader::Inspect(path, verified);
