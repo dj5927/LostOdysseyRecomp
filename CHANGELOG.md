@@ -9,10 +9,14 @@ One record of completed changes, with unpublished work separated from verified r
 ### English
 
 - Planned maintenance and ongoing investigations.
+- GPU index conversion cache (`LostOdysseyRecomp/gpu/renderer.cpp`, `LostOdysseyRecomp/gpu/vertex_cache.h`): cache post-expansion indices for large buffers (`count >= 256`) keyed by extent plus conversion parameters and validated against sampled source bytes. Removes ~5.6% of CPU cycles spent in per-draw endian conversion (`Convert<false,1U>`); measured -6% (720p) to -8% (1080p) frame draw time at 15W in the Uhra city walk. Extended `tools/tests/vertex_cache_test.cpp` with key-participation, hit/miss, and bounded-churn checks. Full data in `docs/notes/PERF_CITY_UHRA_RESULTS.md`.
+- Build: `EXPORT_COMPILE_COMMANDS` enabled and `LO_BOLT_READY` retained so Clang builds stay BOLT-ready (`emit-relocs` + line tables, baseline-neutral).
 
 ### 简体中文
 
 - 计划中的维护与持续排查。
+- GPU 索引转换缓存（`LostOdysseyRecomp/gpu/renderer.cpp`、`LostOdysseyRecomp/gpu/vertex_cache.h`）：对大缓冲（`count >= 256`）按范围加转换参数为键缓存展开后的索引，用源采样校验。消掉每 draw 端序转换约 5.6% 的 CPU 周期；15W 乌斯拉进城实测帧 draw 时间 720p -6%、1080p -8%。`tools/tests/vertex_cache_test.cpp` 新增键参与度、命中/失效、有界抖动检查。完整数据见 `docs/notes/PERF_CITY_UHRA_RESULTS.zh-CN.md`。
+- 构建：启用 `EXPORT_COMPILE_COMMANDS`，保留 `LO_BOLT_READY` 使 Clang 构建持续 BOLT 就绪（`emit-relocs` + 行号表，基线代价中性）。
 
 ## v0.5.20 — 2026-09-17 / Published / 已发布
 

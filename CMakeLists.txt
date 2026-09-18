@@ -7,13 +7,11 @@ set(LO_SOURCE_VERSION "${PROJECT_VERSION}")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
 
-# Sandy Bridge baseline (AVX): lets simde map VMX ops to real SSE4.1/AVX intrinsics
-# instead of scalar fallbacks (which pull in C23 roundeven*). Same as UnleashedRecomp.
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-march=sandybridge)
-endif()
+# Optimization, target architecture (default: sandybridge), LTO, and PGO options.
+include(cmake/LoOptimization.cmake)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # 阶段 1 之前这里只是占位。生成 ppc/ 之后再按 UnleashedRecomp 的
