@@ -5538,7 +5538,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     r.tShader, r.tPipeline, r.tTexture, r.tResolve, r.tFlush,
                     r.tRt, r.tTaa, r.tNestedFlush,
                     r.tShaderLookup, r.tPipelineLookup, r.tSceneCopy};
-                render_timing::LogFrame(r.frame, gpu::CurrentSwapCount(), cpu, r.gpuTiming, !r.debugCaptureDir.empty(),
+                render_timing::LogFrame(r.frame, cpu, r.gpuTiming, !r.debugCaptureDir.empty(),
                     r.resolveTraceRemaining || r.psTraceRemaining || GetHotCaptureEnvironment().geometryCaptureEnabled);
                 r.gpuTiming.Reset();
                 if (!stats) r.ResetTimers();
