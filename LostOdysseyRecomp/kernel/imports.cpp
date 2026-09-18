@@ -626,7 +626,7 @@ static uint32_t KeDelayExecutionThread(uint32_t WaitMode, bool Alertable, be<int
         return STATUS_USER_APC;
     uint32_t timeout = GuestTimeoutToMilliseconds(Timeout);
     if (timeout >= 10 && timeout != INFINITE)
-        LOG_KERNEL("sleep {} ms", timeout);
+        LOGFN_IMPL(Verbose, "sleep {} ms", timeout);
     if (timeout == 0)
     {
         if (!poll_wait::ZeroDelay())
