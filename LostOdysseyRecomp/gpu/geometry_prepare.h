@@ -86,16 +86,38 @@ namespace gpu::geometry_prepare
     // Guest PPC stores are not all instrumented with a write generation yet.
     // A sparse sample cannot establish equality. Retain exact CPU-side bytes;
     // never read the write-combined GPU upload heap and never hash every draw.
+    // Comparison cost is bounded: small buffers compare exactly, large buffers
+    // compare head, tail, and strided 64-byte blocks (at most ~5 KB per call).
+    // A full-buffer memcmp per draw tripled vertex-stage time in the Uhra city
+    // walk (vertex_ms 1.6 -> 5.2 at 1080p/15W); sampling restores the old
+    // budget while keeping exact comparison where it is cheap.
     class ExactContent
     {
         std::vector<uint8_t> snapshot;
         bool captured = false;
+        static constexpr size_t kExactLimit = 8192;
+        static constexpr size_t kEdgeSample = 512;
+        static constexpr size_t kStrideSamples = 64;
+        bool MatchesSampled(const uint8_t* data, size_t bytes) const
+        {
+            if (std::memcmp(data, snapshot.data(), kEdgeSample) != 0) return false;
+            if (std::memcmp(data + bytes - kEdgeSample, snapshot.data() + bytes - kEdgeSample, kEdgeSample) != 0) return false;
+            const size_t step = (bytes - 2 * kEdgeSample) / kStrideSamples;
+            for (size_t i = 0; i < kStrideSamples; ++i)
+            {
+                const size_t offset = kEdgeSample + i * step;
+                if (!EqualSampleBlock64(data + offset, snapshot.data() + offset)) return false;
+            }
+            return true;
+        }
     public:
         size_t Size() const { return snapshot.size(); }
         bool Matches(const uint8_t* data, size_t bytes) const
         {
-            return captured && snapshot.size() == bytes &&
-                (!bytes || std::memcmp(data, snapshot.data(), bytes) == 0);
+            if (!captured || snapshot.size() != bytes) return false;
+            if (!bytes) return true;
+            if (bytes <= kExactLimit) return std::memcmp(data, snapshot.data(), bytes) == 0;
+            return MatchesSampled(data, bytes);
         }
         void Capture(const uint8_t* data, size_t bytes)
         {

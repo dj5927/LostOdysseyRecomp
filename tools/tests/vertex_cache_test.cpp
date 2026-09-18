@@ -240,6 +240,49 @@ void TestIndexCache()
     Check(cache.size() == 4, "index churn respects capacity");
     Check(cache.bucket_count() != 0, "index buckets reserved before first insertion");
 }
+
+void TestExactContentSampling()
+{
+    using gpu::geometry_prepare::ExactContent;
+    for (size_t bytes : {size_t(0), size_t(1), size_t(511), size_t(512), size_t(8192)})
+    {
+        // At or below the exact limit every byte participates.
+        std::vector<uint8_t> source(bytes);
+        for (size_t i = 0; i < bytes; ++i) source[i] = uint8_t(i * 31 + 17);
+        ExactContent content;
+        Check(!content.Matches(source.data(), source.size()), "empty content never matches");
+        content.Capture(source.data(), source.size());
+        Check(content.Size() == bytes, "snapshot size tracks source");
+        Check(content.Matches(source.data(), source.size()), "identical small buffer matches");
+        Check(!content.Matches(source.data(), bytes + 1), "size change misses");
+        for (size_t i = 0; i < bytes; ++i)
+        {
+            source[i] ^= 0x55;
+            Check(!content.Matches(source.data(), source.size()), "any small-buffer mutation misses");
+            source[i] ^= 0x55;
+        }
+        Check(content.Matches(source.data(), source.size()), "small buffer matches after restore");
+    }
+    for (size_t bytes : {size_t(8196), size_t(16384), size_t(65536)})
+    {
+        // Above the exact limit only head, tail, and strided blocks compare.
+        std::vector<uint8_t> source(bytes);
+        for (size_t i = 0; i < bytes; ++i) source[i] = uint8_t(i * 31 + 17);
+        ExactContent content;
+        content.Capture(source.data(), source.size());
+        Check(content.Matches(source.data(), source.size()), "identical large buffer matches");
+        const size_t step = (bytes - 1024) / 64;
+        std::vector<size_t> sampled{0, 511, bytes - 512, bytes - 1};
+        for (size_t i = 0; i < 64; ++i) { sampled.push_back(512 + i * step); sampled.push_back(512 + i * step + 63); }
+        for (auto i : sampled)
+        {
+            source[i] ^= 0x55;
+            Check(!content.Matches(source.data(), source.size()), "sampled large-buffer mutation misses");
+            source[i] ^= 0x55;
+        }
+        Check(content.Matches(source.data(), source.size()), "large buffer matches after restore");
+    }
+}
 }
 
 int main()
@@ -260,6 +303,7 @@ int main()
     for (size_t capacity : {size_t(1), size_t(2), size_t(15), size_t(16), size_t(17), size_t(257)}) TestSlotReset(capacity);
     for (size_t bytes : {size_t(1), size_t(8192), size_t(8196), size_t(16384)}) TestContentReplacement(bytes);
     TestIndexCache();
+    TestExactContentSampling();
     std::printf("vertex cache: %llu checks passed (bounded metadata fixture; no GPU or game)\n",
         static_cast<unsigned long long>(checks));
 }
