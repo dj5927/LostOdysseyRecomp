@@ -4349,14 +4349,16 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 {
                     temporal::DrawHistoryKey histKey{};
                     histKey.vsHash = key.vs;
-                    histKey.baseVertex = uint32_t(baseVertex);
-                    histKey.startIndex = useIndices ? uint32_t(Reg(REG_VGT_INDX_OFFSET)) : 0;
+                    histKey.indexBufferAddress = useIndices ? uint32_t(Reg(REG_VGT_DMA_BASE)) : 0;
+                    histKey.firstIndex = useIndices ? uint32_t(Reg(REG_VGT_INDX_OFFSET)) : 0;
                     histKey.indexCount = indexCount;
+                    histKey.baseVertex = int32_t(baseVertex);
+                    histKey.primitiveType = uint32_t(info.primitiveType);
                     for (uint32_t slot = 0; slot < kVertexFetchSlots; ++slot)
                     {
                         if ((vs->info.vertexFetchSlotMask[slot >> 6] >> (slot & 63)) & 1)
                         {
-                            histKey.vertexFetchAddress = Reg(REG_FETCH_CONSTANTS + slot * 2) & ~3u;
+                            histKey.positionBufferAddress = Reg(REG_FETCH_CONSTANTS + slot * 2) & ~3u;
                             break;
                         }
                     }
@@ -4365,21 +4367,12 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     static const bool enableDrawTracking = getenv("LO_ENABLE_MV_DRAW_TRACKING") && strcmp(getenv("LO_ENABLE_MV_DRAW_TRACKING"), "1") == 0;
                     if (enableDrawTracking)
                     {
-                        const float* vpPtr = nullptr;
-                        if (posSlot + 4 <= 256)
-                        {
-                            vpPtr = reinterpret_cast<const float*>(&vsConstants[posSlot]);
-                        }
+                        const float* vsFloatPtr = reinterpret_cast<const float*>(vsConstants.data());
+                        const uint32_t* boolPtr = reinterpret_cast<const uint32_t*>(boolConstants.data());
+                        const uint32_t* loopPtr = reinterpret_cast<const uint32_t*>(loopConstants.data());
+                        const bool isSkinned = vs->info.usesRelativeConstants;
 
-                        const float* bonePtr = nullptr;
-                        uint32_t boneCount = 0;
-                        if (vs->info.usesRelativeConstants)
-                        {
-                            bonePtr = reinterpret_cast<const float*>(&vsConstants[64]);
-                            boneCount = 128 * 4; // c64..c191
-                        }
-
-                        drawTemporalTracker.RecordDraw(histKey, vpPtr, bonePtr, boneCount);
+                        drawTemporalTracker.RecordDraw(histKey, vsFloatPtr, boolPtr, loopPtr, isSkinned);
                     }
                 }
                 // Offline vertex replay: capture one frame of relative-addressed

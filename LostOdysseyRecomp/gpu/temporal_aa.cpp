@@ -285,7 +285,10 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
         c.previousScaleBias[2]=float(previous.width*.5*(1+previous.halfPixelNdcX)+in.previousJitterX);
         c.previousScaleBias[3]=float(previous.height*.5*(1-previous.halfPixelNdcY)+in.previousJitterY);
         c.size[2]=float(in.historyWidth);c.size[3]=float(in.historyHeight);c.active=1;c.reactive=in.reactiveMask?1u:0u;
-        c.pad0|=0u; // Disabled by default until host MV render pass is fully populated
+        // Enable motion vector sampling in shader if caller provides motionVector texture
+        if (in.motionVector) {
+            c.pad0 |= 4u;
+        }
     }
     Impl::Pending pending;RenderDescriptorSetBuilder set;DefineSet(set,p.vulkan);pending.set=set.create(p.device);
     const RenderTexture* attachments[]={in.output};pending.framebuffer=p.device->createFramebuffer(RenderFramebufferDesc(attachments,1));

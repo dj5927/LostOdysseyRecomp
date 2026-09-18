@@ -567,6 +567,10 @@ add_executable(LoTemporalMathTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tes
 target_include_directories(LoTemporalMathTest PRIVATE ${LO_RUNTIME_ROOT})
 target_compile_features(LoTemporalMathTest PRIVATE cxx_std_20)
 
+add_executable(LoMotionVectorTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/motion_vector_test.cpp)
+target_include_directories(LoMotionVectorTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoMotionVectorTest PRIVATE cxx_std_20)
+
 add_executable(LoTemporalHistoryDiagnosticTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/temporal_history_diagnostic_test.cpp)
 target_include_directories(LoTemporalHistoryDiagnosticTest PRIVATE ${LO_RUNTIME_ROOT})
 target_compile_features(LoTemporalHistoryDiagnosticTest PRIVATE cxx_std_20)
