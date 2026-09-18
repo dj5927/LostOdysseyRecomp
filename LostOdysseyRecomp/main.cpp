@@ -181,6 +181,60 @@ int main(int argc, char* argv[])
     }
     os::diagnostics::LogStartupEnvironment();
 
+#if defined(_WIN32) || defined(__linux__)
+    // Check for a newer runtime before opening the content importer or setup.
+    if (!getenv("LO_HEADLESS") && !getenv("LO_BACKGROUND"))
+    {
+        const auto startupPreferences = updater::ReadStartupPreferences(
+            os::user_paths::UsePortableLayout()
+                ? std::filesystem::current_path() / "settings.ini"
+                : os::user_paths::ConfigDir() / "settings.ini");
+        if (startupPreferences.automaticUpdates)
+        {
+            updater::StartupOptions updateOptions;
+            updateOptions.currentVersion = lo_version::Source;
+            updateOptions.installRoot = executableDirectory;
+            updateOptions.executable = updater::CurrentExecutablePath();
+            updateOptions.launchArguments = updater::CurrentLaunchArguments();
+            updateOptions.automaticUpdates = true;
+            updateOptions.uiLanguage = startupPreferences.uiLanguage;
+            updateOptions.confirmUpdate = &updater::game_prompt::ConfirmBeforeImport;
+            const auto updateResult = updater::PrepareAtStartup(updateOptions);
+            LOG_INFO("update check: {} {}", updater::StatusName(updateResult.status), updateResult.detail);
+            if (updateResult.status == updater::StartupStatus::Ready && updateResult.update)
+            {
+                const auto &prepared = *updateResult.update;
+                // The helper waits for this process to exit before replacing it.
+#ifdef _WIN32
+                if (settings::restart::LaunchWaitingProcess(prepared.runnerPath.wstring(),
+                                                             updater::ApplyHelperArguments(prepared.planPath)))
+                    return 0;
+#elif defined(__linux__)
+                const std::string selfExe = updater::CurrentExecutablePath().string();
+                const std::string planStr = prepared.planPath.string();
+                const std::string waitPid = std::to_string(getpid());
+                std::vector<char*> args;
+                args.push_back(const_cast<char*>(selfExe.c_str()));
+                args.push_back(const_cast<char*>("--apply-plan"));
+                args.push_back(const_cast<char*>(planStr.c_str()));
+                args.push_back(const_cast<char*>("--wait-process"));
+                args.push_back(const_cast<char*>(waitPid.c_str()));
+                args.push_back(nullptr);
+                pid_t pid = 0;
+                if (posix_spawn(&pid, selfExe.c_str(), nullptr, nullptr, args.data(), environ) == 0)
+                    return 0;
+#endif
+                LOG_ERROR("update runner failed its restart handshake; staged update preserved at {}",
+                          FileSystem::PathUtf8(prepared.operationRoot));
+                std::ofstream diagnostic(prepared.operationRoot / "handoff-failure.txt", std::ios::trunc);
+                diagnostic << "The staged update runner did not complete the restart handshake.\n"
+                           << "Staged files were preserved for inspection.\n";
+                return 1;
+            }
+        }
+    }
+#endif
+
     const auto gameResolution = FindGameRoot(executableDirectory, explicitGamePath);
     auto gameRoot = gameResolution.root;
     if (gameResolution.configuredPathRejected)
@@ -283,64 +337,6 @@ int main(int argc, char* argv[])
         LOG_ERROR("graphics initialization failed; guest not started (see backend selection errors above)");
         return 1;
     }
-#if defined(_WIN32) || defined(__linux__)
-    // The game window and host presentation are ready, but guest execution has
-    // not begun. Keep the release notes in this same window before starting play.
-    if (!getenv("LO_HEADLESS") && !getenv("LO_BACKGROUND"))
-    {
-        const auto startupPreferences = updater::ReadStartupPreferences(
-            os::user_paths::UsePortableLayout()
-                ? std::filesystem::current_path() / "settings.ini"
-                : os::user_paths::ConfigDir() / "settings.ini");
-        if (startupPreferences.automaticUpdates)
-        {
-            updater::StartupOptions updateOptions;
-            updateOptions.currentVersion = lo_version::Source;
-            updateOptions.installRoot = executableDirectory;
-            updateOptions.executable = updater::CurrentExecutablePath();
-            updateOptions.launchArguments = updater::CurrentLaunchArguments();
-            updateOptions.automaticUpdates = true;
-            updateOptions.uiLanguage = startupPreferences.uiLanguage;
-            updateOptions.confirmUpdate = &updater::game_prompt::Confirm;
-            updater::game_prompt::ShowChecking(startupPreferences.uiLanguage);
-            const auto updateResult = updater::PrepareAtStartup(updateOptions);
-            updater::game_prompt::HideChecking();
-            LOG_INFO("update check: {} {}", updater::StatusName(updateResult.status), updateResult.detail);
-            if (updateResult.status == updater::StartupStatus::Ready && updateResult.update)
-            {
-                const auto &prepared = *updateResult.update;
-                // Release the game window and GPU before the helper replaces the
-                // executable. The helper still waits for this process to exit.
-                gpu::g_commandProcessor.Shutdown();
-#ifdef _WIN32
-                if (settings::restart::LaunchWaitingProcess(prepared.runnerPath.wstring(),
-                                                             updater::ApplyHelperArguments(prepared.planPath)))
-                    return 0;
-#elif defined(__linux__)
-                const std::string selfExe = updater::CurrentExecutablePath().string();
-                const std::string planStr = prepared.planPath.string();
-                const std::string waitPid = std::to_string(getpid());
-                std::vector<char*> args;
-                args.push_back(const_cast<char*>(selfExe.c_str()));
-                args.push_back(const_cast<char*>("--apply-plan"));
-                args.push_back(const_cast<char*>(planStr.c_str()));
-                args.push_back(const_cast<char*>("--wait-process"));
-                args.push_back(const_cast<char*>(waitPid.c_str()));
-                args.push_back(nullptr);
-                pid_t pid = 0;
-                if (posix_spawn(&pid, selfExe.c_str(), nullptr, nullptr, args.data(), environ) == 0)
-                    return 0;
-#endif
-                LOG_ERROR("update runner failed its restart handshake; staged update preserved at {}",
-                          FileSystem::PathUtf8(prepared.operationRoot));
-                std::ofstream diagnostic(prepared.operationRoot / "handoff-failure.txt", std::ios::trunc);
-                diagnostic << "The staged update runner did not complete the restart handshake.\n"
-                           << "Staged files were preserved for inspection.\n";
-                return 1;
-            }
-        }
-    }
-#endif
     XexLoader::StartTimeStampThread();
     apu::Init();
     apu::xma::Init();

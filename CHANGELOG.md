@@ -8,11 +8,11 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
-- Move the automatic update check and consent prompt into the initialized game window on Windows and Linux. The game now shows a checking state and release notes with **Install** or **Later** actions in the same window before guest gameplay starts. Keyboard, mouse and controller input are supported; accepting an update closes the graphics window before the helper applies it. Download progress continues to use the existing updater window. Declining or an unavailable update continues into the game. Headless and background runs skip this automatic UI, and the standalone updater remains unchanged. The Windows main runtime build and focused `LoUpdaterGamePromptTest` pass, alongside the earlier source syntax checks; actual game-window acceptance, physical controller input, live network updating and release publication remain unverified.
+- Run the automatic update check before importing game data on Windows and Linux. The network check completes before any SDL bootstrap window is created; only a newer release opens the app-branded prompt with release notes and **Install** or **Later** actions. Keyboard, mouse and controller input are supported; accepting an update closes the prompt, applies the update and relaunches before import. Download progress continues to use the existing updater window. An up-to-date or offline check proceeds without opening the prompt; declining a shown update closes it and continues into the importer, or into normal game startup when existing data is already available. Headless and background runs skip this automatic UI, and the standalone updater remains unchanged. The Windows runtime build, Windows and Linux focused prompt tests, and changed Linux source syntax checks pass. Actual update acceptance, physical controller input, live network updating and release publication remain unverified.
 
 ### 简体中文
 
-- Windows 和 Linux 的自动更新检查与确认提示改为在游戏窗口初始化后进行。进入游戏前，同一个窗口会显示检查状态、发布说明以及“安装”或“稍后”操作，支持键盘、鼠标和手柄输入；接受更新时会先关闭图形窗口，再由 helper 执行替换。下载进度仍使用现有的更新器窗口。拒绝更新或无法访问更新服务时继续进入游戏。无头和后台运行会跳过这套自动界面，独立更新器行为保持不变。Windows 主运行时构建和 `LoUpdaterGamePromptTest` 专项测试已通过，之前的修改文件语法检查也已通过；真实游戏窗口中的接受流程、实体手柄输入、在线更新和发布状态仍未验证。
+- Windows 和 Linux 的自动更新检查改为在导入游戏资料之前进行。网络检查会在创建任何 SDL 引导窗口前完成；只有发现新版本时才打开带有应用品牌的提示窗口，显示发布说明以及“安装”或“稍后”操作。支持键盘、鼠标和手柄输入；接受更新时关闭提示窗口，由 helper 执行更新并在导入前重新启动。下载进度仍使用现有的更新器窗口。版本已是最新或无法联网时不会打开提示窗口；拒绝已显示的更新后关闭窗口，并在没有现有资料时继续进入导入器，已有资料则继续正常启动游戏。无头和后台运行会跳过这套自动界面，独立更新器行为保持不变。Windows 运行时构建、Windows 和 Linux 更新提示专项测试，以及修改后的 Linux 源文件语法检查均已通过。真实更新接受流程、实体手柄输入、在线更新和发布状态仍未验证。
 
 ## v0.6.0 — 2026-09-18 / Published / 已发布
 

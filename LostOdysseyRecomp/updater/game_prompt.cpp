@@ -71,6 +71,17 @@ void Resolve(bool accepted)
     state.phase = Phase::Hidden;
     state.decision.notify_all();
 }
+
+void BeginOffer(std::string_view version, std::string_view changelog, uint32_t uiLanguage)
+{
+    state.chinese = uiLanguage == 4;
+    state.version = version;
+    state.lines = Wrap(changelog);
+    state.selected = 0;
+    state.scroll = 0;
+    state.accepted = false;
+    state.phase = Phase::Offer;
+}
 }
 
 void ShowChecking(uint32_t uiLanguage)
@@ -89,15 +100,86 @@ void HideChecking()
 bool Confirm(std::string_view version, std::string_view changelog, uint32_t uiLanguage)
 {
     std::unique_lock lock(state.mutex);
-    state.chinese = uiLanguage == 4;
-    state.version = version;
-    state.lines = Wrap(changelog);
-    state.selected = 0;
-    state.scroll = 0;
-    state.accepted = false;
-    state.phase = Phase::Offer;
+    BeginOffer(version, changelog, uiLanguage);
     state.decision.wait(lock, [] { return state.phase != Phase::Offer; });
     return state.accepted;
+}
+
+bool ConfirmBeforeImport(std::string_view version, std::string_view changelog, uint32_t uiLanguage)
+{
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS) != 0)
+        return false;
+    SDL_Window* window = SDL_CreateWindow("Lost Odyssey Recomp",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720,
+        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_Renderer* renderer = window
+        ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)
+        : nullptr;
+    if (!renderer && window)
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+    SDL_Texture* texture = renderer
+        ? SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,
+              SDL_TEXTUREACCESS_STREAMING, 1280, 720)
+        : nullptr;
+    if (!texture)
+    {
+        if (renderer) SDL_DestroyRenderer(renderer);
+        if (window) SDL_DestroyWindow(window);
+        SDL_Quit();
+        return false;
+    }
+    SDL_RenderSetLogicalSize(renderer, 1280, 720);
+    std::vector<SDL_GameController*> controllers;
+    for (int i = 0; i < SDL_NumJoysticks(); ++i)
+        if (SDL_IsGameController(i))
+            if (auto* controller = SDL_GameControllerOpen(i)) controllers.push_back(controller);
+
+    {
+        std::lock_guard lock(state.mutex);
+        BeginOffer(version, changelog, uiLanguage);
+    }
+    host_ui::PixelBuffer pixels;
+    pixels.Resize(1280, 720);
+    host_ui::Rasterizer rasterizer(pixels);
+    const uint32_t windowId = SDL_GetWindowID(window);
+    while (Visible())
+    {
+        SDL_Event event;
+        if (SDL_WaitEventTimeout(&event, 16))
+        {
+            do
+            {
+                if (event.type == SDL_QUIT ||
+                    (event.type == SDL_WINDOWEVENT && event.window.windowID == windowId &&
+                     event.window.event == SDL_WINDOWEVENT_CLOSE))
+                {
+                    std::lock_guard lock(state.mutex);
+                    Resolve(false);
+                    break;
+                }
+                int width = 0, height = 0;
+                SDL_GetWindowSize(window, &width, &height);
+                HandleEvent(event, windowId, width, height);
+            } while (Visible() && SDL_PollEvent(&event));
+        }
+        if (!Visible()) break;
+        Render(rasterizer);
+        SDL_UpdateTexture(texture, nullptr, pixels.pixels.data(), 1280 * sizeof(uint32_t));
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+        SDL_RenderPresent(renderer);
+    }
+    bool accepted = false;
+    {
+        std::lock_guard lock(state.mutex);
+        accepted = state.accepted;
+    }
+    for (auto* controller : controllers) SDL_GameControllerClose(controller);
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return accepted;
 }
 
 bool Visible()

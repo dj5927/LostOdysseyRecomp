@@ -16,7 +16,6 @@
 #include <hid/hid.h>
 #include <debug/battle_menu.h>
 #include <debug/menu_overlay.h>
-#include <updater/game_prompt.h>
 #include <host_ui/host_ui.h>
 #include <host_ui/rasterizer.h>
 
@@ -762,14 +761,6 @@ namespace gpu::video
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
-            if (updater::game_prompt::Visible())
-            {
-                int windowWidth = 0, windowHeight = 0;
-                SDL_GetWindowSize(g_window, &windowWidth, &windowHeight);
-                if (updater::game_prompt::HandleEvent(
-                        event, SDL_GetWindowID(g_window), windowWidth, windowHeight))
-                    continue;
-            }
             if (g_shaderProgress.load() != 0) {
                 if (event.type == SDL_KEYDOWN && !event.key.repeat) {
                     if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_SPACE ||
@@ -1189,7 +1180,7 @@ namespace gpu::video
 
     bool IsHostOverlayActive()
     {
-        return updater::game_prompt::Visible() || debug_menu::IsOverlayVisible() || settings::IsOpen();
+        return debug_menu::IsOverlayVisible() || settings::IsOpen();
     }
 
     void PresentHostOverlay()
@@ -1202,22 +1193,6 @@ namespace gpu::video
         if (!PreparePresentation(displayTicket, menuWidth, menuHeight))
             return;
         renderer::SetOutputSize(menuWidth, menuHeight);
-
-        if (updater::game_prompt::Visible())
-        {
-            static host_ui::PixelBuffer updatePixels;
-            updatePixels.Resize(1280, 720);
-            host_ui::Rasterizer rasterizer(updatePixels);
-            updater::game_prompt::Render(rasterizer);
-            std::vector<uint32_t> presented(size_t(menuWidth) * menuHeight,
-                host_ui::MakeColor(255, 15, 20, 29));
-            if (host_ui::CompositeScaled(updatePixels, menuWidth, menuHeight, presented))
-            {
-                CacheCpuFrame(presented, menuWidth, menuHeight);
-                UploadAndPresentPixels(presented, menuWidth, menuHeight, true, displayTicket, PresentationOptions{});
-            }
-            return;
-        }
 
         const bool hasSettings = settings::DrawMenu(g_menuPixels, g_menuRevision, menuWidth, menuHeight);
         const bool hasDebug = debug_menu::IsOverlayVisible();
