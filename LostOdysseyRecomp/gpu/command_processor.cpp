@@ -11,6 +11,7 @@
 #include <kernel/memory.h>
 #include <kernel/function.h>
 #include <os/logger.h>
+#include <os/thread_name.h>
 #include <os/shader_log.h>
 #include <chrono>
 #include <kernel/io/file_system.h>
@@ -404,6 +405,7 @@ namespace gpu
 
     void CommandProcessor::WorkerMain()
     {
+        os::SetCurrentThreadName("GPU CmdProc");
         const bool timingEnabled = frame_timing::Enabled();
         auto idleStart = std::chrono::steady_clock::time_point{};
         bool timingIdle = false;
@@ -476,6 +478,7 @@ namespace gpu
     // hardware the two arrive on different CPUs).
     void CommandProcessor::VsyncMain()
     {
+        os::SetCurrentThreadName("GPU Vsync");
         GuestThreadContext ctx(2); // Xenia dispatches vblanks on CPU 2
         FramePacer pacer;
         while (m_running)
@@ -521,6 +524,7 @@ namespace gpu
     // and a guest stack like any other guest code).
     void CommandProcessor::InterruptMain()
     {
+        os::SetCurrentThreadName("GPU Interrupt");
         GuestThreadContext ctx(2);
         while (m_running)
         {

@@ -3,6 +3,7 @@
 #include <cpu/guest_thread.h>
 #include <kernel/memory.h>
 #include <os/logger.h>
+#include <os/thread_name.h>
 #include <SDL.h>
 #include <cmath>
 
@@ -66,6 +67,7 @@ namespace apu
 
         void DriverMain()
         {
+            os::SetCurrentThreadName("Audio Driver");
             GuestThreadContext ctx(3);
             constexpr auto framePeriod = std::chrono::microseconds(1000000ull * XAUDIO_NUM_SAMPLES / XAUDIO_SAMPLES_HZ);
             auto next = std::chrono::steady_clock::now();

@@ -3,6 +3,7 @@
 #include "xma_loop.h"
 #include <kernel/memory.h>
 #include <os/logger.h>
+#include <os/thread_name.h>
 #include <cmath>
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -523,6 +524,7 @@ namespace apu::xma
 
         void WorkerMain()
         {
+            os::SetCurrentThreadName("XMA Decoder");
             while (g_running)
             {
                 bool didWork = false;

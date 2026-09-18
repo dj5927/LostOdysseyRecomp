@@ -4,7 +4,9 @@
 #include <kernel/heap.h>
 #include <kernel/function.h>
 #include <os/logger.h>
+#include <os/thread_name.h>
 #include <host_ui/host_ui.h>
+#include <cstdio>
 #include "ppc_context.h"
 
 // Layout mirrors the real kernel's per-thread block closely enough for the
@@ -55,6 +57,9 @@ GuestThreadContext::~GuestThreadContext()
 
 static void GuestThreadFunc(std::shared_ptr<GuestThreadHandle::Control> state)
 {
+    char name[16];
+    std::snprintf(name, sizeof(name), "Guest %x", state->params.function);
+    os::SetCurrentThreadName(name);
     state->suspended.wait(true);
     GuestThread::Start(state->params);
     state->completion.Set();

@@ -186,11 +186,13 @@ uint32_t XexLoader::Load(const std::filesystem::path& xexPath)
 
 #include <host_ui/host_ui.h>
 #include <apu/audio.h>
+#include <os/thread_name.h>
 
 void XexLoader::StartTimeStampThread()
 {
     g_timeStampThread = std::thread([]()
     {
+        os::SetCurrentThreadName("Kernel Time");
         auto* bundle = reinterpret_cast<KeTimeStampBundle*>(g_memory.Translate(s_keTimeStampBundle));
         uint64_t pausedDuration100ns = 0;
         uint64_t pauseStart100ns = 0;

@@ -12,7 +12,7 @@ git -C thirdparty/plume apply ../../tools/patches/plume-lostodyssey.patch
 ```
 
 XenonRecomp 补丁保存本项目指令、分析与上下文适配。plume 补丁保留 D3D12 readback 安全检查、stencil reference 赋值及深度清除矩形分批提交（避免大量矩形触发驱动退出），并使 pool／device 两处 `createTexture` 在原生资源创建失败时返回 `nullptr`，让调用方的分配失败回退能够识别失败；同时补充 Windows Vulkan 所需的 swapchain 图像数量、MRT viewport、device-address、上传一致性／readback 失效、捕获路径和相关资源创建处理。该补丁只描述本项目已核对的 plume 集成范围，不代表所有平台或 GPU 均已通过验证。
-补丁应用后，主仓库显示这两个子模块有本地修改是预期状态。`build_runtime.bat`不自动应用补丁；`build_tools.bat`会检查并尝试应用XenonRecomp补丁，plume仍需按上面的命令准备。
+补丁应用后，这两个子模块有本地修改是预期状态。`.gitmodules` 对它们设置 `ignore = dirty`，日常主仓库状态不再反复提示补丁造成的工作树修改；子模块提交指针发生变化时仍会提示。检查实际修改可运行 `git status --ignore-submodules=none --short` 或进入子模块运行 `git status --short`。此设置也会隐藏额外的意外修改，因此修改依赖时仍需检查子模块状态及补丁。`build_runtime.bat`不自动应用补丁；`build_tools.bat`会检查并尝试应用XenonRecomp补丁，plume仍需按上面的命令准备。
 已有本地修改时不要重复应用；可以用以下只读检查确认补丁已应用：
 
 ```powershell

@@ -21,6 +21,7 @@
 #include <string>
 #include <system_error>
 #include <thread>
+#include <os/thread_name.h>
 #include <utility>
 #include <vector>
 #ifdef _WIN32
@@ -145,6 +146,7 @@ namespace xenos::preparation
             changed.notify_all();
         };
         auto worker = [&] {
+            os::SetCurrentThreadName("Shader Worker");
             try {
                 for (;;) {
                     if (cancelled.load()) return;

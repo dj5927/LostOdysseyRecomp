@@ -14,5 +14,6 @@
 | [WORK_REPORT_2026-09-05](WORK_REPORT_2026-09-05.md) | 日期工作报告，已由当前状态和专项笔记取代 | [当前状态](../STATUS.md) |
 | [ROADMAP-2026-09-10](ROADMAP-2026-09-10.md) / [中文](ROADMAP.zh-CN-2026-09-10.md) | 旧路线图快照，保留当时需求和锚点 | [当前路线图](../ROADMAP.md) / [中文](../ROADMAP.zh-CN.md) |
 | [Issue #12 Claude 交接](issue12-claude-handoff-2026-09-09.md) | 临时调查交接已由 Issue #12 调查记录和根因记录取代，保留原始复现边界与探针证据 | [Issue #12 调查记录](../notes/issue12-funeral-crash.md) / [根因记录](../notes/issue12-root-cause.md) |
+| [Clang/PGO 与线程优化研究](clang-pgo-benchmark-2026-09-17.md) | 2026-09-16—17 的构建矩阵与基准准备记录；城市实景基准未完成，不能作为性能收益或用户验收依据 | 当前无已验收性能收益 |
 
 各快照保留其记录日期和当时内容，归档提示与相对链接按当前位置调整；新结论写入当前文档或专项笔记。

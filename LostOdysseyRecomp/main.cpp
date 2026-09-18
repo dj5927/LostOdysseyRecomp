@@ -15,6 +15,7 @@
 #include <apu/xma.h>
 #include <hid/hid.h>
 #include <os/logger.h>
+#include <os/thread_name.h>
 #include <os/user_paths.h>
 #include <os/shader_log.h>
 #include <os/log_file.h>
@@ -344,6 +345,7 @@ int main(int argc, char* argv[])
         hid::Init(); // otherwise the video thread initialises it
 
     LOG_INFO("starting guest at {:#x}", entry);
+    os::SetCurrentThreadName("Guest Main");
     GuestThread::Start({ entry, 0, 0 });
 
     LOG_INFO("guest main thread returned");
