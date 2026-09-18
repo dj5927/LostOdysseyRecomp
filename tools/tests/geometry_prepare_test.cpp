@@ -155,7 +155,7 @@ int main(int argc, char** argv)
                 }
             }
     SampledContent sample;
-    for (size_t size : {size_t(0), size_t(4), size_t(8), size_t(8192), size_t(8196), size_t(65536)})
+    for (size_t size : {size_t(0), size_t(4), size_t(8), size_t(8192), size_t(8196), size_t(16384), size_t(65536)})
     {
         sample.Capture(bytes.data(), size);
         Check(sample.Matches(bytes.data(), size));
@@ -167,7 +167,10 @@ int main(int argc, char** argv)
                 bytes[i] ^= 1; Check(!sample.Matches(bytes.data(), size)); bytes[i] ^= 1;
             }
         } else {
-            std::vector<size_t> locations{0, 511, size - 512, size - 1};
+            // Large buffers compare head, tail, and 64 strided 64-byte blocks
+            // (see ExactContent): probe inside those windows only. 575 is the
+            // last byte of the first stride block for every tested size.
+            std::vector<size_t> locations{0, 511, 575, size - 512, size - 1};
             for (size_t i = 0; i < 64; ++i) { locations.push_back(512 + i * ((size - 1024) / 64)); locations.push_back(locations.back() + 63); }
             for (auto i : locations) { bytes[i] ^= 1; Check(!sample.Matches(bytes.data(), size)); bytes[i] ^= 1; }
         }

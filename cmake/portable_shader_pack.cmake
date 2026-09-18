@@ -39,6 +39,9 @@ target_link_libraries(LoPortableShaderPackTest PRIVATE lo_portable_shader_pack)
 add_executable(LoPortableShaderPackIntegrationTest EXCLUDE_FROM_ALL
     "${LO_PACK_ROOT}/tools/tests/portable_shader_pack_integration_test.cpp")
 target_link_libraries(LoPortableShaderPackIntegrationTest PRIVATE lo_portable_shader_pack)
+add_executable(LoPortableShaderContractTest EXCLUDE_FROM_ALL
+    "${LO_PACK_ROOT}/tools/tests/portable_shader_contract_test.cpp")
+target_link_libraries(LoPortableShaderContractTest PRIVATE lo_portable_shader_pack)
 find_package(Threads REQUIRED)
 target_link_libraries(LoPortableShaderPackTest PRIVATE Threads::Threads)
 
@@ -55,6 +58,8 @@ function(lo_stage_portable_shader_pack target)
         get_filename_component(pack "${LO_PORTABLE_SHADER_PACK}" ABSOLUTE)
         add_dependencies(${target} LoShaderPackTool)
         add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND $<TARGET_FILE:LoShaderPackTool> verify-runtime "${pack}"
+                "${LO_PACK_ROOT}/LostOdysseyRecompLib/private/image_disc1.bin"
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/shaders"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different "${pack}"
                 "$<TARGET_FILE_DIR:${target}>/shaders/portable_vk.lospv"

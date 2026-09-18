@@ -27,15 +27,16 @@ def stage_portable_shader_pack(runtime_directory: Path, executable_directory: Pa
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, destination)
     try:
-        result = subprocess.run([str(tool), "verify", str(destination)], check=True,
+        image = Path(os.environ.get("LO_SHADER_RUNTIME_IMAGE", ROOT / "LostOdysseyRecompLib/private/image_disc1.bin"))
+        result = subprocess.run([str(tool), "verify-runtime", str(destination), str(image)], check=True,
                                 capture_output=True, text=True, timeout=600)
         report = json.loads(result.stdout)
-        if not report.get("all_payloads_verified") or report.get("file_bytes") != destination.stat().st_size:
+        if not report.get("all_payloads_verified") or not report.get("runtime_compatibility_verified") or report.get("file_bytes") != destination.stat().st_size:
             raise ValueError("verifier did not validate the staged artifact")
     except (subprocess.SubprocessError, OSError, ValueError) as error:
         destination.unlink(missing_ok=True)
         raise SystemExit(f"Portable shader pack verification failed: {error}") from error
     print(f"Portable shaders: {report['records']} records, {report['unique_binaries']} unique binaries, "
           f"{report['file_bytes']} distributed bytes")
-    # This structural report does not claim that the runtime/XEX contract matches.
+    # Verifier uses the shared runtime contract and this build's loaded image.
     return report

@@ -18,7 +18,14 @@ permissions:
   contents: read
 
 jobs:
+  native-audit:
+    name: Runtime and portable shader regressions
+    uses: ./.github/workflows/audit-native.yml
+    with:
+      ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
+
   create-draft-release:
+    needs: [native-audit]
     name: Create draft release
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -91,7 +98,8 @@ jobs:
         continue-on-error: true
         with:
           repository: freefrank/LostOdysseyRecomp-build-inputs
-          ref: main
+          # The shader input is immutable for this source release.
+          ref: 57f199199d7f06bc6a4c3531b5b307ae28d47bbb
           path: out/shader-input
           sparse-checkout: /shaders/
           sparse-checkout-cone-mode: false
@@ -212,7 +220,8 @@ jobs:
         continue-on-error: true
         with:
           repository: freefrank/LostOdysseyRecomp-build-inputs
-          ref: main
+          # The shader input is immutable for this source release.
+          ref: 57f199199d7f06bc6a4c3531b5b307ae28d47bbb
           path: out/shader-input
           sparse-checkout: /shaders/
           sparse-checkout-cone-mode: false

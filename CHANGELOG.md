@@ -8,11 +8,30 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
-- Planned maintenance and ongoing investigations.
+- 0.6.0 prerelease audit repairs: atomic multi-object waits, reference-counted
+  kernel handles and non-blocking thread close with independently owned worker state.
+- Retry transient shader/module failures with bounded backoff; preserve permanent
+  negative compilation results. Cancel every eager shader/PSO preparation phase.
+- Preserve presentation resources on allocation/map failure, resolve display
+  transactions, and synchronize backend selection with window policy updates.
+- Compare vertex cache content exactly with a bounded CPU snapshot budget; no
+  per-draw cryptographic hashing. Honor serial overrides and Linux memory limits.
+- Share the portable shader runtime contract with the release verifier; pin shader
+  inputs and gate releases on native/portable pack regressions. Guard x86 compiler
+  flags by target architecture. These changes do not certify gameplay or Deck FPS.
+- GPU index conversion cache (`LostOdysseyRecomp/gpu/renderer.cpp`, `LostOdysseyRecomp/gpu/vertex_cache.h`): cache post-expansion indices for large buffers (`count >= 256`) keyed by extent plus conversion parameters and validated against exact source content (same exact-compare mechanism as the vertex cache). Removes ~5.6% of CPU cycles spent in per-draw endian conversion (`Convert<false,1U>`); measured -6% (720p) to -8% (1080p) frame draw time at 15W in the Uhra city walk. Extended `tools/tests/vertex_cache_test.cpp` with key-participation, hit/miss, and bounded-churn checks. Full data in `docs/notes/PERF_CITY_UHRA_RESULTS.md`.
+- Build: `EXPORT_COMPILE_COMMANDS` enabled and `LO_BOLT_READY` retained so Clang builds stay BOLT-ready (`emit-relocs` + line tables, baseline-neutral).
 
 ### 简体中文
 
-- 计划中的维护与持续排查。
+- 0.6.0预发布审计修复：原子化多对象等待、句柄引用管理及不阻塞的线程句柄关闭。
+- shader暂时失败可退避重试，确定性失败保留负缓存；取消覆盖shader和PSO准备各阶段。
+- 呈现资源分配或映射失败保留旧资源并结束显示事务，同步后端选择与窗口策略。
+- 顶点缓存采用有内存上限的精确内容比较，不增加逐draw加密哈希；修正串行优先级及Linux内存检测。
+- 发布工具共享runtime的shader兼容契约，固定输入版本，发布前执行回归；按目标架构限定x86编译参数。
+  本轮改动不代表已经通过游戏全流程或Steam Deck帧率验收。
+- GPU索引转换缓存（`LostOdysseyRecomp/gpu/renderer.cpp`、`LostOdysseyRecomp/gpu/vertex_cache.h`）：对大缓冲（`count >= 256`）按范围加转换参数为键缓存展开后的索引，用源内容校验（与顶点缓存同一精确比较机制）。消掉每draw端序转换约5.6%的CPU周期；15W乌斯拉进城实测帧draw时间720p -6%、1080p -8%。`tools/tests/vertex_cache_test.cpp`新增键参与度、命中/失效、有界抖动检查。完整数据见`docs/notes/PERF_CITY_UHRA_RESULTS.zh-CN.md`。
+- 构建：启用`EXPORT_COMPILE_COMMANDS`，保留`LO_BOLT_READY`使Clang构建持续BOLT就绪（`emit-relocs` + 行号表，基线代价中性）。
 
 ## v0.5.20 — 2026-09-17 / Published / 已发布
 
@@ -95,6 +114,10 @@ One record of completed changes, with unpublished work separated from verified r
 - 移除 PowerPC 预编译静态库缓存与远程同步机制（`LO_PREBUILT_PPC_DIR`、`ppc_sync.py`、`ppc_prebuilt.py`）：
   - 所有平台（Windows 与 Linux）在 CI 及本地 Release 构建中均统一从重编译源码直接在线编译 `LostOdysseyRecompLib`，彻底消除特定平台的静态库依赖契约，为未来扩展更多硬件架构（如 ARM64）铺平道路。
   - 发布流程中通过 `tools/release/fetch_shader_pack.py` 自动获取便携式 Vulkan 着色器包，直接内置到 Windows 便携 ZIP 与 Linux AppImage 发布产物中（`shaders/portable_vk.lospv`）。
+- 将解包及固定/链接着色器源码保存在有界内存中，而非在预构建期间导出并重新读取临时源码；保留已编译检查点以供启动中断后恢复。
+- 将启动包绑定到当前运行时/编译器契约，恢复事件泵送与事务性错误传递，并修复取消唤醒机制。
+- 低内存环境下限制 DXC 预处理并发工作线程，释放保留的 HLSL，且仅解码索引后的 CPX 数据块。保留显式诊断/全量扫描控制。
+- 增加脱离游戏数据的 CPU/Sanitizer 以及生产功能回归测试覆盖。详见[审计范围、证据及剩余硬件检查](docs/MENU_SHADER_PREBUILD_AUDIT.md)。
 - menu 分支修复了游戏内调试浮层在不同输出分辨率下的合成，并保护并发访问中的共享浮层状态。软件 UI 现使用正确的 RGBA 通道顺序，HID 锁覆盖完整设备操作，客户机暂停通过协作安全点完成，避免浮层交互无限期挂起工作线程。
 - 完整修复代码审查报告 R1 至 R10 缺陷项：
   - 将手柄宿主输入泵（`PumpHostInput`）与浮层呈现（`PresentHostOverlay`）与客户机暂停解耦，并在 GPU `WAIT_REG_MEM` 循环中注入事件泵，防止暂停期间卡死（R1, R2）。
@@ -113,7 +136,7 @@ One record of completed changes, with unpublished work separated from verified r
   - 将 `LoDebugMenuInteractionTest` 测试目标移出 Windows 独占条件，加入跨平台测试套件。
 - 维持并扩充测试套件：`LoHidTest`、`LoHostUiCompositeTest`、`LoDebugOverlayTest`、`LoDebugMenuInteractionTest` 与 `LoMenuRenderTest` 全部重新编译并测试通过。
 
-Published at [GitHub Release v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) on 2026-09-17.
+Published at [GitHub Release v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) on 2026-09-17. / 已于 2026-09-17 发布于 [GitHub Release v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20)。
 
 ## Historical development checkpoints / 历史开发检查点
 

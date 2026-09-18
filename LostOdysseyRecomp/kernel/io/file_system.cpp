@@ -158,7 +158,8 @@ struct FileHandle : KernelObject
             fclose(file);
     }
 
-    uint32_t Wait(uint32_t) override { return STATUS_SUCCESS; }
+    kernel::wait::Event completion{true, true};
+    kernel::wait::Target* WaitTarget() override { return &completion; }
 };
 
 void FileSystem::Init(const std::filesystem::path& gameRoot)
@@ -358,7 +359,8 @@ static uint32_t OpenFileHandle(be<uint32_t>* FileHandleOut, uint32_t DesiredAcce
     // Relative to another (file or directory) handle?
     if (rootDirectory != 0 && rootDirectory != GUEST_INVALID_HANDLE_VALUE && IsKernelObject(rootDirectory))
     {
-        auto* parent = GetKernelObject<FileHandle>(rootDirectory);
+        auto parent = GetKernelObject<FileHandle>(rootDirectory);
+        if (!parent) return STATUS_INVALID_HANDLE;
         std::replace(name.begin(), name.end(), '\\', '/');
         hostPath = parent->path / std::u8string_view((const char8_t*)name.c_str());
     }
@@ -412,7 +414,7 @@ static uint32_t OpenFileHandle(be<uint32_t>* FileHandleOut, uint32_t DesiredAcce
         break;
     }
 
-    auto* handle = CreateKernelObject<FileHandle>();
+    auto handle = CreateKernelObject<FileHandle>();
     handle->path = hostPath;
 
     if (isDir || ((CreateOptions & FILE_DIRECTORY_FILE) && !exists))
@@ -483,10 +485,11 @@ uint32_t NtOpenFile(be<uint32_t>* FileHandle, uint32_t DesiredAccess, XOBJECT_AT
     return OpenFileHandle(FileHandle, DesiredAccess, Attributes, IoStatusBlock, FILE_OPEN, OpenOptions);
 }
 
-uint32_t NtReadFile(FileHandle* handle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
+uint32_t NtReadFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, void* Buffer, uint32_t Length, be<uint64_t>* ByteOffset)
 {
-    if (!handle || IsInvalidKernelObject(handle) || !handle->file)
+    auto handle = GetKernelObject<FileHandle>(handleValue);
+    if (!handle || !handle->file)
         return STATUS_INVALID_HANDLE;
 
     std::lock_guard ioLock(handle->ioMutex);
@@ -527,10 +530,11 @@ uint32_t NtReadFile(FileHandle* handle, uint32_t Event, uint32_t ApcRoutine, uin
     return status;
 }
 
-uint32_t NtWriteFile(FileHandle* handle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
+uint32_t NtWriteFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, const void* Buffer, uint32_t Length, be<uint64_t>* ByteOffset)
 {
-    if (!handle || IsInvalidKernelObject(handle) || !handle->file || !handle->writable)
+    auto handle = GetKernelObject<FileHandle>(handleValue);
+    if (!handle || !handle->file || !handle->writable)
         return STATUS_INVALID_HANDLE;
 
     std::lock_guard ioLock(handle->ioMutex);
@@ -566,10 +570,11 @@ uint32_t NtWriteFile(FileHandle* handle, uint32_t Event, uint32_t ApcRoutine, ui
     return status;
 }
 
-uint32_t NtFlushBuffersFile(FileHandle* handle, XIO_STATUS_BLOCK* IoStatusBlock)
+uint32_t NtFlushBuffersFile(uint32_t handleValue, XIO_STATUS_BLOCK* IoStatusBlock)
 {
+    auto handle = GetKernelObject<FileHandle>(handleValue);
     uint32_t status = STATUS_INVALID_HANDLE;
-    if (handle && !IsInvalidKernelObject(handle) && handle->file)
+    if (handle && handle->file)
     {
         std::lock_guard ioLock(handle->ioMutex);
         status = fflush(handle->file) == 0 ? STATUS_SUCCESS : 0xC0000185u;
@@ -578,10 +583,11 @@ uint32_t NtFlushBuffersFile(FileHandle* handle, XIO_STATUS_BLOCK* IoStatusBlock)
     return status;
 }
 
-uint32_t NtQueryInformationFile(FileHandle* handle, XIO_STATUS_BLOCK* IoStatusBlock, void* FileInformation,
+uint32_t NtQueryInformationFile(uint32_t handleValue, XIO_STATUS_BLOCK* IoStatusBlock, void* FileInformation,
     uint32_t Length, uint32_t FileInformationClass)
 {
-    if (!handle || IsInvalidKernelObject(handle))
+    auto handle = GetKernelObject<FileHandle>(handleValue);
+    if (!handle)
         return STATUS_INVALID_HANDLE;
 
     std::lock_guard ioLock(handle->ioMutex);
@@ -593,7 +599,7 @@ uint32_t NtQueryInformationFile(FileHandle* handle, XIO_STATUS_BLOCK* IoStatusBl
     switch (FileInformationClass)
     {
     case FileInternalInformation:
-        *reinterpret_cast<be<uint64_t>*>(FileInformation) = uint64_t(g_memory.MapVirtual(handle));
+        *reinterpret_cast<be<uint64_t>*>(FileInformation) = uint64_t(g_memory.MapVirtual(handle.get()));
         info = 8;
         break;
     case FilePositionInformation:
@@ -659,10 +665,11 @@ uint32_t NtQueryInformationFile(FileHandle* handle, XIO_STATUS_BLOCK* IoStatusBl
     return status;
 }
 
-uint32_t NtSetInformationFile(FileHandle* handle, XIO_STATUS_BLOCK* IoStatusBlock, void* FileInformation,
+uint32_t NtSetInformationFile(uint32_t handleValue, XIO_STATUS_BLOCK* IoStatusBlock, void* FileInformation,
     uint32_t Length, uint32_t FileInformationClass)
 {
-    if (!handle || IsInvalidKernelObject(handle))
+    auto handle = GetKernelObject<FileHandle>(handleValue);
+    if (!handle)
         return STATUS_INVALID_HANDLE;
 
     std::lock_guard ioLock(handle->ioMutex);
@@ -700,9 +707,10 @@ uint32_t NtSetInformationFile(FileHandle* handle, XIO_STATUS_BLOCK* IoStatusBloc
     return status;
 }
 
-uint32_t NtQueryVolumeInformationFile(FileHandle* handle, XIO_STATUS_BLOCK* IoStatusBlock, void* FsInformation,
+uint32_t NtQueryVolumeInformationFile(uint32_t handleValue, XIO_STATUS_BLOCK* IoStatusBlock, void* FsInformation,
     uint32_t Length, uint32_t FsInformationClass)
 {
+    auto handle = GetKernelObject<FileHandle>(handleValue);
     uint32_t info = 0;
     uint32_t status = STATUS_SUCCESS;
     switch (FsInformationClass)
@@ -730,7 +738,7 @@ uint32_t NtQueryVolumeInformationFile(FileHandle* handle, XIO_STATUS_BLOCK* IoSt
     case FileFsDeviceInformation:
     {
         auto* p = reinterpret_cast<be<uint32_t>*>(FsInformation);
-        p[0] = handle && !IsInvalidKernelObject(handle) && handle->path.native().starts_with(g_gameRoot.native()) ? 2 /* FILE_DEVICE_CD_ROM */ : 7 /* FILE_DEVICE_DISK */;
+        p[0] = handle && handle->path.native().starts_with(g_gameRoot.native()) ? 2 /* FILE_DEVICE_CD_ROM */ : 7 /* FILE_DEVICE_DISK */;
         p[1] = 0;
         info = 8;
         break;
@@ -755,12 +763,14 @@ uint32_t NtQueryVolumeInformationFile(FileHandle* handle, XIO_STATUS_BLOCK* IoSt
     return status;
 }
 
-uint32_t NtQueryDirectoryFile(FileHandle* handle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
+uint32_t NtQueryDirectoryFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, void* FileInformation, uint32_t Length, XANSI_STRING* FileName, uint32_t RestartScan)
 {
-    if (!handle || IsInvalidKernelObject(handle) || !handle->isDirectory)
+    auto handle = GetKernelObject<FileHandle>(handleValue);
+    if (!handle || !handle->isDirectory)
         return STATUS_INVALID_HANDLE;
 
+    std::lock_guard ioLock(handle->ioMutex);
     // Xbox FindNext passes no FileName: retain this handle's search expression.
     // A nonempty expression starts a new search, as in Xenia's XFile::QueryDirectory.
     if (std::string pattern = GuestAnsiString(FileName); !pattern.empty())
@@ -854,10 +864,11 @@ uint32_t NtQueryFullAttributesFile(XOBJECT_ATTRIBUTES* Attributes, X_FILE_NETWOR
     return STATUS_SUCCESS;
 }
 
-uint32_t NtDeviceIoControlFile(FileHandle* handle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
+uint32_t NtDeviceIoControlFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, uint32_t IoControlCode, void* InputBuffer, uint32_t InputBufferLength,
     void* OutputBuffer, uint32_t OutputBufferLength)
 {
+    auto handle = GetKernelObject<FileHandle>(handleValue);
     LOG_KERNEL("ioctl {:#x} in={} out={}", IoControlCode, InputBufferLength, OutputBufferLength);
     if (IoStatusBlock) { IoStatusBlock->Status = STATUS_INVALID_DEVICE_REQUEST; IoStatusBlock->Information = 0; }
     return STATUS_INVALID_DEVICE_REQUEST;
@@ -865,10 +876,11 @@ uint32_t NtDeviceIoControlFile(FileHandle* handle, uint32_t Event, uint32_t ApcR
 
 // Scatter read: segments is an array of 64-bit guest pointers to page-sized
 // buffers (FILE_SEGMENT_ELEMENT).
-uint32_t NtReadFileScatter(FileHandle* handle, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
+uint32_t NtReadFileScatter(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, be<uint64_t>* SegmentArray, uint32_t Length, be<uint64_t>* ByteOffset)
 {
-    if (!handle || IsInvalidKernelObject(handle) || !handle->file)
+    auto handle = GetKernelObject<FileHandle>(handleValue);
+    if (!handle || !handle->file)
         return STATUS_INVALID_HANDLE;
 
     std::lock_guard ioLock(handle->ioMutex);

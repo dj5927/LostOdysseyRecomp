@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <charconv>
+#include <string_view>
+#include <type_traits>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
@@ -28,43 +31,63 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#elif defined(__unix__)
+#include <unistd.h>
 #endif
 
 namespace xenos::preparation
 {
-    inline size_t HostWorkerCap(unsigned logicalThreads)
+    struct Cancelled : std::exception {
+        const char* what() const noexcept override { return "shader preparation cancelled"; }
+    };
+
+    inline uint64_t HostPhysicalMemoryBytes()
     {
-        if (const char* env = std::getenv("LO_SHADER_WORKERS")) {
-            if (std::strcmp(env, "0") == 0 || std::strcmp(env, "max") == 0 || std::strcmp(env, "all") == 0)
-                return logicalThreads;
-            int parsed = std::atoi(env);
-            if (parsed > 0) return static_cast<size_t>(parsed);
-        }
 #ifdef _WIN32
         MEMORYSTATUSEX status{sizeof(status)};
-        if (GlobalMemoryStatusEx(&status)) {
-            // Only cap to 4 workers when total physical memory is < 8 GB.
-            if (status.ullTotalPhys < 8ULL * 1024 * 1024 * 1024) {
-                return 4u;
-            }
-            return logicalThreads > 1 ? logicalThreads - 1 : 1u;
-        }
+        if (GlobalMemoryStatusEx(&status)) return status.ullTotalPhys;
+#elif defined(__APPLE__)
+        uint64_t bytes = 0;
+        size_t size = sizeof(bytes);
+        if (sysctlbyname("hw.memsize", &bytes, &size, nullptr, 0) == 0) return bytes;
+#elif defined(__unix__) && defined(_SC_PHYS_PAGES)
+        const long pages = sysconf(_SC_PHYS_PAGES), pageSize = sysconf(_SC_PAGESIZE);
+        if (pages > 0 && pageSize > 0) return uint64_t(pages) * uint64_t(pageSize);
 #endif
-        return logicalThreads > 1 ? logicalThreads - 1 : 1u;
+        return 0; // Unknown memory is not an artificial low-memory machine.
     }
 
-    inline size_t WorkerCount(unsigned logicalThreads, size_t jobs, bool forceSerial, unsigned cap = 4u)
+    inline size_t DefaultWorkerCap(unsigned logicalThreads, uint64_t physicalBytes)
     {
-        if (const char* env = std::getenv("LO_SHADER_WORKERS")) {
-            if (std::strcmp(env, "0") == 0 || std::strcmp(env, "max") == 0 || std::strcmp(env, "all") == 0)
-                return std::min<size_t>(logicalThreads, jobs);
-            int parsed = std::atoi(env);
-            if (parsed > 0) return std::min<size_t>(parsed, jobs);
+        const size_t available = logicalThreads > 1 ? logicalThreads - 1 : 1u;
+        return physicalBytes && physicalBytes < (8ull << 30)
+            ? std::min<size_t>(available, 4) : available;
+    }
+
+    inline size_t HostWorkerCap(unsigned logicalThreads)
+    {
+        return DefaultWorkerCap(logicalThreads, HostPhysicalMemoryBytes());
+    }
+
+    inline size_t WorkerCount(unsigned logicalThreads, size_t jobs, bool forceSerial,
+        unsigned cap = 4u, const char* overrideName = "LO_SHADER_WORKERS")
+    {
+        if (!jobs) return 0;
+        if (forceSerial) return 1; // Safety/diagnostic serial always wins.
+        if (const char* env = std::getenv(overrideName)) {
+            const std::string_view value(env);
+            if (value == "0" || value == "max" || value == "all")
+                return std::min<size_t>(std::max(1u, logicalThreads), jobs);
+            size_t parsed = 0;
+            const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+            if (result.ec == std::errc{} && result.ptr == value.data() + value.size() && parsed)
+                return std::min(parsed, jobs);
         }
-        if (forceSerial || jobs == 0) return jobs == 0 ? 0u : 1u;
         const unsigned requested = logicalThreads > 1 ? logicalThreads - 1 : 1u;
-        const unsigned effective = cap > 0 ? std::min(requested, cap) : requested;
-        return std::min<size_t>(effective, jobs);
+        return std::min<size_t>(cap ? std::min(requested, cap) : requested, jobs);
     }
 
     struct QueueStats
@@ -108,6 +131,12 @@ namespace xenos::preparation
         auto cancel = [&] {
             { std::lock_guard lock(mutex); cancelled = true; }
             changed.notify_all();
+        };
+        auto poll = [&] {
+            if constexpr (std::is_convertible_v<std::invoke_result_t<Idle>, bool>) {
+                if (!idle()) { stats.cancelled = true; cancel(); return false; }
+            } else idle();
+            return true;
         };
         auto fail = [&](std::exception_ptr failure) {
             std::lock_guard lock(mutex);
@@ -162,6 +191,7 @@ namespace xenos::preparation
         try {
             if (workers.empty()) {
                 for (size_t i = 0; i < jobs; ++i) {
+                    if (!poll()) break;
                     if (!consume(prepare(i))) {
                         stats.cancelled = true;
                         break;
@@ -170,12 +200,13 @@ namespace xenos::preparation
                 }
             } else {
                 while (stats.consumed < jobs && !cancelled.load()) {
+                    if (!poll()) break;
                     Result result;
                     std::unique_lock lock(mutex);
                     if (!changed.wait_for(lock, std::chrono::milliseconds(10),
                         [&] { return cancelled.load() || !ready.empty(); })) {
                         lock.unlock();
-                        idle();
+                        if (!poll()) break;
                         continue;
                     }
                     if (ready.empty()) break;

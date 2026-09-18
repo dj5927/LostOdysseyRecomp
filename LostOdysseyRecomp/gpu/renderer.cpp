@@ -30,8 +30,10 @@
 #include "shader/cache.h"
 #include "shader/binary_cache.h"
 #include "shader/preparation_queue.h"
+#include "shader/retry_state.h"
 #include "shader/startup_cache.h"
 #include "shader/portable_shader_pack.h"
+#include "shader/portable_shader_contract.h"
 #include "shader/resource_scan.h"
 #include "shader/source_store.h"
 #include "shader/resource_xex.h"
@@ -304,6 +306,7 @@ namespace gpu::renderer
             bool valid = false;
             position_evidence::Summary position;
             bool positionReady = false;
+            xenos::retry::State retry;
         };
 
         using PipelineKey = gpu::pipeline_cache::Key;
@@ -373,6 +376,8 @@ namespace gpu::renderer
             using VertexEntry = geometry_prepare::VertexEntry;
             std::vector<uint32_t> indexScratch, primitiveScratch;
             geometry_prepare::VertexCache vertexCache;
+            geometry_prepare::IndexCache indexCache;
+            uint64_t indexCacheHits = 0, indexCacheMisses = 0;
             void ResetSlotArena(uint32_t i)
             {
                 gpuSlots[i].arenaOffset = 0;
@@ -1750,6 +1755,12 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     (depth == RenderFormat::UNKNOWN || depth == RenderFormat::D32_FLOAT_S8_UINT);
             }
 
+            static void CheckPreparationCancel()
+            {
+                video::PumpEvents();
+                if (video::ShaderPreparationSkipped()) throw xenos::preparation::Cancelled{};
+            }
+
             void PrepareKnownPipelines()
             {
                 pipelineCacheEnabled = !shaderCacheDir.empty() && !getenv("LO_NO_PIPELINE_CACHE");
@@ -1758,70 +1769,54 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const auto loaded = gpu::pipeline_cache::Load(path, xenos::cache::Version, kPipelineRecipeVersion, ValidPipelineRecipe);
                 if (!loaded.error.empty()) LOG_WARNING("renderer: ignoring pipeline recipes: {}", loaded.error);
                 for (const auto& key : loaded.keys) pipelineRecipes.insert(key);
-                // Disabling precreation is a same-binary control. Learning remains
-                // enabled so replay coverage can be measured independently.
-                if (getenv("LO_NO_PIPELINE_PREPARE") || getenv("LO_NO_SHADER_PREPARE")) return;
+                // Learning remains enabled when eager creation is skipped.
+                if (getenv("LO_NO_PIPELINE_PREPARE") || getenv("LO_NO_SHADER_PREPARE") ||
+                    settings::GetConfig().skipShaderPrebuild || video::ShaderPreparationSkipped()) return;
                 struct Job { PipelineKey key; Shader* vs; Shader* ps; std::unique_ptr<RenderPipeline> pipeline; };
                 std::vector<Job> jobs;
-                size_t missingShaders = 0;
-                // Finish all shader-map insertions before taking pointers into those maps for PSO jobs.
-                if (portableShaderPack) for (const auto& key : loaded.keys) {
-                    TryLoadPortableShader(false, key.vs);
-                    if (key.ps) TryLoadPortableShader(true, key.ps);
-                }
-                for (const auto& key : loaded.keys) {
-                    const auto vs = shaders[0].find(key.vs), ps = shaders[1].find(key.ps);
-                    if (vs == shaders[0].end() || !vs->second.valid ||
-                        (key.ps && (ps == shaders[1].end() || !ps->second.valid))) { ++missingShaders; continue; }
-                    jobs.push_back({key, &vs->second, key.ps ? &ps->second : nullptr, {}});
-                }
+                size_t missingShaders = 0, failed = 0;
                 const auto started = std::chrono::steady_clock::now();
-                std::atomic<size_t> next{0}, completed{0};
-                auto worker = [&] {
-                    for (;;) {
-                        const size_t i = next.fetch_add(1);
-                        if (i >= jobs.size()) return;
-                        auto& job = jobs[i];
-                        try { job.pipeline = CreatePipeline(job.key, job.vs, job.ps, false); }
-                        catch (const std::exception& e) { LOG_WARNING("renderer: pipeline precreation: {}", e.what()); }
-                        ++completed;
+                try {
+                    if (portableShaderPack) for (const auto& key : loaded.keys) {
+                        CheckPreparationCancel();
+                        TryLoadPortableShader(false, key.vs);
+                        if (key.ps) TryLoadPortableShader(true, key.ps);
                     }
-                };
-                const unsigned logical = std::thread::hardware_concurrency();
-                const unsigned pipelineCap = [&]() -> unsigned {
-                    if (const char* env = getenv("LO_PIPELINE_WORKERS")) {
-                        if (strcmp(env, "0") == 0 || strcmp(env, "max") == 0 || strcmp(env, "all") == 0)
-                            return logical;
-                        int parsed = atoi(env);
-                        if (parsed > 0) return static_cast<unsigned>(parsed);
+                    for (const auto& key : loaded.keys) {
+                        CheckPreparationCancel();
+                        const auto vs = shaders[0].find(key.vs), ps = shaders[1].find(key.ps);
+                        if (vs == shaders[0].end() || !vs->second.valid ||
+                            (key.ps && (ps == shaders[1].end() || !ps->second.valid))) { ++missingShaders; continue; }
+                        jobs.push_back({key, &vs->second, key.ps ? &ps->second : nullptr, {}});
                     }
-                    return static_cast<unsigned>(xenos::preparation::HostWorkerCap(logical));
-                }();
-                const auto count = std::min<size_t>(jobs.size(), getenv("LO_PIPELINE_PREPARE_SERIAL") ? 1u :
-                    std::min(pipelineCap, logical > 1 ? logical - 1 : 1u));
-                std::vector<std::jthread> workers;
-                try { for (size_t i = 0; i < count; ++i) workers.emplace_back(worker); }
-                catch (const std::system_error& e) {
-                    LOG_WARNING("renderer: started only {} pipeline workers: {}", workers.size(), e.what());
-                    if (workers.empty()) worker();
-                }
-                while (completed.load() < jobs.size()) {
-                    video::SetShaderPreparationProgress(uint32_t(completed.load()), uint32_t(jobs.size()),
-                        video::PreparationStage::Pipelines, video::PreparationUnit::Pipelines);
-                    video::PumpEvents();
-                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                }
-                for (auto& thread : workers) thread.join();
-                size_t failed = 0;
-                for (auto& job : jobs) {
-                    if (!job.pipeline) { ++failed; continue; }
-                    preparedPipelineKeys.insert(job.key);
-                    pipelines.emplace(job.key, std::move(job.pipeline));
+                    const unsigned logical = std::thread::hardware_concurrency();
+                    const size_t count = xenos::preparation::WorkerCount(logical, jobs.size(),
+                        getenv("LO_PIPELINE_PREPARE_SERIAL") != nullptr,
+                        unsigned(xenos::preparation::HostWorkerCap(logical)), "LO_PIPELINE_WORKERS");
+                    size_t done = 0;
+                    const auto stats = xenos::preparation::RunBounded<size_t>(jobs.size(), count,
+                        std::max<size_t>(1, count * 2), [&](size_t i) {
+                            auto& job = jobs[i];
+                            try { job.pipeline = CreatePipeline(job.key, job.vs, job.ps, false); }
+                            catch (const std::exception& e) { LOG_WARNING("renderer: pipeline precreation: {}", e.what()); }
+                            return i;
+                        }, [&](size_t i) {
+                            auto& job = jobs[i];
+                            if (!job.pipeline) ++failed;
+                            else { preparedPipelineKeys.insert(job.key); pipelines.emplace(job.key, std::move(job.pipeline)); }
+                            video::SetShaderPreparationProgress(uint32_t(++done), uint32_t(jobs.size()),
+                                video::PreparationStage::Pipelines, video::PreparationUnit::Pipelines);
+                            return !video::ShaderPreparationSkipped();
+                        }, [] { video::PumpEvents(); return !video::ShaderPreparationSkipped(); });
+                    LOG_INFO("renderer: pipeline preparation: {} recipes, {} ready, {} missing shaders, {} failed, {} workers, {:.0f} ms",
+                        loaded.keys.size(), preparedPipelineKeys.size(), missingShaders, failed, stats.startedWorkers,
+                        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-started).count());
+                } catch (const xenos::preparation::Cancelled&) {
+                    LOG_INFO("renderer: pipeline preparation skipped by user request");
+                } catch (const std::exception& e) {
+                    LOG_WARNING("renderer: pipeline preparation stopped: {}", e.what());
                 }
                 video::SetShaderPreparationProgress(0, 0);
-                LOG_INFO("renderer: pipeline preparation: {} recipes, {} ready, {} missing shaders, {} failed, {} workers, {:.0f} ms",
-                    loaded.keys.size(), preparedPipelineKeys.size(), missingShaders, failed, workers.size(),
-                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-started).count());
             }
 
             void SavePipelineRecipes(bool force = false)
@@ -1855,14 +1850,15 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 
             void PrepareKnownShaders()
             {
-                const auto xex = std::span<const uint8_t>(static_cast<const uint8_t*>(g_memory.Translate(0x82000000)), 0x185C60);
+                video::ResetShaderPreparationSkip();
+                try {
+                const auto xex = std::span<const uint8_t>(static_cast<const uint8_t*>(g_memory.Translate(xenos::portable_pack::RuntimeXexAddress)), xenos::portable_pack::RuntimeXexBytes);
                 // A distribution pack is independent of the writable local cache and local DXC identity.
                 if (TryOpenPortableShaderPack(xex)) { ResetTimers(); return; }
                 if (shaderCacheDir.empty() || getenv("LO_NO_SHADER_PREPARE") || settings::GetConfig().skipShaderPrebuild) {
                     LOG_INFO("renderer: shader preparation skipped by configuration or environment");
                     return;
                 }
-                video::ResetShaderPreparationSkip();
                 namespace startup = xenos::startup_cache;
                 const auto wholeStarted = std::chrono::steady_clock::now();
                 const auto& compilerIdentity = xenos::DxcIdentity();
@@ -1890,6 +1886,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             auto& entry = shaders[record.info.isPixelShader ? 1 : 0][record.hash];
                             entry.info = std::move(record.info);
                             if (!record.failure.empty()) {
+                                entry.retry.Failed(true);
                                 ++cachedFailures;
                                 LOG_WARNING("renderer: cached compiler failure {}_{:016x}: {} (full diagnostic retained in startup cache)",
                                     entry.info.isPixelShader ? "ps" : "vs", record.hash,
@@ -1903,11 +1900,12 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             if (!entry.valid) throw std::runtime_error("cached shader device module creation failed");
                             ++modules;
                         }, [&] { shaders[0].clear(); shaders[1].clear(); }, [] {},
-                        [] { video::PumpEvents(); }, [](uint32_t done, uint32_t total) {
+                        [] { CheckPreparationCancel(); }, [](uint32_t done, uint32_t total) {
                             video::SetShaderPreparationProgress(done, total, video::PreparationStage::CachedShaders,
                                 video::PreparationUnit::Shaders);
                         }, PortableExportRequested()); // Reconstruct one record at a time only for export size accounting.
                         video::SetShaderPreparationProgress(0, 0);
+                        if (video::ShaderPreparationSkipped()) throw xenos::preparation::Cancelled{};
                         if (!loaded.ok) throw std::runtime_error(loaded.reason);
                         FinishPortableShaderExport();
                         LOG_INFO("renderer: startup bundle hit: {} records, {} modules ready, {} cached failures; 0 source content reads, 0 translations, 0 DXC attempts, {} bytes verified/read",
@@ -1918,6 +1916,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         return;
                     } catch (const std::exception& e) {
                         shaders[0].clear(); shaders[1].clear();
+                        if (video::ShaderPreparationSkipped()) throw xenos::preparation::Cancelled{};
                         LOG_INFO("renderer: startup bundle fallback: {}", e.what());
                     }
                 } else LOG_INFO("renderer: startup bundle bypass: explicit scan/dump/retry or unavailable compiler identity");
@@ -1926,6 +1925,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 video::PumpEvents();
                 xenos::resources::SourceStore sourceStore;
                 const xenos::resources::SourceSink saveSource = [&](bool pixel, std::span<const uint8_t> code) {
+                    CheckPreparationCancel();
                     sourceStore.Add(pixel, code);
                 };
                 const auto inventoryStarted = std::chrono::steady_clock::now();
@@ -1940,7 +1940,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         if (progress.unit == ScanUnit::Bytes) { done /= 1048576; total = (total + 1048575) / 1048576; }
                         video::SetShaderPreparationProgress(uint32_t(std::min<uint64_t>(done,UINT32_MAX)),
                             uint32_t(std::min<uint64_t>(total,UINT32_MAX)),stage,unit);
-                        video::PumpEvents();
+                        CheckPreparationCancel();
                     }, getenv("LO_SHADER_FULL_SCAN") ? std::span<const xenos::resources::IndexFile>{}
                                                      : std::span<const xenos::resources::IndexFile>{xenos::resources::builtin::files},
                        getenv("LO_SHADER_FULL_SCAN") ? std::span<const xenos::resources::CpxIndexPackage>{}
@@ -1948,6 +1948,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                        getenv("LO_SHADER_FULL_SCAN") ? std::span<const xenos::resources::CpxIndexArchive>{}
                                                      : std::span<const xenos::resources::CpxIndexArchive>{xenos::resources::builtin::cpxArchives},
                        getenv("LO_SHADER_FULL_SCAN") != nullptr, saveSource);
+                CheckPreparationCancel();
                 if (!extracted.error.empty()) LOG_WARNING("renderer: resource shader preparation: {}", extracted.error);
                 LOG_INFO("renderer: resource shader inventory: {} shaders ({})", extracted.shaders,
                     extracted.reused ? "reused" : "extracted");
@@ -1978,10 +1979,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     const auto generated = xenos::resources::variants::GenerateFixedVariants(source,
                         [&](uint64_t hash, std::span<const uint8_t> code) {
                             fixedHashes.insert(hash); sourceStore.Add(false, code, 1);
-                        }, {}, readSource);
+                        }, [] { CheckPreparationCancel(); return false; }, readSource);
                     const auto linked = xenos::resources::variants::GenerateLinkedVariants(source,
                         [&](uint64_t, std::span<const uint8_t> code) { sourceStore.Add(false, code, 1); },
-                        {}, readSource, &fixedHashes);
+                        [] { CheckPreparationCancel(); return false; }, readSource, &fixedHashes);
                     LOG_INFO("renderer: shader prebuild sources: {} in memory, {} bytes, {} learned sources; 0 intermediate source writes",
                         sourceStore.Size(), sourceStore.Bytes(), learned);
                     LOG_INFO("renderer: shader source expansion: {} static XEX, {} fixed VS candidates, {} verified bases, {} invalid bases",
@@ -1989,6 +1990,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     LOG_INFO("renderer: linked VS expansion: {} new candidates, {} verified VS bases, {} verified PS sources, {} invalid sources",
                         linked.generated, linked.verifiedBases, linked.verifiedPixelSources, linked.invalidBases + linked.invalidPixelSources);
                 } catch (const std::exception& e) {
+                    if (video::ShaderPreparationSkipped()) throw xenos::preparation::Cancelled{};
                     expansionComplete = false;
                     LOG_WARNING("renderer: shader source expansion: {}", e.what());
                 }
@@ -2147,7 +2149,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     if (!item.error.empty()) {
                         SHADER_LOG_WARNING("prepare-failed", RendererByteFnv, "renderer: precompile {} {}: {} (diagnostic: {}.failed)", item.name,
                             item.cachedFailure ? "cached failure" : "failed", item.error, item.cachePath);
-                        if (item.deterministicFailure) shaders[item.pixel ? 1 : 0][item.hash].info = std::move(item.info);
+                        if (item.deterministicFailure) {
+                            auto& entry = shaders[item.pixel ? 1 : 0][item.hash];
+                            entry.info = std::move(item.info);
+                            entry.retry.Failed(true);
+                        }
                         ++failed;
                     } else {
                         auto& cache = shaders[item.pixel ? 1 : 0];
@@ -2166,8 +2172,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         if (!entry.info.errors.empty())
                             SHADER_LOG_WARNING("translation-notes", RendererByteFnv, "renderer: {} shader {:016x} notes: {}",
                                 item.pixel ? "pixel" : "vertex", item.hash, entry.info.errors);
-                        if (entry.valid) ++modulesReady;
+                        if (entry.valid) { entry.retry.Succeeded(); ++modulesReady; }
                         else {
+                            entry.retry.Failed(false);
                             SHADER_LOG_ERROR("shader-module-failed", RendererByteFnv, "preparation {} shader={:016x} bytes={} format={}",
                                 item.pixel ? "pixel" : "vertex", item.hash, item.bytecode.size(), vulkan ? "spirv" : "dxil");
                             ++modulesFailed; ++failed; initializationModuleFailure = true; bundleWriter.reset();
@@ -2186,7 +2193,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 xenos::preparation::QueueStats queueStats;
                 try {
                     queueStats = xenos::preparation::RunBounded<PreparedSource>(jobs.size(), workerCount,
-                        readyCapacity, prepare, install, [] { video::PumpEvents(); });
+                        readyCapacity, prepare, install, [] { video::PumpEvents(); return !video::ShaderPreparationSkipped(); });
                 } catch (const std::exception& e) {
                     initializationModuleFailure = true;
                     bundleWriter.reset();
@@ -2196,10 +2203,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     LOG_WARNING("renderer: started only {} shader workers: {}",
                         queueStats.startedWorkers, queueStats.startError);
                 video::SetShaderPreparationProgress(0, 0);
-                if (done == jobs.size() && expansionComplete && extracted.error.empty() && !initializationModuleFailure)
+                if (!queueStats.cancelled && !video::ShaderPreparationSkipped() && done == jobs.size() && expansionComplete && extracted.error.empty() && !initializationModuleFailure)
                     FinishPortableShaderExport();
                 else portableShaderExport.reset(); // Cancellation/module failures never publish an incomplete export.
-                if (bundleWriter && done == jobs.size()) {
+                if (bundleWriter && !queueStats.cancelled && !video::ShaderPreparationSkipped() && done == jobs.size()) {
                     try {
                         bundleWriter->Finish(bundleIdentity);
                         LOG_INFO("renderer: startup bundle published: {} records, {} bytes", done, std::filesystem::file_size(bundlePath));
@@ -2220,6 +2227,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 LOG_INFO("renderer: complete shader startup preparation elapsed: {:.0f} ms",
                     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now()-wholeStarted).count());
                 ResetTimers();
+                } catch (const xenos::preparation::Cancelled&) {
+                    portableShaderExport.reset();
+                    LOG_INFO("renderer: shader preparation skipped by user request");
+                }
+                video::SetShaderPreparationProgress(0, 0);
             }
 
             std::unique_ptr<position_evidence::Collection> positionEvidence;
@@ -2241,7 +2253,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 auto& cache = shaders[pixel ? 1 : 0];
                 auto it = cache.find(hash);
                 if (it == cache.end() && TryLoadPortableShader(pixel, hash)) it = cache.find(hash);
-                if (it != cache.end()) {
+                if (it != cache.end() && !it->second.valid && !it->second.retry.Ready()) return nullptr;
+                if (it != cache.end() && it->second.valid) {
                     if (!debugCaptureDir.empty() && it->second.valid && it->second.info.hlsl.empty()) {
                         std::vector<uint32_t> swapped(count);
                         for (uint32_t i = 0; i < count; ++i) swapped[i] = ByteSwap(words[i]);
@@ -2252,6 +2265,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
 
                 Shader& entry = cache[hash];
+                xenos::retry::Attempt attempt(entry.retry);
                 if (!shaderCacheDir.empty()) {
                     const auto source = std::filesystem::path(shaderCacheDir) / "source";
                     std::error_code ec;
@@ -2295,6 +2309,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     if (!cachePath.empty() && !compilerIdentity.empty() && !getenv("LO_SHADER_RETRY_FAILURES")) {
                         const auto failure = xenos::startup_cache::ReadFailure(failurePath, failureKey);
                         if (!failure.empty()) {
+                            attempt.PermanentFailure();
                             SHADER_LOG_WARNING("compile-cached-failure", RendererByteFnv, "renderer: {} shader {:016x} cached compiler failure: {} (diagnostic: {})",
                                 pixel ? "pixel" : "vertex", hash, failure, failurePath);
                             return nullptr;
@@ -2303,6 +2318,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     xenos::CompiledShader compiled = xenos::CompileHlsl(entry.info.hlsl, "main", pixel ? "ps_6_0" : "vs_6_0", binaryFormat);
                     if (!compiled.ok)
                     {
+                        attempt.PermanentFailure(compiled.deterministicFailure);
                         if (!cachePath.empty() && !compilerIdentity.empty())
                             xenos::startup_cache::WriteFailure(failurePath, failureKey, compiled.errors, compiled.deterministicFailure);
                         SHADER_LOG_WARNING("compile-failed", RendererByteFnv, "renderer: {} shader {:016x} failed to compile:\n{}", pixel ? "pixel" : "vertex", hash, compiled.errors);
@@ -2317,8 +2333,15 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             SHADER_LOG_WARNING("cache-write-failed", None, "renderer: shader cache write failed: {}", error);
                     }
                 }
-                entry.shader = device->createShader(dxil.data(), dxil.size(), "main", renderFormat);
+                try {
+                    entry.shader = device->createShader(dxil.data(), dxil.size(), "main", renderFormat);
+                } catch (const std::exception& e) {
+                    SHADER_LOG_WARNING("shader-module-failed", RendererByteFnv,
+                        "renderer: shader module creation failed: {}", e.what());
+                    return nullptr;
+                }
                 entry.valid = entry.shader != nullptr;
+                if (entry.valid) attempt.Succeeded();
                 os::shaderlog::Log(entry.valid ? LogType::Info : LogType::Error,
                     entry.valid ? "shader-module-ready" : "shader-module-failed", os::shaderlog::HashNamespace::RendererByteFnv,
                     "{} shader={:016x} format={} words={} bytes={} frame={}", pixel ? "pixel" : "vertex", hash,
@@ -4023,20 +4046,57 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     return;
                 }
 
-                // Index buffer / primitive conversion.
+                // Index buffer / primitive conversion. Static geometry skips
+                // ConvertIndices and primitive expansion on a content-sample
+                // hit; the cached output is already post-expansion.
                 auto& indices = indexScratch;
                 if (!info.indexed) indices.clear();
                 bool useIndices = false;
                 RenderFormat indexFormat = RenderFormat::R32_UINT;
                 uint32_t indexCount = info.indexCount;
+                bool indexCached = false;
+                bool indexRefresh = false;
+                uint32_t indexSrcCount = 0;
+                const uint8_t* indexSrc = nullptr;
+                size_t indexSrcBytes = 0;
+                geometry_prepare::IndexKey indexKey{};
                 if (info.indexed)
                 {
-                    uint32_t count = std::min<uint32_t>(info.indexCount, info.indexBufferWords);
-                    indices.resize(count);
-                    const uint8_t* src = Phys(info.indexBase);
-                    geometry_prepare::ConvertIndices(src, indices.data(), count, info.index32, info.indexEndian);
-                    useIndices = true;
+                    indexSrcCount = std::min<uint32_t>(info.indexCount, info.indexBufferWords);
+                    indexSrc = Phys(info.indexBase);
+                    indexSrcBytes = size_t(indexSrcCount) * (info.index32 ? 4 : 2);
+                    if (indexSrcCount >= geometry_prepare::IndexCache::kMinCount)
+                    {
+                        indexKey = { info.indexBase, indexSrcCount, info.primitiveType,
+                            uint8_t(info.index32 ? 1 : 0), uint8_t(info.indexEndian & 3) };
+                        auto it = indexCache.find(indexKey);
+                        if (it != indexCache.end() && it->second.content.Matches(indexSrc, indexSrcBytes))
+                        {
+                            indices = it->second.data;
+                            it->second.lastFrame = frame;
+                            ++indexCacheHits;
+                            useIndices = true;
+                            indexCached = true;
+                        }
+                        else
+                        {
+                            // Convert below, then refresh the entry in place:
+                            // the key is unchanged, so no erase/emplace churn.
+                            // A missing key is inserted after expansion.
+                            indexRefresh = (it != indexCache.end());
+                            indices.resize(indexSrcCount);
+                            geometry_prepare::ConvertIndices(indexSrc, indices.data(), indexSrcCount, info.index32, info.indexEndian);
+                            useIndices = true;
+                        }
+                    }
+                    else
+                    {
+                        indices.resize(indexSrcCount);
+                        geometry_prepare::ConvertIndices(indexSrc, indices.data(), indexSrcCount, info.index32, info.indexEndian);
+                        useIndices = true;
+                    }
                 }
+                if (!indexCached)
                 switch (info.primitiveType)
                 {
                 case 13: // quad list -> triangle list
@@ -4072,6 +4132,28 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
                 default:
                     break;
+                }
+                if (info.indexed && !indexCached && indexSrcCount >= geometry_prepare::IndexCache::kMinCount)
+                {
+                    // Store the post-expansion result against the source
+                    // samples; a later identical draw copies it verbatim.
+                    // A present key is refreshed in place without
+                    // erase/emplace churn.
+                    geometry_prepare::IndexEntry entry;
+                    entry.data = indices;
+                    entry.content.Capture(indexSrc, indexSrcBytes);
+                    entry.lastFrame = frame;
+                    if (indexRefresh)
+                    {
+                        auto it = indexCache.find(indexKey);
+                        if (it != indexCache.end())
+                            it->second = std::move(entry);
+                        else
+                            indexCache.emplace(indexKey, std::move(entry));
+                    }
+                    else
+                        indexCache.emplace(indexKey, std::move(entry));
+                    ++indexCacheMisses;
                 }
                 if (useIndices)
                     indexCount = uint32_t(indices.size());
@@ -5462,6 +5544,13 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         r.frame, r.descriptorBatchLimit, r.descriptorSplits, r.uploadSplits, r.arenaSplits, r.descriptorHits, r.descriptorMisses);
                 r.descriptorSplits = r.uploadSplits = r.arenaSplits = 0;
                 r.descriptorHits = r.descriptorMisses = 0;
+            }
+            if (render_timing::Enabled() || g_renderer->frame % 60 == 0)
+            {
+                auto& r = *g_renderer;
+                LOG_INFO("index cache frame={} hits={} misses={} entries={} evictions={} scope=current_frame_index_conversion_cache",
+                    r.frame, r.indexCacheHits, r.indexCacheMisses, r.indexCache.size(), r.indexCache.Evictions());
+                r.indexCacheHits = r.indexCacheMisses = 0;
             }
             if (render_timing::Enabled()) {
                 Renderer& r = *g_renderer;

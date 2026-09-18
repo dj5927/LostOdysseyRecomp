@@ -46,13 +46,14 @@ def find_tool(explicit_path: Path | None = None) -> Path | None:
     return None
 
 
-def verify_pack(pack_path: Path, tool: Path) -> dict:
+def verify_pack(pack_path: Path, tool: Path, image: Path | None = None) -> dict:
+    image = image or Path(os.environ.get("LO_SHADER_RUNTIME_IMAGE", ROOT / "LostOdysseyRecompLib/private/image_disc1.bin"))
     result = subprocess.run(
-        [str(tool), "verify", str(pack_path)],
+        [str(tool), "verify-runtime", str(pack_path), str(image)],
         check=True, capture_output=True, text=True, timeout=600
     )
     report = json.loads(result.stdout)
-    if not report.get("all_payloads_verified") or report.get("file_bytes") != pack_path.stat().st_size:
+    if not report.get("all_payloads_verified") or not report.get("runtime_compatibility_verified") or report.get("file_bytes") != pack_path.stat().st_size:
         raise ValueError("Shader pack verification failed or size mismatch")
     return report
 
@@ -117,18 +118,24 @@ def main():
                         help="Path to LoShaderPackTool executable")
     parser.add_argument("--tag", type=str, default="",
                         help="Release tag to look up on GitHub (e.g. v0.5.20)")
-    parser.add_argument("--required", action="store_true", default=True,
-                        help="Fail with error if shader pack could not be obtained")
+    parser.add_argument("--required", action=argparse.BooleanOptionalAction, default=True,
+                        help="Fail if unavailable; --no-required explicitly permits no bundled pack")
+    parser.add_argument("--runtime-image", type=Path,
+                        default=Path(os.environ.get("LO_SHADER_RUNTIME_IMAGE", ROOT / "LostOdysseyRecompLib/private/image_disc1.bin")),
+                        help="Decrypted flat image produced by xexdump for this build")
     args = parser.parse_args()
 
     target_dir = args.target_dir.resolve()
     target_pack = target_dir / "portable_vk.lospv"
     tool = find_tool(args.pack_tool.resolve() if args.pack_tool else None)
 
-    # 1. If target file already exists, check if valid
-    if target_pack.is_file() and tool:
+    env_override = os.environ.get("LO_PORTABLE_SHADER_PACK")
+    if env_override and not Path(env_override).is_file():
+        parser.error("LO_PORTABLE_SHADER_PACK is set but does not name a file")
+    # An explicit candidate always wins over an old valid destination.
+    if target_pack.is_file() and tool and not env_override:
         try:
-            report = verify_pack(target_pack, tool)
+            report = verify_pack(target_pack, tool, args.runtime_image)
             print(f"Existing shader pack valid: {report['records']} records, {report['file_bytes']} bytes")
             export_env(target_pack)
             return 0
@@ -141,7 +148,7 @@ def main():
     env_override = os.environ.get("LO_PORTABLE_SHADER_PACK")
     if env_override and Path(env_override).is_file():
         print(f"Acquiring shader pack from LO_PORTABLE_SHADER_PACK: {env_override}")
-        acquired = try_copy(Path(env_override), target_pack)
+        acquired = Path(env_override).resolve() == target_pack.resolve() or try_copy(Path(env_override), target_pack)
 
     # 3. Check private build input directories (whole or split parts)
     if not acquired:
@@ -187,14 +194,15 @@ def main():
     if tool:
         print(f"Verifying acquired shader pack with {tool.name}...")
         try:
-            report = verify_pack(target_pack, tool)
+            report = verify_pack(target_pack, tool, args.runtime_image)
             print(f"Portable shader pack verified: {report['records']} records, "
                   f"{report['unique_binaries']} unique binaries, {report['file_bytes']} bytes")
         except Exception as e:
             target_pack.unlink(missing_ok=True)
             sys.exit(f"Error: Acquired shader pack failed verification: {e}")
     else:
-        print(f"Warning: LoShaderPackTool not available for validation; staged {target_pack.stat().st_size} bytes")
+        target_pack.unlink(missing_ok=True)
+        sys.exit("Error: LoShaderPackTool is required to validate a distributed shader pack")
 
     export_env(target_pack)
     return 0
