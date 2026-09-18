@@ -9,9 +9,10 @@
 [v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) is the latest release, published on 2026-09-17T20:09:32Z. Release CI, clean package provenance, verified release assets (Windows x64 ZIP, Linux x64 AppImage, standalone portable Vulkan shader pack ZIP, and SHA-256 sidecars) passed. Windows and Linux release packages bundle `shaders/portable_vk.lospv` for instant zero-compile startup. Both Windows and Linux builds compile guest PowerPC recompilation from source directly in CI, retiring the PPC prebuilt synchronization mechanism. See [STATUS](STATUS.md) for source commits, hashes and validation limits.
 
 <a id="v070-frame-generation"></a>
-## v0.7.0 frame-generation plan
+## v0.7.0 plans
 
 - [ ] **DLSS-G and FSR Frame Generation:** the Windows PC v0.7.0 plan requires 2× DLSS-G and 2× FSR Frame Generation on both D3D12 and Vulkan. The four provider/API combinations require separate acceptance; D3D12 input diagnosis does not defer Vulkan. P0 fixes SDK, capability, queue and presentation routes; P1 validates native velocity coverage; P2 completes camera, rigid and skeletal motion; P3 freezes color/UI/frame inputs; P4 establishes both APIs; P5/P6 integrate FSR FG and DLSS-G; P7 validates all four combinations; P8 prepares a separately authorized release. FSR Super Resolution and sharpening remain separate Issue #10 scope and are not FG completion. This is planning only: implementation, SDK validation, game tests, player acceptance and publication have not started. See the [full plan](notes/v0.7.0-frame-generation-plan.md).
+- [ ] **macOS release planning:** v0.7.0 now includes a planned macOS release alongside the ongoing performance, QoL, DLSS/FSR scaling and frame-generation work. This is a roadmap target only: no macOS build, backend, package, compatibility validation, player acceptance or release artifact exists yet.
 
 <a id="v050-pc-graphics"></a>
 <a id="next-major-milestone-v050--pc-vulkan-and-direct3d-11"></a>

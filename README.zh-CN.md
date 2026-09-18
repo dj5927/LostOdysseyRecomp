@@ -196,6 +196,10 @@ SDL 已映射手柄与键盘可同时用于玩家 1。未映射摇杆需要 SDL 
 
 </details>
 
+## 赞助者
+
+感谢 **Cristian** 和 **Whitesun** 在 Ko-fi 上支持本项目。
+
 ## 致谢与游戏数据
 
 本项目参考 [UnleashedRecomp](https://github.com/hedge-dev/UnleashedRecomp)、[re:Blue](https://github.com/zolaware/reblue)、[XenonRecomp](https://github.com/hedge-dev/XenonRecomp)、[XenosRecomp](https://github.com/hedge-dev/XenosRecomp)、[plume](https://github.com/renderbag/plume) 和 [Xenia](https://github.com/xenia-project/xenia)。音频采用固定版本的 [Xenia FFmpeg 分支](https://github.com/xenia-project/FFmpeg)，已附[许可证](thirdparty/ffmpeg-LICENSE.txt)。

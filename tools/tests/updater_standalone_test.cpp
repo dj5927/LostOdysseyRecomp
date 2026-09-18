@@ -96,6 +96,7 @@ int wmain(int argc, wchar_t **argv) {
     updater::StartupOptions options;
     auto configure = [&] { error.clear(); return updater::ConfigureStandalone(localHelper, options, error); };
     Expect(configure() && options.currentVersion == "0.0.0", "missing metadata permits recovery update");
+    Expect(fs::equivalent(options.runnerSource, localHelper), "standalone apply runner uses the running helper");
     { Child child; Expect(child.Start(localHelper, L"", unrelated), "real noargs helper starts hidden"); Expect(child.Finish() == 0, "real noargs helper without manifest respects opt-out"); }
     Write(install / "manifest.json", "not json"); Expect(configure(), "malformed manifest permits recovery update");
     manifest("0.5.0", true); Expect(configure(), "development package permits update");
@@ -112,6 +113,7 @@ int wmain(int argc, wchar_t **argv) {
     manifest();
     Expect(fs::equivalent(options.installRoot, install) && fs::equivalent(options.executable, game), "Unicode install resolved independently of cwd");
     fs::rename(game, install / "game.saved"); Expect(configure() && options.currentVersion == "0.0.0", "missing game permits fresh install despite stale metadata");
+    Expect(fs::equivalent(options.runnerSource, localHelper), "missing game still has a usable apply runner");
     fs::rename(install / "game.saved", game);
     Write(game, "tampered"); Expect(configure(), "modified game permits update");
     fs::copy_file(self, game, fs::copy_options::overwrite_existing);

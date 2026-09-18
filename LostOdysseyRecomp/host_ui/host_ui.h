@@ -76,7 +76,7 @@ namespace host_ui
         }
     }
 
-    inline uint64_t GetActiveGameTimeMs()
+    inline uint64_t GetActiveGameTimeNs()
     {
         std::lock_guard<std::mutex> lock(g_pauseMutex);
         const auto now = std::chrono::steady_clock::now();
@@ -86,7 +86,12 @@ namespace host_ui
             pausedDuration += (now - g_pauseStartTime);
         }
         const auto activeTime = now - pausedDuration;
-        return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(activeTime.time_since_epoch()).count());
+        return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(activeTime.time_since_epoch()).count());
+    }
+
+    inline uint64_t GetActiveGameTimeMs()
+    {
+        return GetActiveGameTimeNs() / 1000000ull;
     }
 
     // Called by guest threads or wait routines to block while paused

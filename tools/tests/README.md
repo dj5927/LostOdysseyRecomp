@@ -28,12 +28,23 @@ CMake targets `LoRenderBatchPolicyTest` and `LoTextureDescriptorCacheTest` match
 ## Bounded vertex metadata cache
 
 `LoVertexCacheTest` is a native CPU-only fixture for the renderer's bounded
-vertex metadata cache. Its recorded run passed 3,569,548 checks once. It
-covers small capacities, recent-use retention, dense erase iteration during
-slot reset, refill/churn, and sample/key/offset/slot ownership after movement
-and replacement. At the default capacity, 196,645 unique insertions retained
-65,536 entries with 131,072 buckets and 131,109 evictions. It creates no GPU
-device and does not launch the game. Evidence: `out/perf-ring/vertex-stage/vertex-cache-test-evidence.json`.
+vertex and index metadata caches. The current focused run passed 3,668,947
+checks, including complete source-content mutation checks, exact key
+participation, replacement accounting, eviction and oversized-entry bypass.
+The related geometry and prerelease audit fixtures passed 16,809,648 and
+16,438 checks. These fixtures create no GPU device and do not launch the game;
+their correctness results do not establish frame-time cost. The earlier
+sampled-match performance measurements are historical until the repaired cache
+is measured with the final release binary.
+
+## City benchmark save safety
+
+`tools/tests/drive_city_save_test.py` exercises the file handling around
+`tools/drive_city.py`. Five focused cases passed: dry-run leaves the source and
+run save unchanged, identical or overlapping paths are rejected, staged copy,
+process-launch or replacement failure restores the prior run save, and a
+successful replacement preserves a recoverable backup. The fixture uses
+temporary synthetic saves and does not validate ordinary in-game save behavior.
 
 ## Assembly profiler report
 

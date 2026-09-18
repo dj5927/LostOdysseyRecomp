@@ -196,6 +196,10 @@ Rumble is disabled by default; `LO_CONTROLLER_RUMBLE=1` enables it. For Ring act
 
 </details>
 
+## Sponsors
+
+Thank you to **Cristian** and **Whitesun** for supporting the project on Ko-fi.
+
 ## Credits and game data
 
 With research and tools from [UnleashedRecomp](https://github.com/hedge-dev/UnleashedRecomp), [re:Blue](https://github.com/zolaware/reblue), [XenonRecomp](https://github.com/hedge-dev/XenonRecomp), [XenosRecomp](https://github.com/hedge-dev/XenosRecomp), [plume](https://github.com/renderbag/plume) and [Xenia](https://github.com/xenia-project/xenia). Audio uses the pinned [Xenia FFmpeg fork](https://github.com/xenia-project/FFmpeg), with its [license](thirdparty/ffmpeg-LICENSE.txt).

@@ -9,9 +9,10 @@
 [v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) 已于 2026-09-17T20:09:32Z 公开发布，为当前最新版本。Release CI、干净包来源、已核验的发布资产（Windows x64 ZIP、Linux x64 AppImage、独立便携式 Vulkan 着色器包 ZIP 及 SHA-256 校验文件）均通过。Windows 与 Linux 发布包均内置 `shaders/portable_vk.lospv`，实现零编译即时启动。Windows 与 Linux 构建均统一在 CI 中从源码在线编译客户机 PowerPC 重编译库，退役了 PPC 预编译同步机制。源码提交、hash 和验证边界见 [STATUS](STATUS.md)。
 
 <a id="v070-frame-generation"></a>
-## v0.7.0 插帧计划
+## v0.7.0 计划
 
 - [ ] **DLSS-G 与 FSR Frame Generation：**Windows PC 的 v0.7.0 计划要求 D3D12 与 Vulkan 均完成 2× DLSS-G 和 2× FSR Frame Generation。四个提供方／API 组合分别验收；D3D12 的输入定位不能推迟 Vulkan。P0 固定 SDK、能力、队列和呈现路线；P1 核实原生 velocity 覆盖；P2 完成相机、刚体和骨骼运动；P3 冻结颜色／UI／帧输入；P4 建立两 API；P5／P6 分别接入 FSR FG 与 DLSS-G；P7 验收四组合；P8 准备另行授权的发布。FSR Super Resolution 与锐化保留为 Issue #10 的独立范围，不算插帧完成。本次仅完成规划，尚未开始实现、SDK 验证、游戏测试、玩家验收或发布。见[完整计划](notes/v0.7.0-frame-generation-plan.md)。
+- [ ] **macOS 发布规划：**v0.7.0 现加入 macOS 发布目标，与持续推进的性能、QoL、DLSS／FSR 缩放和插帧工作并列。当前仅为路线图目标，尚无 macOS 构建、后端、包、兼容性验证、玩家验收或发布产物。
 
 <a id="v050-pc-graphics"></a>
 <a id="下一主版本v050--pc-vulkan-与-direct3d-11"></a>

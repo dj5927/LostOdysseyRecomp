@@ -1,5 +1,31 @@
 # Project status
 
+## Unreleased v0.6.0 audit repairs / 未发布 v0.6.0 审计修复
+
+The unreleased main source repairs the remaining 0.6.0 audit findings. Large
+vertex and index cache hits compare complete source content; the index cache is
+bounded to a 64 MiB payload budget. `tools/drive_city.py --dry-run` is
+read-only and protects save paths. The PPC timebase shares the pause-aware
+high-resolution game clock. Linux update apply cleans completed staging and
+restores the previous AppImage after a direct launch failure, while standalone
+Windows recovery uses the helper as its runner source.
+
+当前未发布的 main 源码已修复 0.6.0 审计剩余问题：大顶点和索引缓存命中会完整比较源内容，索引缓存有效载荷限制为 64 MiB；`tools/drive_city.py --dry-run` 不写入文件并保护存档路径；PPC timebase 与感知暂停的高精度游戏时钟统一；Linux 更新完成后清理暂存，直接启动失败时恢复旧 AppImage；Windows 独立恢复路径使用 helper 作为 runner 来源。
+
+Focused evidence: Clang `-O2` vertex-cache, geometry and prerelease fixtures
+passed 3,668,947, 16,809,648 and 16,438 checks respectively; five benchmark
+save-safety cases passed; the independent WSL pause test passed; and isolated
+POSIX apply fixtures passed success cleanup and launch-failure rollback. These
+are unreleased source checks. They do not establish full-game behavior, final
+release-binary performance, a real AppImage update, a real Windows package
+transaction, or Steam Deck acceptance.
+
+定向证据：Clang `-O2` 顶点缓存、geometry 和 prerelease fixture 分别通过
+3,668,947、16,809,648 和 16,438 项检查；基准工具存档安全测试 5 项通过；
+WSL 独立暂停测试通过；POSIX 更新隔离 fixture 的成功清理和启动失败回滚通过。
+这些是未发布源码检查，不代表全游戏行为、最终发布二进制性能、真实 AppImage
+更新、真实 Windows 安装包事务或 Steam Deck 验收。
+
 ## Published v0.5.20 — 2026-09-17
 
 The published release contains host EDRAM unsigned format clamping (Issue #38), f2358 TAA jitter compensation, the relocatable portable Vulkan shader pack (`.lospv`) distribution architecture, shader/pipeline preparation worker scaling, complete removal of the PowerPC prebuilt synchronization mechanism in favor of direct online compilation from source, and the integrated in-game debug overlay and cross-platform settings rasterizer from the menu branch. It was published at [GitHub Release v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) on 2026-09-17T20:09:32Z. Source version is `0.5.20`.

@@ -16,10 +16,18 @@ One record of completed changes, with unpublished work separated from verified r
   transactions, and synchronize backend selection with window policy updates.
 - Compare vertex cache content exactly with a bounded CPU snapshot budget; no
   per-draw cryptographic hashing. Honor serial overrides and Linux memory limits.
+- Repair the 0.6.0 audit findings in the geometry, benchmark, clock and updater
+  paths: large vertex/index cache hits compare complete source content; the
+  index cache has a 64 MiB payload budget and evicts or bypasses entries under
+  pressure; `tools/drive_city.py --dry-run` is read-only and protects overlapping
+  save paths; guest PPC timebase now uses the same pause-aware high-resolution
+  clock as the active game clock; Linux update apply removes completed staging
+  data and restores the previous AppImage when the replacement cannot `execv`;
+  standalone Windows recovery copies its runner from the helper itself.
 - Share the portable shader runtime contract with the release verifier; pin shader
   inputs and gate releases on native/portable pack regressions. Guard x86 compiler
   flags by target architecture. These changes do not certify gameplay or Deck FPS.
-- GPU index conversion cache (`LostOdysseyRecomp/gpu/renderer.cpp`, `LostOdysseyRecomp/gpu/vertex_cache.h`): cache post-expansion indices for large buffers (`count >= 256`) keyed by extent plus conversion parameters and validated against exact source content (same exact-compare mechanism as the vertex cache). Removes ~5.6% of CPU cycles spent in per-draw endian conversion (`Convert<false,1U>`); measured -6% (720p) to -8% (1080p) frame draw time at 15W in the Uhra city walk. Extended `tools/tests/vertex_cache_test.cpp` with key-participation, hit/miss, and bounded-churn checks. Full data in `docs/notes/PERF_CITY_UHRA_RESULTS.md`.
+- GPU index conversion cache (`LostOdysseyRecomp/gpu/renderer.cpp`, `LostOdysseyRecomp/gpu/vertex_cache.h`): cache post-expansion indices for large buffers (`count >= 256`) keyed by extent plus conversion parameters and validated against exact source content. The cache now has a bounded 64 MiB payload budget and reports bytes, peaks and evictions. Previous 15W city measurements used sampled matching and do not carry over as performance evidence after the correctness repair; remeasure with the final release binary. Extended `tools/tests/vertex_cache_test.cpp` with key-participation, hit/miss, exact-mutation and bounded-churn checks.
 - Build: `EXPORT_COMPILE_COMMANDS` enabled and `LO_BOLT_READY` retained so Clang builds stay BOLT-ready (`emit-relocs` + line tables, baseline-neutral).
 
 ### 简体中文
@@ -28,9 +36,10 @@ One record of completed changes, with unpublished work separated from verified r
 - shader暂时失败可退避重试，确定性失败保留负缓存；取消覆盖shader和PSO准备各阶段。
 - 呈现资源分配或映射失败保留旧资源并结束显示事务，同步后端选择与窗口策略。
 - 顶点缓存采用有内存上限的精确内容比较，不增加逐draw加密哈希；修正串行优先级及Linux内存检测。
+- 修复0.6.0审计发现的几何、基准工具、时钟和更新器问题：大顶点／索引缓存命中完整比较源内容；索引缓存增加64 MiB有效载荷上限并在压力下淘汰或绕过；`tools/drive_city.py --dry-run` 改为只读并拒绝重叠存档路径；PPC timebase 与感知暂停的高精度游戏时钟统一；Linux 更新成功后清理暂存，替换后无法 `execv` 时恢复旧 AppImage；Windows 独立恢复使用 helper 自身作为 runner。
 - 发布工具共享runtime的shader兼容契约，固定输入版本，发布前执行回归；按目标架构限定x86编译参数。
   本轮改动不代表已经通过游戏全流程或Steam Deck帧率验收。
-- GPU索引转换缓存（`LostOdysseyRecomp/gpu/renderer.cpp`、`LostOdysseyRecomp/gpu/vertex_cache.h`）：对大缓冲（`count >= 256`）按范围加转换参数为键缓存展开后的索引，用源内容校验（与顶点缓存同一精确比较机制）。消掉每draw端序转换约5.6%的CPU周期；15W乌斯拉进城实测帧draw时间720p -6%、1080p -8%。`tools/tests/vertex_cache_test.cpp`新增键参与度、命中/失效、有界抖动检查。完整数据见`docs/notes/PERF_CITY_UHRA_RESULTS.zh-CN.md`。
+- GPU索引转换缓存（`LostOdysseyRecomp/gpu/renderer.cpp`、`LostOdysseyRecomp/gpu/vertex_cache.h`）：对大缓冲（`count >= 256`）按范围和转换参数缓存展开后的索引，并对源内容进行完整比较。缓存增加64 MiB有效载荷上限，超限时淘汰或绕过，并记录字节数、峰值和淘汰次数。此前15W乌斯拉进城数据基于抽样比较，正确性修复后不再作为当前性能证据；应使用最终发布二进制重新测量。`tools/tests/vertex_cache_test.cpp`新增键参与度、命中/失效、完整变异和有界抖动检查。
 - 构建：启用`EXPORT_COMPILE_COMMANDS`，保留`LO_BOLT_READY`使Clang构建持续BOLT就绪（`emit-relocs` + 行号表，基线代价中性）。
 
 ## v0.5.20 — 2026-09-17 / Published / 已发布

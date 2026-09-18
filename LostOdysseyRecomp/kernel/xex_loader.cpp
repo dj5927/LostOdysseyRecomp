@@ -194,8 +194,6 @@ void XexLoader::StartTimeStampThread()
     {
         os::SetCurrentThreadName("Kernel Time");
         auto* bundle = reinterpret_cast<KeTimeStampBundle*>(g_memory.Translate(s_keTimeStampBundle));
-        uint64_t pausedDuration100ns = 0;
-        uint64_t pauseStart100ns = 0;
         bool wasPaused = false;
 
         while (true)
@@ -204,20 +202,14 @@ void XexLoader::StartTimeStampThread()
             if (paused != wasPaused)
             {
                 apu::SetPaused(paused);
-                if (paused)
-                {
-                    pauseStart100ns = HostInterruptTime100ns();
-                }
-                else
-                {
-                    pausedDuration100ns += (HostInterruptTime100ns() - pauseStart100ns);
-                }
                 wasPaused = paused;
             }
 
             if (!paused)
             {
-                uint64_t curInterrupt = HostInterruptTime100ns() - pausedDuration100ns;
+                // Keep the kernel bundle on the same pause-aware clock as mftb.
+                uint64_t curInterrupt = host_ui::GetActiveGameTimeNs() / 100;
+                uint64_t pausedDuration100ns = HostInterruptTime100ns() - curInterrupt;
                 bundle->interruptTime = curInterrupt;
                 bundle->systemTime = HostSystemTime100ns() - pausedDuration100ns;
                 bundle->tickCount = uint32_t(curInterrupt / 10000);

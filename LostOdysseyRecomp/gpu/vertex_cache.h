@@ -41,7 +41,7 @@ namespace gpu::geometry_prepare
         auto end() { return entries.end(); }
         auto find(uint64_t key) { return entries.find(key); }
         auto erase(Map::iterator it) {
-            capturedBytes -= it->second.content.Size();
+            capturedBytes -= it->second.content.AllocatedBytes();
             return entries.erase(it);
         }
         size_t CapturedBytes() const { return capturedBytes; }
@@ -54,7 +54,7 @@ namespace gpu::geometry_prepare
             // Caller already checked/removed this key; no iterators or entry
             // references survive insertion. Sample a rotating bounded window,
             // keeping recently used buffers without a per-hit LRU list update.
-            const size_t bytes = entry.content.Size();
+            const size_t bytes = entry.content.AllocatedBytes();
             // Oversized buffers remain usable for this draw, but are not cached.
             if (bytes > byteCapacity) return;
             while (!entries.empty() &&
@@ -108,6 +108,7 @@ namespace gpu::geometry_prepare
         // Source guest bytes the conversion was built from.
         SampledContent content;
         uint64_t lastFrame = 0;
+        size_t AllocatedBytes() const { return content.AllocatedBytes() + data.capacity() * sizeof(uint32_t); }
     };
 
     // Converted index buffers are host-side scratch copies, so unlike the
@@ -119,14 +120,19 @@ namespace gpu::geometry_prepare
         using Map = ankerl::unordered_dense::map<IndexKey, IndexEntry, IndexKeyHash>;
         Map entries;
         size_t capacity;
+        size_t byteCapacity;
+        size_t allocatedBytes = 0;
+        size_t peakBytes = 0;
         size_t evictionCursor = 0;
         uint64_t evictions = 0;
 
     public:
         static constexpr size_t kCapacity = 4096;
+        static constexpr size_t kByteCapacity = 64ull << 20;
         static constexpr uint32_t kMinCount = 256;
         static constexpr size_t kEvictionCandidates = 16;
-        explicit IndexCache(size_t limit = kCapacity) : capacity(std::max(size_t(1), limit))
+        explicit IndexCache(size_t limit = kCapacity, size_t bytes = kByteCapacity)
+            : capacity(std::max(size_t(1), limit)), byteCapacity(bytes)
         {
             entries.reserve(capacity);
         }
@@ -136,13 +142,24 @@ namespace gpu::geometry_prepare
         size_t size() const { return entries.size(); }
         size_t bucket_count() const { return entries.bucket_count(); }
         uint64_t Evictions() const { return evictions; }
+        size_t AllocatedBytes() const { return allocatedBytes; }
+        size_t PeakBytes() const { return peakBytes; }
+
+        auto erase(Map::iterator it)
+        {
+            allocatedBytes -= it->second.AllocatedBytes();
+            return entries.erase(it);
+        }
 
         void emplace(const IndexKey& key, IndexEntry&& entry)
         {
-            // Caller inserts only absent keys; no iterators or entry
-            // references survive insertion. Sample a rotating bounded window,
-            // keeping recently used buffers without a per-hit LRU list update.
-            if (entries.size() == capacity)
+            // Replacements must update accounting too. No iterator or entry
+            // reference may survive this call. Oversized entries bypass cache.
+            if (auto old = entries.find(key); old != entries.end()) erase(old);
+            const size_t bytes = entry.AllocatedBytes();
+            if (bytes > byteCapacity) return;
+            while (!entries.empty() &&
+                (entries.size() == capacity || allocatedBytes > byteCapacity - bytes))
             {
                 size_t victim = evictionCursor % entries.size();
                 const size_t count = std::min(kEvictionCandidates, entries.size());
@@ -154,10 +171,15 @@ namespace gpu::geometry_prepare
                         victim = candidate;
                 }
                 evictionCursor = (evictionCursor + count) % entries.size();
-                entries.erase(entries.begin() + victim);
+                erase(entries.begin() + victim);
                 ++evictions;
             }
-            entries.emplace(key, std::move(entry));
+            const auto [it, inserted] = entries.emplace(key, std::move(entry));
+            if (inserted)
+            {
+                allocatedBytes += bytes;
+                peakBytes = std::max(peakBytes, allocatedBytes);
+            }
         }
     };
 }

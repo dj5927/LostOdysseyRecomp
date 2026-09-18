@@ -4047,7 +4047,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
 
                 // Index buffer / primitive conversion. Static geometry skips
-                // ConvertIndices and primitive expansion on a content-sample
+                // ConvertIndices and primitive expansion on an exact-content
                 // hit; the cached output is already post-expansion.
                 auto& indices = indexScratch;
                 if (!info.indexed) indices.clear();
@@ -4055,7 +4055,6 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 RenderFormat indexFormat = RenderFormat::R32_UINT;
                 uint32_t indexCount = info.indexCount;
                 bool indexCached = false;
-                bool indexRefresh = false;
                 uint32_t indexSrcCount = 0;
                 const uint8_t* indexSrc = nullptr;
                 size_t indexSrcBytes = 0;
@@ -4080,10 +4079,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         }
                         else
                         {
-                            // Convert below, then refresh the entry in place:
-                            // the key is unchanged, so no erase/emplace churn.
-                            // A missing key is inserted after expansion.
-                            indexRefresh = (it != indexCache.end());
+                            // Convert below, then replace the cached result.
                             indices.resize(indexSrcCount);
                             geometry_prepare::ConvertIndices(indexSrc, indices.data(), indexSrcCount, info.index32, info.indexEndian);
                             useIndices = true;
@@ -4135,24 +4131,13 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
                 if (info.indexed && !indexCached && indexSrcCount >= geometry_prepare::IndexCache::kMinCount)
                 {
-                    // Store the post-expansion result against the source
-                    // samples; a later identical draw copies it verbatim.
-                    // A present key is refreshed in place without
-                    // erase/emplace churn.
+                    // Store the post-expansion result against the exact source
+                    // bytes; a later identical draw copies it verbatim.
                     geometry_prepare::IndexEntry entry;
                     entry.data = indices;
                     entry.content.Capture(indexSrc, indexSrcBytes);
                     entry.lastFrame = frame;
-                    if (indexRefresh)
-                    {
-                        auto it = indexCache.find(indexKey);
-                        if (it != indexCache.end())
-                            it->second = std::move(entry);
-                        else
-                            indexCache.emplace(indexKey, std::move(entry));
-                    }
-                    else
-                        indexCache.emplace(indexKey, std::move(entry));
+                    indexCache.emplace(indexKey, std::move(entry));
                     ++indexCacheMisses;
                 }
                 if (useIndices)
@@ -5548,8 +5533,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             if (render_timing::Enabled() || g_renderer->frame % 60 == 0)
             {
                 auto& r = *g_renderer;
-                LOG_INFO("index cache frame={} hits={} misses={} entries={} evictions={} scope=current_frame_index_conversion_cache",
-                    r.frame, r.indexCacheHits, r.indexCacheMisses, r.indexCache.size(), r.indexCache.Evictions());
+                LOG_INFO("index cache frame={} hits={} misses={} entries={} bytes={} peak_bytes={} evictions={} scope=current_frame_index_conversion_cache",
+                    r.frame, r.indexCacheHits, r.indexCacheMisses, r.indexCache.size(),
+                    r.indexCache.AllocatedBytes(), r.indexCache.PeakBytes(), r.indexCache.Evictions());
                 r.indexCacheHits = r.indexCacheMisses = 0;
             }
             if (render_timing::Enabled()) {

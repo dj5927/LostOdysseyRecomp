@@ -9,6 +9,13 @@
 #include <cstdio>
 #include "ppc_context.h"
 
+// The generated mftb helper links to this runtime clock without depending on
+// the host UI header or its include paths.
+uint64_t LostOdysseyActiveGameTimeNs()
+{
+    return host_ui::GetActiveGameTimeNs();
+}
+
 // Layout mirrors the real kernel's per-thread block closely enough for the
 // game's inline accesses (r13 -> PCR, PCR+0 -> TLS, PCR+0x100 -> TEB).
 constexpr size_t PCR_SIZE = 0xAB0;

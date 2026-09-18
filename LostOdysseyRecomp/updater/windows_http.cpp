@@ -362,16 +362,17 @@ StartupResult PrepareAtStartup(const StartupOptions &options)
         return result;
     }
     update.installRoot = std::filesystem::absolute(options.installRoot);
-    // Run the update from a private copy of the main binary so the target EXE
-    // is never the image performing its own replacement.
-    const auto stagedMain = options.installRoot / "LostOdysseyRecomp.exe";
-    if (!std::filesystem::is_regular_file(stagedMain) ||
-        !std::filesystem::copy_file(stagedMain, update.runnerPath, std::filesystem::copy_options::overwrite_existing,
+    // Run from a private copy of the current updater entry point. A standalone
+    // helper must keep working when the main EXE is missing or damaged.
+    const auto runnerSource = options.runnerSource.empty()
+        ? options.installRoot / "LostOdysseyRecomp.exe" : options.runnerSource;
+    if (!std::filesystem::is_regular_file(runnerSource) ||
+        !std::filesystem::copy_file(runnerSource, update.runnerPath, std::filesystem::copy_options::overwrite_existing,
                                      filesystemError))
     {
         std::filesystem::remove_all(operationRoot, filesystemError);
         result.status = StartupStatus::IntegrityFailed;
-        result.detail = "installation folder does not contain the main executable";
+        result.detail = "could not copy the updater runner executable";
         return result;
     }
     if (!WriteApplyPlan(update, std::filesystem::absolute(options.executable), options.launchArguments, error, true))

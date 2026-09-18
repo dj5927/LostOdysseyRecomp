@@ -203,6 +203,7 @@ std::optional<int> TryRunApplyMode()
 
 #ifndef _WIN32
 #include "update.h"
+#include "../os/user_paths.h"
 
 #include <cerrno>
 #include <chrono>
@@ -280,6 +281,16 @@ std::optional<int> TryRunApplyMode()
         return failWithReason("cannot read apply plan; existing installation not changed");
     }
     const auto operationRoot = plan->stageRoot.parent_path();
+    std::error_code operationError;
+    const auto updateRoot = os::user_paths::StateDir() / ".update";
+    if (operationRoot.filename().string().rfind("operation-", 0) != 0 ||
+        !std::filesystem::equivalent(operationRoot.parent_path(), updateRoot, operationError) ||
+        operationError || plan->stageRoot.filename() != "stage" ||
+        std::filesystem::absolute(*planArgument).lexically_normal() !=
+            (operationRoot / "apply-plan.json").lexically_normal())
+    {
+        return failWithReason("apply plan is outside the update state directory; existing installation not changed");
+    }
     if (std::filesystem::is_directory(operationRoot))
     {
         failureOperationRoot = operationRoot;
@@ -372,8 +383,30 @@ std::optional<int> TryRunApplyMode()
     for (auto &launchArgument : launchUtf8)
         execArguments.push_back(launchArgument.data());
     execArguments.push_back(nullptr);
+
+    // The new image is already in place. Neither the downloaded archive nor
+    // the staged copy is needed by the process we are about to execute.
+    std::error_code cleanupError;
+    std::filesystem::remove_all(operationRoot, cleanupError);
+    if (cleanupError)
+        std::cerr << "Lost Odyssey update: could not remove temporary update files: "
+                  << cleanupError.message() << "\n";
+
     execv(executable.c_str(), execArguments.data());
-    return failWithReason("failed to execute updated AppImage; installation was replaced");
+    const auto launchError = errno;
+    std::error_code restoreError;
+    if (hadExisting)
+    {
+        std::filesystem::rename(previous, appImagePath, restoreError);
+        if (!restoreError)
+            return failWithReason("failed to execute updated AppImage (errno " +
+                                  std::to_string(launchError) + "); previous installation restored");
+    }
+    if (!hadExisting)
+        return failWithReason("failed to execute updated AppImage (errno " +
+                              std::to_string(launchError) + "); no previous installation is available");
+    return failWithReason("failed to execute updated AppImage (errno " +
+                          std::to_string(launchError) + "); could not restore previous installation");
 }
 } // namespace updater
 #endif

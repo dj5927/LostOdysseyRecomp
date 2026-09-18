@@ -162,17 +162,8 @@ int main(int argc, char** argv)
         auto relocated = bytes;
         Check(sample.Matches(relocated.data(), size));
         Check(!sample.Matches(bytes.data(), size + 1));
-        if (size <= 8192) {
-            for (size_t i = 0; i < size; ++i) {
-                bytes[i] ^= 1; Check(!sample.Matches(bytes.data(), size)); bytes[i] ^= 1;
-            }
-        } else {
-            // Large buffers compare head, tail, and 64 strided 64-byte blocks
-            // (see ExactContent): probe inside those windows only. 575 is the
-            // last byte of the first stride block for every tested size.
-            std::vector<size_t> locations{0, 511, 575, size - 512, size - 1};
-            for (size_t i = 0; i < 64; ++i) { locations.push_back(512 + i * ((size - 1024) / 64)); locations.push_back(locations.back() + 63); }
-            for (auto i : locations) { bytes[i] ^= 1; Check(!sample.Matches(bytes.data(), size)); bytes[i] ^= 1; }
+        for (size_t i = 0; i < size; ++i) {
+            bytes[i] ^= 1; Check(!sample.Matches(bytes.data(), size)); bytes[i] ^= 1;
         }
         Check(sample.Matches(bytes.data(), size));
     }

@@ -77,6 +77,35 @@ def snapshot_saves(root: Path) -> dict[str, tuple[int, str]]:
     return out
 
 
+def prepare_saves(source: Path, target: Path, stamp: str) -> Path | None:
+    """Stage the baseline before moving an existing run save out of the way."""
+    if not source.exists():
+        return None
+    staged = target.parent / f".save-staging-{stamp}"
+    backup = target.parent / f"save.pre-benchmark-{stamp}"
+    try:
+        shutil.copytree(source, staged, copy_function=shutil.copy2,
+                        symlinks=True)
+        if target.exists():
+            target.rename(backup)
+        try:
+            staged.rename(target)
+        except OSError:
+            if backup.exists():
+                backup.rename(target)
+            raise
+    finally:
+        if staged.exists():
+            shutil.rmtree(staged)
+    return backup if backup.exists() else None
+
+
+def save_paths_overlap(source: Path, target: Path) -> bool:
+    source = source.resolve()
+    target = target.resolve()
+    return source == target or source in target.parents or target in source.parents
+
+
 def send_input(path: Path, serial: int, mask: int = 0, x: int = 0,
                y: int = 0, polls: int = 0) -> str:
     line = f"{serial} {mask:x} {x} {y} {polls}"
@@ -117,10 +146,24 @@ def main() -> int:
     run_dir = Path(args.run_dir)
     bin_path = Path(args.bin) if args.bin else Path(
         f"/home/freefrank/build/lo/{args.variant}/LostOdysseyRecomp/LostOdysseyRecomp")
+    save_root = run_dir / "save"
+    save_src = Path(args.save_src)
+    if save_paths_overlap(save_src, save_root):
+        print("error: --save-src and --run-dir/save must not overlap", file=sys.stderr)
+        return 2
     log_dir = Path(args.log_dir)
-    log_dir.mkdir(parents=True, exist_ok=True)
     stamp = f"{time.time_ns()}"
     session_log = log_dir / f"runtime-{stamp}.log"
+    cmd = [str(bin_path), "--game", args.game, "--quiet-kernel"]
+    if args.taskset:
+        cmd = ["taskset", args.taskset, *cmd]
+    print(f"bin={bin_path}\nrun={run_dir}\nlog={session_log}")
+    print("cmd=" + " ".join(cmd))
+    if args.dry_run:
+        return 0
+
+    log_dir.mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=True)
     control_dir = Path(tempfile.mkdtemp(prefix="lo-city-control-"))
     input_path = control_dir / "input.txt"
     shot_request = control_dir / "shots.txt"
@@ -131,11 +174,9 @@ def main() -> int:
 
     # Restore saves with timestamps intact (user01 must stay newer than user00),
     # then snapshot — the restore itself must not count as a game modification.
-    save_root = run_dir / "save"
-    if Path(args.save_src).exists():
-        shutil.rmtree(save_root, ignore_errors=True)
-        shutil.copytree(args.save_src, save_root, copy_function=shutil.copy2,
-                        symlinks=True)
+    backup = prepare_saves(save_src, save_root, stamp)
+    if backup:
+        print(f"previous run save preserved at {backup}")
     before = snapshot_saves(save_root)
 
     env = dict(os.environ)
@@ -167,13 +208,7 @@ def main() -> int:
     # Foreground needs Xwayland auth; non-interactive ssh usually lacks it.
     env.setdefault("XAUTHORITY", "/run/user/1000/.mutter-Xwaylandauth.IN3BV3")
 
-    cmd = [str(bin_path), "--game", args.game, "--quiet-kernel"]
-    if args.taskset:
-        cmd = ["taskset", args.taskset, *cmd]
-    print(f"bin={bin_path}\nrun={run_dir}\nlog={session_log}\ncontrol={control_dir}")
-    print("cmd=" + " ".join(cmd))
-    if args.dry_run:
-        return 0
+    print(f"control={control_dir}")
 
     started = time.time()
     try:
@@ -184,8 +219,17 @@ def main() -> int:
     except Exception as e:  # noqa: BLE001 — best effort TDP lock
         print(f"ryzenadj skipped: {e}")
 
-    proc = subprocess.Popen(cmd, cwd=str(run_dir), env=env,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        proc = subprocess.Popen(cmd, cwd=str(run_dir), env=env,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        if backup:
+            shutil.rmtree(save_root)
+            backup.rename(save_root)
+        elif save_src.exists() and save_root.exists():
+            shutil.rmtree(save_root)
+        shutil.rmtree(control_dir)
+        raise
     print(f"pid={proc.pid}")
     status_path = Path(args.run_dir) / ".." / "drive-status.json"
 

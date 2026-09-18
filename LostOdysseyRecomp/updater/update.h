@@ -125,6 +125,8 @@ struct StartupOptions
     std::string currentVersion;
     std::filesystem::path installRoot;
     std::filesystem::path executable;
+    // Standalone updater copies its own running helper into the apply runner.
+    std::filesystem::path runnerSource;
     std::vector<std::wstring> launchArguments;
     bool automaticUpdates = true;
     uint32_t uiLanguage = 0;
