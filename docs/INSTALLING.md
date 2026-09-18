@@ -19,6 +19,18 @@ On first launch of **LostOdysseyRecomp.exe**, choose **Files** to select one or 
 
 The import order is game-disc transaction, shared game-path save, then DLC transaction. If DLC import fails or is cancelled after discs succeed, the completed discs remain installed and the retry contains only the remaining DLC. A game-path save failure is warned about without rolling back completed imports. DLC-only imports do not change `game-path.txt`.
 
+Disc resource copies and `import-info.json` are published only after their writes,
+flushes and closes succeed. A final write error aborts the staged import before
+publication; the importer does not reread the complete resource to perform this
+check. XDVDFS discovery advances on 2048-byte boundaries and the install phase
+reuses the identity-verified reader while retaining a final identity check.
+
+On the destination page, use **New folder**, `F2`, or controller `Y` to create a
+folder. A unique default name is supplied and can be edited with the keyboard.
+After creation the browser enters and selects the folder, without starting an
+import. Name collisions, permission failures and read-only destinations are
+reported clearly. The source browser keeps its existing `Y` behavior.
+
 ## Supported sources
 
 - An extracted game folder, or its `default.xex`. Selecting the XEX imports the complete parent folder.
@@ -102,7 +114,7 @@ published installation without retaining those folders.
 
 This section describes running the native Linux unbundled executable.
 
-There are currently no prebuilt Linux GitHub Releases, installers, AppImage packages, Flatpaks, or Steam Deck packages for this drop. Build the native ELF locally following [BUILDING.md](BUILDING.md).
+The v0.6.0 release candidate includes native Linux x64 packaging in its release scope. Until the GitHub Release is published and its assets are verified, build the native ELF locally following [BUILDING.md](BUILDING.md). The AppImage and Steam Deck experience still require the validation described below.
 
 ### Flatpak source manifest
 

@@ -19,6 +19,19 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## v0.6.0 发布候选版
+
+v0.6.0 正在准备 Windows x64 与原生 Linux x64 发布包。Windows ZIP 与 Linux AppImage 将内置便携式 Vulkan 着色器包，让受支持的安装首次进入游戏时不再经历冗长的编译过程。着色器包覆盖当前测试过的集合，遗漏的着色器仍会按需编译，可能造成短暂卡顿。
+
+- **大幅性能与稳定性改进**：修复 shader 与管线准备、等待与线程生命周期、呈现、时钟、更新器、几何缓存和 Linux 运行路径。此前 15W 测试使用了抽样缓存匹配，不能作为 0.6.0 最终 FPS 证据；Steam Deck 实机验收仍待完成。
+- **原生 Linux 发布**：发布范围包含 Vulkan ELF 与 AppImage。当前 Linux 验证覆盖 WSL2 Mesa Dozen；原生 Linux GPU、AppImage 更新事务、Steam Deck 和全流程游戏仍未验证。
+- **加固导入器**：资源只有在最终 `write`、`flush`、`close` 均成功后才会发布；XDVDFS 扫描按 2048 字节边界进行；目标目录页支持通过按钮、`F2` 或手柄 `Y` 创建并进入文件夹。
+- **真实资料验证**：导入器识别了 `G:/ROMS/US` 下全部四张 USA/Europe 光盘镜像，并成功完成隔离的 Disc 1 导入。四盘完整安装、交互 UI 验收和游戏运行仍未验证。
+
+下一阶段 **v0.7.0** 计划继续优化性能并加入 QOL 功能、DLSS/FSR Scaling、Frame Generation，同时发布 macOS 版本。
+
+当前仍是发布候选版，尚未标记为已发布。GitHub Release 及其资产完成核验后再补充下载链接。
+
 ## v0.5.20 新增
 
 已发布版本：[v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20)。提供 Windows x64 ZIP、Linux x64 AppImage（两个发布包均已内置便携式 Vulkan 着色器包，实现开箱即用零编译启动）以及独立的便携式 Vulkan 着色器包 ZIP。
@@ -124,7 +137,7 @@ Linux 首可玩支持目前可通过源码构建 Vulkan ELF 或使用源码 Flat
 
 | 功能 | 说明 |
 | :--- | :--- |
-| 游戏导入器 | 支持文件夹、XEX、ISO 和 GOD；复制原始文件 |
+| 游戏导入器 | 支持文件夹、XEX、ISO 和 GOD；原始资源不改动，暂存复制会在发布前检查最终写入结果 |
 | 首次启动设置 | 游戏初始化前选择语言和图形选项 |
 | 语言设置 | 英语、日语、韩语、繁体中文、简体中文界面，以及游戏语言选择 |
 | 图形设置 | 最高 4K 的 Auto／手动内部分辨率、Off／FXAA／SMAA／实验性 TAA、标准／高质量滤波、30／60 FPS 及输出／显示控制；全屏和跨 DPI 仍需更多测试 |

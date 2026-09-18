@@ -256,6 +256,32 @@ void WriteDiscFiles(const std::filesystem::path& dir, uint32_t disc, bool includ
         out.write(dummy.data(), dummy.size());
     }
 }
+
+void RunDiscIoTest(const std::filesystem::path& source, const std::filesystem::path& root)
+{
+    const auto destination = root / "disc-io-game";
+    for (const auto* filename : {"lo.fpd", "import-info.json"})
+    {
+        for (const auto* stage : {"open", "write", "flush", "close"})
+        {
+            install::SetTestDiscWriteFailure(filename, stage);
+            bool failed = false;
+            try { install::InstallDiscs(source, destination); }
+            catch (const install::Error& error) {
+                failed = std::string(error.what()).find(std::string("Disc ") + stage + " failed") != std::string::npos;
+            }
+            Require(failed, std::string(filename) + " " + stage + " failure was not reported");
+            Require(!std::filesystem::exists(destination / "disc1"), "I/O failure published disc");
+            Require(!std::filesystem::exists(destination / ".import.lock"), "I/O failure retained lock");
+            for (const auto& entry : std::filesystem::directory_iterator(destination))
+                Require(entry.path().filename().string().find(".import-staging-") != 0, "I/O failure retained staging");
+        }
+    }
+    install::SetTestDiscWriteFailure({}, {});
+    Require(install::InstallDiscs(source, destination).size() == 1, "retry after disc I/O failures did not succeed");
+    Require(std::filesystem::exists(destination / "disc1" / "lo.fpd"), "retry did not publish disc");
+    std::cout << "[PASS] Disc open/write/flush/close failures abort publication and allow retry" << std::endl;
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -314,6 +340,8 @@ int main(int argc, char** argv)
         assert(allScan.discs[i].edition == "asia");
     }
     std::cout << "[PASS] Standard 4-disc set scan" << std::endl;
+
+    RunDiscIoTest(sourceStandard / "disc1", tempDir);
 
     // 3. Test authentic per-disc identity enforcement:
     // Reject fabrication where discs share a single top-level XEX or fabricate disc numbers without authentic per-disc identity

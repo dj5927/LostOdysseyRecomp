@@ -121,5 +121,6 @@ void SetTestSha256(uint32_t disc, std::string_view hex, bool europe);
 void SetTestMd5(uint32_t disc, std::string_view hex, bool europe);
 void ClearTestOverrides();
 void SetTestDlcWriteFailure(std::string_view filename, std::string_view stage);
+void SetTestDiscWriteFailure(std::string_view filename, std::string_view stage);
 #endif
 }

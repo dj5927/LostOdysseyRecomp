@@ -61,7 +61,27 @@ std::map<uint32_t, std::string> g_testMd5Asia;
 std::map<uint32_t, std::string> g_testMd5Europe;
 std::string g_testDlcFailureFile;
 std::string g_testDlcFailureStage;
+std::string g_testDiscFailureFile;
+std::string g_testDiscFailureStage;
 #endif
+
+void CheckDiscOutput(std::ofstream& out, const std::filesystem::path& path, std::string_view stage)
+{
+#ifdef LO_IMPORT_TESTING
+    if (path.filename().string() == g_testDiscFailureFile && stage == g_testDiscFailureStage)
+        out.setstate(std::ios::badbit);
+#endif
+    if (!out) throw Error("Disc " + std::string(stage) + " failed: " + path.string());
+}
+
+void FinishDiscOutput(std::ofstream& out, const std::filesystem::path& path)
+{
+    CheckDiscOutput(out, path, "write");
+    out.flush();
+    CheckDiscOutput(out, path, "flush");
+    out.close();
+    CheckDiscOutput(out, path, "close");
+}
 
 void CheckDlcOutput(std::ofstream& out, const std::filesystem::path& path, std::string_view stage)
 {
@@ -333,7 +353,8 @@ DiscInfo PrepareDisc(const std::filesystem::path& path,
                     std::optional<Kind> explicitKind,
                     std::vector<Entry>& outEntries,
                     bool validate,
-                    const Cancelled& cancelled = {})
+                    const Cancelled& cancelled = {},
+                    std::unique_ptr<ImageReader>* retainedReader = nullptr)
 {
     if (cancelled && cancelled())
         throw Error("Source check cancelled", true);
@@ -463,6 +484,8 @@ DiscInfo PrepareDisc(const std::filesystem::path& path,
     info.metadataEdition = metaEd;
     info.sha256 = sha256;
     info.md5 = md5;
+    if (retainedReader)
+        *retainedReader = std::move(imageReader);
     return info;
 }
 
@@ -913,6 +936,12 @@ void SetTestDlcWriteFailure(std::string_view filename, std::string_view stage)
     g_testDlcFailureFile = filename;
     g_testDlcFailureStage = stage;
 }
+
+void SetTestDiscWriteFailure(std::string_view filename, std::string_view stage)
+{
+    g_testDiscFailureFile = filename;
+    g_testDiscFailureStage = stage;
+}
 #endif
 
 std::vector<std::filesystem::path> Discover(const std::filesystem::path& path)
@@ -1211,7 +1240,7 @@ InstallResult InstallContent(const ContentScan& selection,
         for (const auto& d : selection.discs)
         {
             LoadedDisc ld;
-            ld.info = PrepareDisc(d.path, d.kind, ld.entries, true, checkCancelled);
+            ld.info = PrepareDisc(d.path, d.kind, ld.entries, true, checkCancelled, &ld.image);
             if (ld.info.disc != d.disc || ld.info.sha256 != d.sha256 ||
                 ld.info.media != d.media || ld.info.edition != d.edition)
                 throw Error("The selected disc identity changed after review; check the source again");
@@ -1219,22 +1248,6 @@ InstallResult InstallContent(const ContentScan& selection,
                 throw Error("Cannot mix Europe/Asia and USA/Europe discs in one installation");
             if (!selectedNumbers.insert(ld.info.disc).second)
                 throw Error("Duplicate selected disc number");
-            if (d.kind == Kind::Iso)
-            {
-                ld.image = std::make_unique<IsoImageReader>(d.path, checkCancelled);
-                ld.entries = ld.image->GetEntries();
-            }
-            else if (d.kind == Kind::God)
-            {
-                ld.image = std::make_unique<GodImageReader>(d.path, checkCancelled);
-                ld.entries = ld.image->GetEntries();
-            }
-            else
-            {
-                FolderSource folder(d.path);
-                ld.entries = folder.GetEntries(checkCancelled);
-            }
-
             for (const auto& e : ld.entries) totalDiscBytes += e.size;
             loadedDiscs.push_back(std::move(ld));
         }
@@ -1270,7 +1283,7 @@ InstallResult InstallContent(const ContentScan& selection,
                     std::filesystem::create_directories(dstFile.parent_path(), ec);
 
                     std::ofstream out(dstFile, std::ios::binary | std::ios::trunc);
-                    if (!out) throw Error("Could not create destination file: " + dstFile.string());
+                    CheckDiscOutput(out, dstFile, "open");
 
                     std::vector<char> buffer(64 * 1024);
                     uint64_t remaining = entry.size;
@@ -1301,18 +1314,20 @@ InstallResult InstallContent(const ContentScan& selection,
                         }
 
                         out.write(buffer.data(), chunk);
-                        if (!out) throw Error("Write failed during import");
+                        CheckDiscOutput(out, dstFile, "write");
 
                         remaining -= chunk;
                         offset += chunk;
                         doneBytes += chunk;
                         reportProgress(doneBytes, totalDiscBytes, entry.name);
                     }
+                    FinishDiscOutput(out, dstFile);
                 }
 
                 // Write import-info.json
                 std::filesystem::path infoJsonPath = targetDisc / "import-info.json";
                 std::ofstream infoJson(infoJsonPath);
+                CheckDiscOutput(infoJson, infoJsonPath, "open");
                 infoJson << "{\n"
                          << "  \"title\": \"" << ld.info.title << "\",\n"
                          << "  \"media\": \"" << ld.info.media << "\",\n"
@@ -1326,6 +1341,7 @@ InstallResult InstallContent(const ContentScan& selection,
                          << "  \"identity\": \"" << ld.info.identity << "\",\n"
                          << "  \"metadata_edition\": \"" << ld.info.metadataEdition << "\"\n"
                          << "}\n";
+                FinishDiscOutput(infoJson, infoJsonPath);
 
                 // Verify copied default.xex SHA256 matches
                 std::filesystem::path copiedXex = targetDisc / "default.xex";

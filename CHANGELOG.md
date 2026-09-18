@@ -4,7 +4,7 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## Unreleased / 未发布
+## v0.6.0 — Release candidate / 未发布
 
 ### English
 
@@ -24,6 +24,15 @@ One record of completed changes, with unpublished work separated from verified r
   clock as the active game clock; Linux update apply removes completed staging
   data and restores the previous AppImage when the replacement cannot `execv`;
   standalone Windows recovery copies its runner from the helper itself.
+- Harden importer publication: disc resources and `import-info.json` now require
+  successful write, flush and close operations before staged data is published;
+  any finalization failure aborts the transaction without rereading the full
+  resource. Align XDVDFS signature scanning to 2048-byte boundaries and reuse
+  the identity-verified reader during installation while retaining the final
+  identity check. The destination browser can create a uniquely named folder
+  with the button, `F2`, or destination-page controller `Y`, edit its name,
+  enter and select it automatically, and report collisions, permission
+  failures and read-only destinations without starting an import.
 - Share the portable shader runtime contract with the release verifier; pin shader
   inputs and gate releases on native/portable pack regressions. Guard x86 compiler
   flags by target architecture. These changes do not certify gameplay or Deck FPS.
@@ -37,6 +46,7 @@ One record of completed changes, with unpublished work separated from verified r
 - 呈现资源分配或映射失败保留旧资源并结束显示事务，同步后端选择与窗口策略。
 - 顶点缓存采用有内存上限的精确内容比较，不增加逐draw加密哈希；修正串行优先级及Linux内存检测。
 - 修复0.6.0审计发现的几何、基准工具、时钟和更新器问题：大顶点／索引缓存命中完整比较源内容；索引缓存增加64 MiB有效载荷上限并在压力下淘汰或绕过；`tools/drive_city.py --dry-run` 改为只读并拒绝重叠存档路径；PPC timebase 与感知暂停的高精度游戏时钟统一；Linux 更新成功后清理暂存，替换后无法 `execv` 时恢复旧 AppImage；Windows 独立恢复使用 helper 自身作为 runner。
+- 加固导入器发布流程：光盘资源与 `import-info.json` 只有在 `write`、`flush`、`close` 均成功后才发布暂存数据；最终写入失败会中止事务，不重复读取全部大文件。XDVDFS 签名扫描改为按 2048 字节边界前进，安装阶段复用已完成身份校验的读取器，同时保留最终身份复核。目标目录页支持通过按钮、`F2` 或目标页手柄 `Y` 创建唯一默认名称的文件夹，创建后自动进入并选中；支持改名，并明确报告重名、权限失败和只读目录，创建不会自动开始导入。
 - 发布工具共享runtime的shader兼容契约，固定输入版本，发布前执行回归；按目标架构限定x86编译参数。
   本轮改动不代表已经通过游戏全流程或Steam Deck帧率验收。
 - GPU索引转换缓存（`LostOdysseyRecomp/gpu/renderer.cpp`、`LostOdysseyRecomp/gpu/vertex_cache.h`）：对大缓冲（`count >= 256`）按范围和转换参数缓存展开后的索引，并对源内容进行完整比较。缓存增加64 MiB有效载荷上限，超限时淘汰或绕过，并记录字节数、峰值和淘汰次数。此前15W乌斯拉进城数据基于抽样比较，正确性修复后不再作为当前性能证据；应使用最终发布二进制重新测量。`tools/tests/vertex_cache_test.cpp`新增键参与度、命中/失效、完整变异和有界抖动检查。

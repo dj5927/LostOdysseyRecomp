@@ -26,8 +26,11 @@ lo_add_header_test(LoRenderBatchPolicyTest ${CMAKE_SOURCE_DIR}/tools/tests/rende
 lo_add_header_test(LoTextureDescriptorCacheTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_descriptor_cache_test.cpp)
 lo_add_header_test(LoTextureKeyTest ${CMAKE_SOURCE_DIR}/tools/tests/texture_key_test.cpp)
 lo_add_header_test(LoImportGameTest ${CMAKE_SOURCE_DIR}/tools/tests/import_game_test.cpp)
+lo_add_header_test(LoImportIsoLocatorTest ${CMAKE_SOURCE_DIR}/tools/tests/import_iso_locator_test.cpp)
+target_sources(LoImportIsoLocatorTest PRIVATE ${LO_RUNTIME_ROOT}/install/import_image.cpp)
 lo_add_header_test(LoImportPayloadProbe ${CMAKE_SOURCE_DIR}/tools/tests/import_payload_probe.cpp)
 lo_add_header_test(LoInstallerControllerTest ${CMAKE_SOURCE_DIR}/tools/tests/installer_controller_test.cpp)
+lo_add_header_test(LoFileBrowserFolderTest ${CMAKE_SOURCE_DIR}/tools/tests/file_browser_folder_test.cpp)
 target_sources(LoImportPayloadProbe PRIVATE
     ${LO_RUNTIME_ROOT}/install/import_game.cpp
     ${LO_RUNTIME_ROOT}/install/import_image.cpp)

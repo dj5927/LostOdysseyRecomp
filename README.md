@@ -19,6 +19,19 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## v0.6.0 release candidate
+
+The v0.6.0 release is being prepared with Windows x64 and native Linux x64 packages. The Windows ZIP and Linux AppImage will bundle the portable Vulkan shader pack so supported installations can start without a long first-run compilation step. The bundle covers the tested shader set; an uncovered shader can still compile on demand and may cause a brief hitch.
+
+- **Large performance and stability pass**: repaired shader and pipeline preparation, wait and thread lifetime, presentation, clock, updater, geometry cache, and Linux runtime paths. The earlier 15 W measurements used sampled cache matching and are not final v0.6.0 FPS evidence; Steam Deck hardware acceptance remains open.
+- **Native Linux release**: Vulkan ELF and AppImage packaging are included in the release scope. Linux validation currently covers WSL2 with Mesa Dozen; native Linux GPU, AppImage update transactions, Steam Deck, and full-game playthrough remain open.
+- **Hardened importer**: final writes, flushes and closes are checked before publication, XDVDFS scanning follows 2048-byte boundaries, and the destination browser can create and enter a folder with the button, `F2`, or controller `Y`.
+- **Real source validation**: the importer recognized all four USA/Europe disc images under `G:/ROMS/US`; an isolated Disc 1 import completed successfully. Four-disc installation, interactive UI acceptance, and gameplay remain unverified.
+
+The next **v0.7.0** milestone is planned to continue performance work and add quality-of-life features, DLSS/FSR scaling, frame generation, and a macOS release.
+
+The release candidate is not yet marked as published. Download links will be added after the GitHub Release and its assets are verified.
+
 ## New in v0.5.20
 
 Published release: [v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20). It provides a Windows x64 ZIP, a Linux x64 AppImage (both release packages bundle the portable Vulkan shader pack for instant zero-compile startup), and a standalone portable Vulkan shader pack ZIP.
@@ -124,7 +137,7 @@ See the [installation guide](docs/INSTALLING.md) for accepted disc versions, fil
 
 | Feature | What to expect |
 | :--- | :--- |
-| Game importer | Folder, XEX, ISO and GOD input; original source files are copied |
+| Game importer | Folder, XEX, ISO and GOD input; originals stay untouched, and staged copies check final writes before publication |
 | First-launch setup | Language and graphics settings before game initialization |
 | Language settings | English, Japanese, Korean, Traditional and Simplified Chinese interface options; game language selection |
 | Graphics settings | Auto/manual internal resolution up to 4K, Off/FXAA/SMAA/experimental TAA, Standard/High filtering, 30/60 FPS and output/display controls; fullscreen and mixed DPI need more testing |

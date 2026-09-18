@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 #ifdef _WIN32
@@ -21,6 +23,44 @@ struct DirectoryItem
     bool isDirectory = false;
     bool isDriveOrRoot = false;
 };
+
+struct CreateFolderResult
+{
+    std::filesystem::path path;
+    std::string error;
+    explicit operator bool() const { return error.empty(); }
+};
+
+inline CreateFolderResult CreateFolder(const std::filesystem::path& parent, std::string_view utf8Name)
+{
+    auto accessError = [](const std::error_code& ec) {
+        return ec == std::errc::permission_denied || ec == std::errc::read_only_file_system;
+    };
+    if (utf8Name.empty() || utf8Name == "." || utf8Name == ".." ||
+        utf8Name.find('/') != std::string_view::npos ||
+        utf8Name.find('\\') != std::string_view::npos ||
+        utf8Name.find('\0') != std::string_view::npos)
+        return {{}, "Enter a folder name without path separators."};
+
+    const auto name = std::u8string(reinterpret_cast<const char8_t*>(utf8Name.data()), utf8Name.size());
+    const auto target = parent / std::filesystem::path(name);
+    std::error_code ec;
+    if (!std::filesystem::is_directory(parent, ec))
+        return {{}, accessError(ec) ? "Permission denied or destination is read-only."
+                                   : "The current destination is not an accessible directory."};
+    if (std::filesystem::exists(target, ec))
+        return {{}, "A file or folder with that name already exists."};
+    if (ec)
+        return {{}, accessError(ec) ? "Permission denied or destination is read-only."
+                                   : "Could not inspect the destination: " + ec.message()};
+    if (!std::filesystem::create_directory(target, ec))
+    {
+        if (accessError(ec))
+            return {{}, "Permission denied or destination is read-only."};
+        return {{}, "Could not create folder: " + (ec ? ec.message() : std::string("folder already exists"))};
+    }
+    return {target, {}};
+}
 
 // Returns system roots / drives (e.g. C:\, D:\ on Windows, / on Unix)
 inline std::vector<DirectoryItem> GetSystemRoots()

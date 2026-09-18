@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
@@ -157,6 +158,11 @@ struct UIState : InstallerSessionState
     int destScrollOffset = 0;
     bool destFocusOnRoots = false;
     int destRootSelectedIndex = 0;
+    bool destNaming = false;
+    bool destNameReplaceOnType = false;
+    bool destStatusError = false;
+    std::string destNewName;
+    std::string destStatus;
 
     // Import progress
     std::atomic<bool> isImporting{ false };
@@ -480,6 +486,39 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         state.destScrollOffset = 0;
     };
 
+    auto cancelNewFolder = [&]() {
+        state.destNaming = false;
+        SDL_StopTextInput();
+    };
+
+    auto beginNewFolder = [&]() {
+        if (state.screen != ScreenState::BrowseDest || state.isImporting.load()) return;
+        state.destNewName = "New Folder";
+        for (unsigned number = 2; std::filesystem::exists(state.currentDestBrowse / state.destNewName); ++number)
+            state.destNewName = "New Folder " + std::to_string(number);
+        state.destNameReplaceOnType = true;
+        state.destNaming = true;
+        state.destStatus.clear();
+        SDL_StartTextInput();
+    };
+
+    auto confirmNewFolder = [&]() {
+        const auto created = ui::CreateFolder(state.currentDestBrowse, state.destNewName);
+        if (!created)
+        {
+            state.destStatus = created.error;
+            state.destStatusError = true;
+            return;
+        }
+        cancelNewFolder();
+        state.currentDestBrowse = created.path;
+        state.selectedDest = created.path;
+        state.destFocusOnRoots = false;
+        refreshDestList();
+        state.destStatus = "Folder created and selected. Select this destination to continue.";
+        state.destStatusError = false;
+    };
+
     constexpr int VISIBLE_ITEMS = 14;
 
     auto handleNavUp = [&]() {
@@ -547,8 +586,8 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 if (state.destSelectedIndex + 1 < static_cast<int>(state.destItems.size()))
                 {
                     state.destSelectedIndex++;
-                    if (state.destSelectedIndex >= state.destScrollOffset + VISIBLE_ITEMS)
-                        state.destScrollOffset = state.destSelectedIndex - VISIBLE_ITEMS + 1;
+                    if (state.destSelectedIndex >= state.destScrollOffset + 13)
+                        state.destScrollOffset = state.destSelectedIndex - 13 + 1;
                 }
             }
         }
@@ -730,6 +769,27 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 break;
 
             case SDL_KEYDOWN:
+                if (state.destNaming)
+                {
+                    switch (event.key.keysym.sym)
+                    {
+                    case SDLK_RETURN: case SDLK_KP_ENTER: confirmNewFolder(); break;
+                    case SDLK_ESCAPE: cancelNewFolder(); break;
+                    case SDLK_BACKSPACE:
+                        if (state.destNameReplaceOnType) state.destNewName.clear();
+                        else if (!state.destNewName.empty())
+                        {
+                            auto end = state.destNewName.size() - 1;
+                            while (end > 0 && (static_cast<unsigned char>(state.destNewName[end]) & 0xc0) == 0x80) --end;
+                            state.destNewName.erase(end);
+                        }
+                        state.destNameReplaceOnType = false;
+                        state.destStatus.clear();
+                        break;
+                    default: break;
+                    }
+                    break;
+                }
                 switch (event.key.keysym.sym)
                 {
                 case SDLK_ESCAPE:
@@ -759,6 +819,9 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 case SDLK_f:
                     handleSelectCurrent();
                     break;
+                case SDLK_F2:
+                    beginNewFolder();
+                    break;
                 case SDLK_BACKSPACE:
                     if (state.screen == ScreenState::BrowseSource && !state.focusOnRoots)
                     {
@@ -777,6 +840,17 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                     break;
                 default:
                     break;
+                }
+                break;
+
+            case SDL_TEXTINPUT:
+                if (state.destNaming && event.text.text[0])
+                {
+                    if (state.destNameReplaceOnType) state.destNewName.clear();
+                    state.destNameReplaceOnType = false;
+                    if (state.destNewName.size() + std::strlen(event.text.text) <= 240)
+                        state.destNewName += event.text.text;
+                    state.destStatus.clear();
                 }
                 break;
 
@@ -799,6 +873,13 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 break;
 
             case SDL_CONTROLLERBUTTONDOWN:
+                if (state.destNaming)
+                {
+                    if (event.cbutton.button == SDL_CONTROLLER_BUTTON_A ||
+                        event.cbutton.button == SDL_CONTROLLER_BUTTON_Y) confirmNewFolder();
+                    else if (event.cbutton.button == SDL_CONTROLLER_BUTTON_B) cancelNewFolder();
+                    break;
+                }
                 switch (event.cbutton.button)
                 {
                 case SDL_CONTROLLER_BUTTON_DPAD_UP:
@@ -820,8 +901,11 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                     handleCancel();
                     break;
                 case SDL_CONTROLLER_BUTTON_X:
-                case SDL_CONTROLLER_BUTTON_Y:
                     handleSelectCurrent();
+                    break;
+                case SDL_CONTROLLER_BUTTON_Y:
+                    if (state.screen == ScreenState::BrowseDest) beginNewFolder();
+                    else handleSelectCurrent();
                     break;
                 default:
                     break;
@@ -843,6 +927,23 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
 
                     if (state.screen == ScreenState::BrowseSource || state.screen == ScreenState::BrowseDest)
                     {
+                        const int mainX = 194;
+                        const int newFolderY = curBodyY + curBodyH - 44;
+                        if (state.screen == ScreenState::BrowseDest &&
+                            mx >= mainX + 14 && mx <= mainX + 230 &&
+                            my >= newFolderY && my <= newFolderY + 30)
+                        {
+                            if (state.destNaming) confirmNewFolder();
+                            else beginNewFolder();
+                            break;
+                        }
+                        if (state.destNaming && mx >= mainX + 244 && mx <= mainX + 390 &&
+                            my >= newFolderY && my <= newFolderY + 30)
+                        {
+                            cancelNewFolder();
+                            break;
+                        }
+                        if (state.destNaming) break;
                         bool isSource = (state.screen == ScreenState::BrowseSource);
                         auto& items = isSource ? state.sourceItems : state.destItems;
                         auto& selIdx = isSource ? state.sourceSelectedIndex : state.destSelectedIndex;
@@ -872,7 +973,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                             int mainW = winW - mainX - 20;
                             int listY = curBodyY + 76;
                             int rowH = 28;
-                            int maxVisible = (curBodyH - 90) / rowH;
+                            int maxVisible = (curBodyH - (isSource ? 90 : 180)) / rowH;
 
                             // Check if path bar was clicked to select folder
                             if (mx >= mainX + 14 && mx <= mainX + mainW - 14 && my >= curBodyY + 36 && my <= curBodyY + 64)
@@ -936,7 +1037,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         int stickX = 0;
         int stickY = 0;
         if ((SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) &&
-            !state.isScanning.load() && !state.isImporting.load())
+            !state.isScanning.load() && !state.isImporting.load() && !state.destNaming)
         {
             for (auto* controller : controllers)
             {
@@ -985,6 +1086,11 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             chipX += 90;
             DrawButtonPrompt(renderer, chipX, chipY, "X", "Select", COLOR_CYAN);
             chipX += 100;
+            if (state.screen == ScreenState::BrowseDest)
+            {
+                DrawButtonPrompt(renderer, chipX, chipY, "Y", "New folder", COLOR_ACCENT_GOLD);
+                chipX += 145;
+            }
             DrawButtonPrompt(renderer, chipX, chipY, "B", "Back", COLOR_RED);
             chipX += 90;
             DrawNavigationPrompt(renderer, dpadIcon, chipX, chipY, "Move");
@@ -1021,7 +1127,10 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
         if (state.screen == ScreenState::BrowseSource || state.screen == ScreenState::BrowseDest)
         {
             ui::DrawString(renderer, kbTextX, kbY,
-                           "[Enter] Open  [F] Select  [Bksp] Up  [Esc] Back  [Arrows] Move",
+                           state.screen == ScreenState::BrowseDest
+                               ? (state.destNaming ? "[Type] Rename  [Enter] Create  [Esc] Cancel"
+                                                   : "[Enter] Open  [F] Select  [F2] New folder  [Esc] Back")
+                               : "[Enter] Open  [F] Select  [Bksp] Up  [Esc] Back  [Arrows] Move",
                            COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 0.85f);
         }
         else if (state.screen == ScreenState::ReviewDiscs)
@@ -1113,7 +1222,7 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
                 // Item list
                 int listY = bodyY + 76;
                 int rowH = 28;
-                int maxVisible = (bodyH - 90) / rowH;
+                int maxVisible = (bodyH - (isSource ? 90 : 180)) / rowH;
 
                 for (int i = 0; i < maxVisible && (i + scrollOff) < static_cast<int>(items.size()); ++i)
                 {
@@ -1160,6 +1269,35 @@ InstallerResult ShowInstallerUI(const std::filesystem::path& executableDirectory
             if (items.empty())
             {
                 ui::DrawString(renderer, mainX + 24, listY + 12, "(Directory is empty)", COLOR_MUTED.r, COLOR_MUTED.g, COLOR_MUTED.b, 255, 1.0f);
+            }
+            if (!isSource)
+            {
+                const int actionY = bodyY + bodyH - 44;
+                DrawBevelPanel(renderer, mainX + 14, actionY, 216, 30, COLOR_RAIL);
+                ui::DrawString(renderer, mainX + 24, actionY + 7,
+                               state.destNaming ? "CREATE FOLDER" : "NEW FOLDER  [F2 / Y]",
+                               COLOR_CYAN.r, COLOR_CYAN.g, COLOR_CYAN.b, 255, 0.9f);
+                if (state.destNaming)
+                {
+                    DrawBevelPanel(renderer, mainX + 244, actionY, 146, 30, COLOR_RAIL);
+                    ui::DrawString(renderer, mainX + 254, actionY + 7, "CANCEL  [B]",
+                                   COLOR_RED.r, COLOR_RED.g, COLOR_RED.b, 255, 0.9f);
+                }
+                if (state.destNaming)
+                {
+                    const auto name = "Name: " + state.destNewName +
+                        (state.destNameReplaceOnType ? " (type to rename)" : "");
+                    ui::DrawString(renderer, mainX + 16, actionY - 55,
+                                   ui::TruncateTextWidth(name, mainW - 32, 0.9f),
+                                   COLOR_INK.r, COLOR_INK.g, COLOR_INK.b, 255, 0.9f);
+                }
+                if (!state.destStatus.empty())
+                {
+                    const auto color = state.destStatusError ? COLOR_RED : COLOR_INK;
+                    ui::DrawString(renderer, mainX + 16, actionY - 28,
+                                   ui::TruncateTextWidth(state.destStatus, mainW - 32, 0.9f),
+                                   color.r, color.g, color.b, 255, 0.9f);
+                }
             }
         }
         else if (state.screen == ScreenState::ReviewDiscs)

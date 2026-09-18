@@ -320,6 +320,7 @@ IsoImageReader::IsoImageReader(std::filesystem::path path, const Cancelled& canc
         if (cancelled && cancelled())
             throw Error("Source check cancelled", true);
 
+        stream_.clear();
         stream_.seekg(offset);
         size_t toRead = static_cast<size_t>(std::min<uint64_t>(chunk.size(), limit_ - offset));
         stream_.read(reinterpret_cast<char*>(chunk.data()), toRead);
@@ -327,12 +328,14 @@ IsoImageReader::IsoImageReader(std::filesystem::path path, const Cancelled& canc
 
         if (bytesRead < 20) continue;
 
-        for (size_t pos = 0; pos + 20 <= bytesRead; ++pos)
+        // XDVDFS descriptors start on 2048-byte sector boundaries. The
+        // overlapping sector keeps a descriptor crossing a chunk edge intact.
+        for (size_t pos = 0; pos + SECTOR <= bytesRead; pos += SECTOR)
         {
             if (std::memcmp(chunk.data() + pos, MAGIC, 20) == 0)
             {
                 uint64_t absolute = offset + pos;
-                if (absolute >= 0x10000 && (absolute % SECTOR) == 0 && pos + 0x800 <= bytesRead)
+                if (absolute >= 0x10000)
                 {
                     if (std::memcmp(chunk.data() + pos + 0x7ec, MAGIC, 20) == 0)
                     {

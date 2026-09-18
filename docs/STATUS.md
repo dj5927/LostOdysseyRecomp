@@ -1,8 +1,8 @@
 # Project status
 
-## Unreleased v0.6.0 audit repairs / 未发布 v0.6.0 审计修复
+## v0.6.0 release candidate / v0.6.0 发布候选版
 
-The unreleased main source repairs the remaining 0.6.0 audit findings. Large
+The current main source repairs the remaining 0.6.0 audit findings. Large
 vertex and index cache hits compare complete source content; the index cache is
 bounded to a 64 MiB payload budget. `tools/drive_city.py --dry-run` is
 read-only and protects save paths. The PPC timebase shares the pause-aware
@@ -10,21 +10,39 @@ high-resolution game clock. Linux update apply cleans completed staging and
 restores the previous AppImage after a direct launch failure, while standalone
 Windows recovery uses the helper as its runner source.
 
-当前未发布的 main 源码已修复 0.6.0 审计剩余问题：大顶点和索引缓存命中会完整比较源内容，索引缓存有效载荷限制为 64 MiB；`tools/drive_city.py --dry-run` 不写入文件并保护存档路径；PPC timebase 与感知暂停的高精度游戏时钟统一；Linux 更新完成后清理暂存，直接启动失败时恢复旧 AppImage；Windows 独立恢复路径使用 helper 作为 runner 来源。
+当前 main 源码已修复 0.6.0 审计剩余问题：大顶点和索引缓存命中会完整比较源内容，索引缓存有效载荷限制为 64 MiB；`tools/drive_city.py --dry-run` 不写入文件并保护存档路径；PPC timebase 与感知暂停的高精度游戏时钟统一；Linux 更新完成后清理暂存，直接启动失败时恢复旧 AppImage；Windows 独立恢复路径使用 helper 作为 runner 来源。
 
 Focused evidence: Clang `-O2` vertex-cache, geometry and prerelease fixtures
 passed 3,668,947, 16,809,648 and 16,438 checks respectively; five benchmark
 save-safety cases passed; the independent WSL pause test passed; and isolated
 POSIX apply fixtures passed success cleanup and launch-failure rollback. These
-are unreleased source checks. They do not establish full-game behavior, final
+are release-candidate source checks. They do not establish full-game behavior, final
 release-binary performance, a real AppImage update, a real Windows package
 transaction, or Steam Deck acceptance.
 
 定向证据：Clang `-O2` 顶点缓存、geometry 和 prerelease fixture 分别通过
 3,668,947、16,809,648 和 16,438 项检查；基准工具存档安全测试 5 项通过；
 WSL 独立暂停测试通过；POSIX 更新隔离 fixture 的成功清理和启动失败回滚通过。
-这些是未发布源码检查，不代表全游戏行为、最终发布二进制性能、真实 AppImage
+这些是发布候选源码检查，不代表全游戏行为、最终发布二进制性能、真实 AppImage
 更新、真实 Windows 安装包事务或 Steam Deck 验收。
+
+2026-09-18 的真实光盘验证使用当前 importer 源码和只读目录
+`G:/ROMS/US`：`ScanContent` 找到 USA/Europe 四张光盘镜像，每张 15 个文件，
+`packages=0`、`rejected=0`。随后将 Disc 1 导入隔离目录，74.44 秒完成，未报告
+错误或警告；目标目录包含 15 个资源文件和 `import-info.json`，共
+5,712,711,997 字节，记录的 Disc 1 元数据和 XEX SHA-256 一致，暂存目录与导入锁
+均已清理。这覆盖真实扫描和一次 Disc 1 事务，不代表四盘完整安装、交互 UI 验收、
+游戏运行或全部输出字节比较。
+
+The 2026-09-18 real-disc validation used the current importer sources and the
+read-only `G:/ROMS/US` tree. `ScanContent` found all four USA/Europe disc
+images, with 15 files per disc, `packages=0` and `rejected=0`. An isolated Disc
+1 import completed in 74.44 seconds with no error or warning; its destination
+contained 15 resource files and `import-info.json` totalling 5,712,711,997
+bytes, with matching Disc 1 metadata and XEX SHA-256. Staging and lock files
+were cleaned up. This covers real scanning and one Disc 1 transaction; it does
+not establish a four-disc install, interactive UI acceptance, gameplay or a
+full output byte comparison.
 
 ## Published v0.5.20 — 2026-09-17
 
@@ -170,9 +188,17 @@ The follow-up audit fixes the main binary's installer and updater failure paths 
 
 The user accepted this development batch for commit. Repeated focused verification passed with exit 0: `LoInstallerControllerTest`, `LoUpdaterApplyArgumentsTest` (8 checks), `LoImportGameTest --dlc-io`, and the AppImage script checks (3/3). The Windows `LoUserPathsTest` cannot cover Linux behavior; the separate WSL Manjaro fixture already passed portable, XDG, changed-CWD, `LO_PROFILE_DIR` override and Flatpak paths. The Windows main target incremental build completed successfully; existing deprecated compiler warnings remain.
 
-Non-blocking follow-up remains: add a root guard for the `ExistingDlcPayloadMatches` ancestor walk (the only current caller generates `dest/dlc/<hexID>`, so trailing-slash reachability is unconfirmed), and add explicit close-result coverage for extracted DLC. No repeated-import hang is established.
+Non-blocking follow-up remains: add a root guard for the `ExistingDlcPayloadMatches` ancestor walk (the only current caller generates `dest/dlc/<hexID>`, so trailing-slash reachability is unconfirmed), and add explicit close-result coverage for extracted DLC. Disc-resource and `import-info.json` finalization coverage is recorded in the later importer hardening checkpoint below. No repeated-import hang is established.
 
 Acceptance is limited to this development batch and its focused checks. No real AppImage package, live network or in-place update, complete interactive import or full-game playthrough has been performed, and no release has been published.
+
+## Importer hardening and destination folders — unpublished development — 2026-09-18
+
+The importer now treats final file close results as part of the publication transaction for disc resources and `import-info.json`. A write, flush or close failure aborts staging before publication, preventing a damaged resource from being reported as a completed import without adding a full-file reread. XDVDFS signature scanning advances in 2048-byte steps, and installation reuses the identity-verified reader while retaining the final identity recheck.
+
+The destination browser can create a folder from its button, `F2`, or destination-page controller `Y`. It provides a unique default name, supports keyboard renaming, enters and selects the new folder after creation, and does not start an import automatically. Collision, permission and read-only-directory errors are surfaced. The source browser's existing `Y` behavior is unchanged.
+
+Focused validation passed: `LoImportGameTest` covered resource and JSON open/write/flush/close failure injection, staging abort, rollback and retry; synthetic ISO locator cases covered standard, padded Chinese-path with an unaligned decoy, and chunk-boundary inputs; folder helper cases passed; and `installer_ui.cpp` passed the WSL SDL2 syntax check. These are synthetic and compile checks. No real interactive game import or runtime installer click-through has been performed, and this checkpoint is unpublished.
 
 ## Published v0.5.13 — Alt+Enter window/fullscreen toggle — 2026-09-14
 

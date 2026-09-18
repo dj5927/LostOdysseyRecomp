@@ -83,6 +83,18 @@ Current importer coverage is the native `LoImportGameTest` and `LoInstallerContr
 
 The user accepted the 2026-09-16 installer audit batch for commit. Repeated focused checks passed with exit 0: `LoInstallerControllerTest` and `LoImportGameTest --dlc-io`. The importer run covered 16 synthetic STFS payload/sidecar I/O failure points, publication failure handling, cleanup, retry state, and extracted-DLC trailing-separator scanning, using a 52 KiB STFS without a ROM. These are focused synthetic checks; they do not establish a complete interactive import, real disk-failure recovery or gameplay acceptance. Explicit close-result coverage for extracted DLC remains a non-blocking follow-up.
 
+The 2026-09-18 importer hardening checks add resource and `import-info.json` open/write/flush/close failure injection, publication abort, rollback and retry coverage to `LoImportGameTest`. `import_iso_locator_test.cpp` covers standard, padded Chinese-path with an unaligned decoy, and chunk-boundary ISO locator cases; `file_browser_folder_test.cpp` covers destination-folder helper cases. The WSL SDL2 syntax check covers `installer_ui.cpp`. These checks do not establish a complete interactive import or runtime installer click-through. Explicit close-result coverage for extracted DLC remains a separate follow-up.
+
+Real-drive validation on 2026-09-18 used the current importer sources and the
+read-only source tree `G:/ROMS/US`. `ScanContent` found all four USA/Europe
+disc ISOs, with 15 files per disc and no rejected sources or packages. An
+isolated Disc 1 import then completed in 74.44 seconds with no error or warning;
+the destination contained the 15 resource files plus `import-info.json`,
+totalling 5,712,711,997 bytes, and the recorded Disc 1 metadata/XEX SHA-256
+matched. No staging directory or import lock remained. This validates the
+native scan and one real Disc 1 transaction; it does not establish a four-disc
+install, interactive UI acceptance, gameplay or full output byte comparison.
+
 ## Updater window checks
 
 The focused updater fixture is recorded in `out/v0.5.0/ui-modernization/updater/fixture.log` and `manifest.json`. It passed native window/control creation, native styles, known and unknown progress, unchanged-value redraw caching, verification cancellation boundaries, ready-state controls, minimize, teardown, Chinese narrow layout, download close cancellation and late-progress handling. Final normal, unknown-total and narrow Chinese renders were refreshed separately and reviewed; those captures do not repeat the functional fixture. No game, network download, package transaction or updater helper was run, and physical monitor moves and live user-desktop gestures remain untested.

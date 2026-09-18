@@ -27,6 +27,7 @@ def main():
     functions = between(source, 'static void GuestThreadFunc', 'template <typename ThreadType>')
     cpp = r'''
 #include "kernel/dispatcher_wait.h"
+#include "os/thread_name.h"
 #include <atomic>
 #include <future>
 #include <iostream>
