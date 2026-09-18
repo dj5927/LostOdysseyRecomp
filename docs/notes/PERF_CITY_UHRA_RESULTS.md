@@ -4,7 +4,7 @@ Method, baselines, two delivered optimizations (index conversion cache, BOLT),
 and the variance caveats behind every number below.
 
 Companion handoff (environment, build flags, benchmark protocol):
-`docs/notes/LORecomp_Clang_Optimization_and_Benchmark_Handoff.md`.
+`docs/archive/clang-optimization-and-benchmark-handoff-2026-09-17.md`.
 Chinese version of this report: `PERF_CITY_UHRA_RESULTS.zh-CN.md`.
 
 ## 1. Methodology (read before quoting numbers)

@@ -3,7 +3,7 @@
 方法、基线、两次交付的优化（索引转换缓存、BOLT），以及所有数字背后的方差说明。
 
 环境与构建标识、跑分流程见交接文档
-`docs/notes/LORecomp_Clang_Optimization_and_Benchmark_Handoff.md`。
+`docs/archive/clang-optimization-and-benchmark-handoff-2026-09-17.md`。
 英文版：`PERF_CITY_UHRA_RESULTS.md`。
 
 ## 1. 方法（引用数字前先读）
