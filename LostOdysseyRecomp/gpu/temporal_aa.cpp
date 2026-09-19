@@ -285,8 +285,8 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
         c.previousScaleBias[2]=float(previous.width*.5*(1+previous.halfPixelNdcX)+in.previousJitterX);
         c.previousScaleBias[3]=float(previous.height*.5*(1-previous.halfPixelNdcY)+in.previousJitterY);
         c.size[2]=float(in.historyWidth);c.size[3]=float(in.historyHeight);c.active=1;c.reactive=in.reactiveMask?1u:0u;
-        // Enable motion vector sampling in shader if caller provides motionVector texture
-        if (in.motionVector) {
+        // Enable motion vector sampling in shader if caller provides motionVector texture AND marks it valid
+        if (in.motionVector && in.motionVectorValid) {
             c.pad0 |= 4u;
         }
     }

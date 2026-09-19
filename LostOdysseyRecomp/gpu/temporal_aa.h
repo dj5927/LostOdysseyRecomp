@@ -22,6 +22,7 @@ struct TemporalAAInputs
     plume::RenderTexture *currentColor=nullptr, *currentDepth=nullptr;
     plume::RenderTexture *historyColor=nullptr, *historyDepth=nullptr;
     plume::RenderTexture *motionVector=nullptr;
+    bool motionVectorValid=false;
     // stableGrid=false: current jittered raster grid, paired with currentDepth.
     // stableGrid=true: stable display color; retain raw currentDepth separately.
     plume::RenderTexture *output=nullptr, *reactiveMask=nullptr;

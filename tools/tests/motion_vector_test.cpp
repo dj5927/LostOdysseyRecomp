@@ -57,11 +57,16 @@ int main()
         vsConstantsCurrent[0] = 1.0f; // c0.x
         vsConstantsCurrent[4] = 2.0f; // c1.x
 
-        uint32_t boolConst = 1;
-        uint32_t loopConst = 0;
+        std::array<uint32_t, 8> boolConst{};
+        boolConst[0] = 1;
+        std::array<uint32_t, 32> loopConst{};
         tracker.BeginFrame(1);
-        tracker.RecordDraw(keyA, vsConstantsCurrent.data(), &boolConst, &loopConst, false);
+        tracker.RecordDraw(keyA, vsConstantsCurrent.data(), boolConst.data(), loopConst.data(), false);
         Require(tracker.ActiveDrawCount() == 1, "Draw recorded in frame 1");
+
+        // Idempotent BeginFrame test: calling BeginFrame with same frame & epoch must be a no-op
+        tracker.BeginFrame(1, 0);
+        Require(tracker.ActiveDrawCount() == 1, "BeginFrame is idempotent for same frame index and epoch");
 
         const DrawTemporalState* prevA = tracker.FindPrevious(keyA);
         Require(prevA == nullptr, "No previous state in first frame");
@@ -79,7 +84,7 @@ int main()
         // Record updated draw in frame 2
         std::array<float, 1024> vsConstantsNext{};
         vsConstantsNext[0] = 1.5f;
-        tracker.RecordDraw(keyA, vsConstantsNext.data(), &boolConst, &loopConst, false);
+        tracker.RecordDraw(keyA, vsConstantsNext.data(), boolConst.data(), loopConst.data(), false);
         Require(tracker.ActiveDrawCount() == 1, "Draw recorded in frame 2");
         Require(tracker.Stats().matchedPreviousDraws == 1, "Draw matched previous frame identity");
     }

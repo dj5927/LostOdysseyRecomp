@@ -4367,9 +4367,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     static const bool enableDrawTracking = getenv("LO_ENABLE_MV_DRAW_TRACKING") && strcmp(getenv("LO_ENABLE_MV_DRAW_TRACKING"), "1") == 0;
                     if (enableDrawTracking)
                     {
-                        const float* vsFloatPtr = reinterpret_cast<const float*>(vsConstants.data());
-                        const uint32_t* boolPtr = reinterpret_cast<const uint32_t*>(boolConstants.data());
-                        const uint32_t* loopPtr = reinterpret_cast<const uint32_t*>(loopConstants.data());
+                        const float* vsFloatPtr = reinterpret_cast<const float*>(vsConstants);
+                        const uint32_t* boolPtr = reinterpret_cast<const uint32_t*>(shared.bools);
+                        const uint32_t* loopPtr = reinterpret_cast<const uint32_t*>(shared.loops);
                         const bool isSkinned = vs->info.usesRelativeConstants;
 
                         drawTemporalTracker.RecordDraw(histKey, vsFloatPtr, boolPtr, loopPtr, isSkinned);

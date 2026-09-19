@@ -96,14 +96,19 @@ struct DrawTemporalState {
 // Double-buffered draw temporal tracker: cleanly isolates current and previous frames
 class DrawTemporalTracker {
 public:
-    void BeginFrame(uint64_t frameIndex) {
-        if (frameIndex == currentFrameIndex_ + 1) {
+    void BeginFrame(uint64_t frameIndex, uint64_t epoch = 0) {
+        if (frameIndex == currentFrameIndex_ && epoch == currentEpoch_ && hasBegunFrame_) {
+            return;
+        }
+        if (epoch == currentEpoch_ && frameIndex == currentFrameIndex_ + 1 && hasBegunFrame_) {
             previousDraws_ = std::move(currentDraws_);
         } else {
             previousDraws_.clear();
         }
         currentDraws_.clear();
         currentFrameIndex_ = frameIndex;
+        currentEpoch_ = epoch;
+        hasBegunFrame_ = true;
         stats_ = DiagnosticsStats{};
         stats_.frame = frameIndex;
     }
@@ -195,6 +200,8 @@ public:
 
 private:
     uint64_t currentFrameIndex_ = 0;
+    uint64_t currentEpoch_ = 0;
+    bool hasBegunFrame_ = false;
     std::unordered_map<DrawHistoryKey, DrawTemporalState, DrawHistoryKeyHasher> currentDraws_;
     std::unordered_map<DrawHistoryKey, DrawTemporalState, DrawHistoryKeyHasher> previousDraws_;
     DiagnosticsStats stats_{};

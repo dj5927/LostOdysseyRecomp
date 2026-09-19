@@ -173,6 +173,7 @@ class HistoryOwner {
     uint32_t width_=0,height_=0;
     uint64_t frame_=~0ull,epoch_=0;
     bool valid_=false,reused_=false;
+    bool motionVectorValid_=false;
     bool diagnosticsEnabled_=false;
     plume::RenderFormat colorFormat_=plume::RenderFormat::R8G8B8A8_UNORM;
     HistoryReuseDiagnostic diagnostics_;
@@ -196,7 +197,9 @@ public:
         colorFormat_=hdrColor?plume::RenderFormat::R16G16B16A16_FLOAT:plume::RenderFormat::R8G8B8A8_UNORM;
         return aa_.Init(device,hdrColor);
     }
-    void Reset() {valid_=false;for(auto& frame:frames_)frame.completed=false;}
+    void Reset() {valid_=false;motionVectorValid_=false;for(auto& frame:frames_)frame.completed=false;}
+    void SetMotionVectorValid(bool valid) { motionVectorValid_ = valid; }
+    bool MotionVectorValid() const { return motionVectorValid_; }
     // Frame identity is supplied by renderer, never CPU presented-swap count.
     void BeginFrame(uint64_t frame,uint64_t epoch,bool diagnostics=false) {
         diagnosticsEnabled_=diagnostics;
@@ -248,6 +251,7 @@ public:
         }
         TemporalAAInputs in;in.rejectOutOfNeighborhoodHistory=colorReactive;in.stableGrid=stableGrid;in.currentColor=source_.texture.get();in.currentDepth=depth_[frame_%2].texture.get();in.historyColor=history_[(frame_+1)%2].texture.get();in.historyDepth=depth_[(frame_+1)%2].texture.get();in.output=history_[frame_%2].texture.get();
         in.motionVector=motionVector_.texture.get();
+        in.motionVectorValid=motionVectorValid_;
         in.width=in.historyWidth=width_;in.height=in.historyHeight=height_;in.currentCamera=&*current.camera;in.previousCamera=previous.camera?&*previous.camera:nullptr;
         in.currentJitterX=jx;in.currentJitterY=jy;in.previousJitterX=previous.jx;in.previousJitterY=previous.jy;in.historyValid=reuse;in.rejectAllHistory=!allowHistory;
         if(sparse_&&!sparseReleaseSerial_&&sparse_->Ready()&&taa_collection::WantSparse()) {
