@@ -88,3 +88,11 @@ CI `mv-validation.yml` reproduces Linux software-Vulkan tests with validation la
 ## Next acceptance gate
 
 Build the full game normally from this revision and confirm the executable's source revision. First measure A against the last good build. Then test D in a fixed-camera Bell scene and a walking character: capture velocity/reject coverage and verify local motion independently of camera motion. Repeat map changes, camera cuts, duplicate instances, transparency and a long run. Only measured, supported scenes should authorize a wider default or a vendor upscaler adapter.
+
+## Recent development updates (Unpublished / 未发布)
+
+- **Polygon offset gating**: permits self-consistent constant depth bias while continuing to reject finite slope bias and non-finite values.
+- **Depth-only replay PS**: added `#define XE_SAMPLE(t, s, uv) t.Sample(s, uv)` to resolve DXIL/SPIR-V compilation errors for null/depth-only microcode.
+- **Async shader compilation**: throttled to at most 2 concurrent background worker jobs to eliminate scene transition loading hangs and black screens.
+- **Ordered duplicate matching**: matches repeated `DrawHistoryKey` instances by stable occurrence order across adjacent frames, improving automated Bell debug tracking from ~533/955 to stable 955/955 matched draws (`ready=true consume=true`) and eliminating reactive mask gaps.
+- **Status & limits**: Windows runtime BUILD OK; `motion_vector_test` 40 checks passed; `motion_replay_gpu_test --compile-only` 11 checks passed; automated Vulkan execution is stable. User confirmed MV is actively consumed; Bell visible jitter remains under active TAA investigation and is NOT marked resolved or accepted. D3D12 replay PSO creation `E_INVALIDARG 0x80070057` remains tracked follow-up work.

@@ -1,5 +1,23 @@
 # Project status
 
+## Experimental geometric motion vectors (Unpublished / 未发布)
+
+Development progress on the experimental geometric motion replay pipeline:
+- Polygon-offset gating allows self-consistent constant depth bias while continuing to reject slope bias and non-finite values.
+- Depth-only replay pixel shader wrapper defines `XE_SAMPLE(t, s, uv)`, resolving DXIL/SPIR-V compilation errors when microcode has no pixel program.
+- Background asynchronous compilation for generated replay shaders is throttled to at most 2 concurrent jobs, preventing scene loading hangs and black screens.
+- Stable occurrence-order matching handles repeated `DrawHistoryKey` instances across adjacent frames instead of blanket rejection, raising automated Bell debug matching from ~533/955 to a stable 955/955 matched/replay draws (`ready=true consume=true`) and closing the reactive mask coverage gap.
+- Verification: Windows runtime build passed; `motion_vector_test` passed 40 lifecycle and occurrence checks; `motion_replay_gpu_test --compile-only` passed 11 DXIL and SPIR-V compilation checks; automated Vulkan execution is stable.
+- Boundaries and user feedback: The user confirmed motion vector consumption (`consume=true`) is active and beneficial. Visible shimmer/jitter in the Bell sequence remains present under investigation as a separate TAA issue; Bell visual quality is NOT marked resolved or accepted. D3D12 replay PSO creation returns `E_INVALIDARG 0x80070057` and remains tracked follow-up work.
+
+实验性几何运动矢量（motion replay）开发进展：
+- 修正多边形偏移（polygon offset）门控，允许自洽的恒定深度偏移（depth bias），同时继续拒绝斜率偏移与非有限值。
+- 在仅深度（depth-only）replay 像素着色器包装中补齐 `XE_SAMPLE` 定义，解决 DXIL/SPIR-V 编译失败。
+- 后台异步编译生成的 replay 着色器，并发数上限为 2，避免场景加载过程中的卡顿与黑屏。
+- 采用帧内稳定提交顺序（occurrence）配对重复 `DrawHistoryKey`，替代此前的整帧丢弃策略；Bell 自动化调试场景匹配数由约 533/955 提升至稳定的 955/955 matched/replay（`ready=true consume=true`），消除 reactive 遮罩缺口。
+- 验证：Windows 运行时构建通过；`motion_vector_test` 通过 40 项生命周期与 occurrence 检查；`motion_replay_gpu_test --compile-only` 通过 11 项 DXIL/SPIR-V 编译检查；Vulkan 自动化运行稳定。
+- 边界与用户反馈：用户已确认 MV 被正常消费（`consume=true`）；Bell 场景中的可见抖动依然存在，属于继续排查的 TAA 问题，未标记为已修复或已验收。D3D12 下 replay PSO 创建返回 `E_INVALIDARG 0x80070057`，仍为已记录的后续待办。
+
 ## v0.6.1 published / v0.6.1 已发布
 
 The automatic updater now checks for a newer release before game-data import on Windows and Linux. A newer release opens an app-branded SDL prompt with release notes and Install/Later actions; accepting applies the update and relaunches before import, while declining or an offline check continues normally. Headless and background runs skip this UI. Windows runtime build, focused Windows/Linux prompt tests and changed Linux syntax checks passed. Live network update acceptance, physical controller input and GUI acceptance remain unverified.

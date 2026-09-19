@@ -478,8 +478,8 @@ namespace gpu::renderer
                 }
                 if (motionOptions.log && (frame % 120 == 0)) {
                     const auto& st = drawTemporalTracker.Stats();
-                    LOG_INFO("mv: frame={} tracked={} matched={} ambiguous={} overflow={} replay={} failed={} ready={} consume={} pending={}",
-                        frame, st.trackedCurrentDraws, st.matchedPreviousDraws, st.ambiguousRejectedMatches,
+                    LOG_INFO("mv: frame={} tracked={} matched={} ordered_duplicates={} overflow={} replay={} failed={} ready={} consume={} pending={}",
+                        frame, st.trackedCurrentDraws, st.matchedPreviousDraws, st.orderedDuplicateDraws,
                         st.overflowDraws, motionReplay ? motionReplay->DrawCount() : 0,
                         motionReplay ? motionReplay->FailedDraws() : 0, motionView.ready,
                         motionOptions.consume && motionView.ready, motionReplay ? motionReplay->PendingCount() : 0);
@@ -3653,9 +3653,18 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     depth->allocationSerial == jitterAnchor->depthAllocation && rasterViewport.x == 0 && rasterViewport.y == 0 &&
                     rasterViewport.width == jitterAnchor->viewport.width && rasterViewport.height == jitterAnchor->viewport.height;
                 const bool motionDepthWrite = motionScene && (depthControl & 6) == 6;
+                const float motionSlopeBias = std::bit_cast<float>(key.slopeBias);
                 const bool motionSupported = motionDepthWrite && !drawTemporalTracker.Failed() && temporalSlot >= 0 && temporalSlot <= 252 && !vs->info.textureSlotMask &&
                     !vs->info.usesPointSize && vs->info.errors.empty() && (!ps || (!ps->info.writesDepth && ps->info.errors.empty())) &&
-                    !(key.depthControl & 1) && key.prim != 8 && key.depthBias == 0 && key.slopeBias == 0 && layerDepthOffset == 0;
+                    // Replay uses the same rasterizer key, so a constant polygon offset
+                    // remains self-consistent. Reject a real slope offset and NaNs.
+                    !(key.depthControl & 1) && key.prim != 8 && std::isfinite(motionSlopeBias) &&
+                    motionSlopeBias == 0.0f && layerDepthOffset == 0;
+                // This six-index helper reads clip positions directly from vfetch95 and
+                // has no previous transform to replay. Its final scene depth locally
+                // rejects any underlying replay sample in the validity-mask pass.
+                const bool motionLocallyMaskedClipWriter = motionDepthWrite &&
+                    key.vs == 0x8bbd4da701845d16ull && temporalSlot < 0 && info.indexCount == 6;
                 // Save only the words jitter can change. Collect copies the FULL
                 // VS bank once and restores this proven matrix window in its arena.
                 std::array<uint32_t, 16> motionOriginalVP;
@@ -4435,12 +4444,28 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 drawsThisFrame++;
 
                 if (motionDepthWrite) {
-                    if (drawTemporalTracker.Finalized()) {
+                    if (motionLocallyMaskedClipWriter) {
+                        // Nothing to replay: final scene depth makes these pixels
+                        // reactive while preserving motion from the rest of the frame.
+                    } else if (drawTemporalTracker.Finalized()) {
                         // Do not change a motion field after its pre-UI consumer.
+                        if (motionOptions.log && frame % 120 == 0)
+                            LOG_INFO("mv late depth writer frame={} draw={} vs={:016x} ps={:016x} slot={} scene={} depth={} allocation={} prim={} indices={} bias={} slope={} layer={}",
+                                frame, drawsThisFrame, key.vs, key.ps, temporalSlot, motionScene,
+                                depth->allocationSerial, jitterAnchor ? jitterAnchor->depthAllocation : 0,
+                                key.prim, indexCount, key.depthBias,
+                                std::bit_cast<float>(key.slopeBias), layerDepthOffset);
                         drawTemporalTracker.Invalidate();
                     } else if (!motionSupported || !motionStreamsValid) {
                         // Unknown visibility writers require a conservative whole-frame
                         // fallback; camera reprojection is not valid object motion.
+                        if (motionOptions.log && !drawTemporalTracker.Failed() && frame % 120 == 0)
+                            LOG_INFO("mv reject frame={} draw={} vs={:016x} ps={:016x} supported={} streams={} slot={} scene={} depth_write={} tex_mask={} point_size={} vs_errors={} ps_depth={} ps_errors={} stencil={} prim={} depth_bias={} slope_bias={} layer_bias={}",
+                                frame, drawsThisFrame, key.vs, key.ps, motionSupported, motionStreamsValid,
+                                temporalSlot, motionScene, motionDepthWrite, vs->info.textureSlotMask,
+                                vs->info.usesPointSize, vs->info.errors.size(), ps ? ps->info.writesDepth : false,
+                                ps ? ps->info.errors.size() : 0, key.depthControl & 1, key.prim,
+                                key.depthBias, std::bit_cast<float>(key.slopeBias), layerDepthOffset);
                         drawTemporalTracker.Invalidate();
                         if (motionReplay) motionReplay->AbortFrame();
                     } else {
@@ -4454,15 +4479,21 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         auto match = drawTemporalTracker.Collect(mk, vsConstants, &shared, vs->info.usesRelativeConstants,
                             drawJitter.applied ? temporalSlot : -1, motionOriginalVP.data());
                         mvTimer.AddTo(mvTrackCpuMs);
-                        if (motionReplay && motionReplay->UsableThisFrame()) {
+                        if (motionReplay && motionReplay->UsableThisFrame() && match.previous) {
                             const auto w = uint32_t(rasterViewport.width), h = uint32_t(rasterViewport.height);
                             auto* mp = motionReplay->PreparePipeline(key, DescribePipeline(key, vs, ps, false),
                                 vsWords, vsCount, ps ? psWords : nullptr, ps ? psCount : 0);
                             const uint64_t aligned = (Gpu().uploadOffset + 255) & ~uint64_t(255);
                             // Never trigger a mid-draw Flush: it would invalidate bound
                             // index/texture state and the original constant references.
-                            if (!mp || aligned + sizeof(temporal::MotionReplayConstants) > kUploadRingSize ||
-                                !motionReplay->BeginScene(commandList, depth->allocationSerial, depth->texture.get(), w, h)) {
+                            const bool mvRingFull = aligned + sizeof(temporal::MotionReplayConstants) > kUploadRingSize;
+                            const bool mvSceneReady = mp && !mvRingFull &&
+                                motionReplay->BeginScene(commandList, depth->allocationSerial, depth->texture.get(), w, h);
+                            if (!mvSceneReady) {
+                                if (motionOptions.log && frame % 120 == 0)
+                                    LOG_INFO("mv replay setup failed frame={} draw={} vs={:016x} ps={:016x} pipeline={} ring_full={} error={}",
+                                        frame, drawsThisFrame, key.vs, key.ps, !!mp, mvRingFull,
+                                        motionReplay->LastError());
                                 motionReplay->AbortFrame();
                             } else {
                                 const auto c = temporal::MakeMotionReplayConstants(match, w, h,
@@ -5657,9 +5688,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 auto& r = *g_renderer;
                 if (r.motionOptions.log && r.frame % 120 == 0) {
                     const auto& st = r.drawTemporalTracker.Stats();
-                    LOG_INFO("mv audit frame={} timing={} mv_track_cpu_ms={:.6f} unique={} duplicate={} snapshot_bytes={} scratch_bytes={} scope=current_frame_tracking_wall_and_copy_bytes",
+                    LOG_INFO("mv audit frame={} timing={} mv_track_cpu_ms={:.6f} draws={} ordered_duplicates={} snapshot_bytes={} scratch_bytes={} scope=current_frame_tracking_wall_and_copy_bytes",
                         r.frame,r.motionOptions.timing,r.mvTrackCpuMs,r.drawTemporalTracker.ActiveDrawCount(),
-                        st.ambiguousRejectedMatches,st.snapshotBytes,r.mvScratchBytes);
+                        st.orderedDuplicateDraws,st.snapshotBytes,r.mvScratchBytes);
                     auto log = [&](const char* name,const temporal::GpuPassTimingStats& t) {
                         LOG_INFO("mv timestamp pass={} samples={} unavailable={} total_ms={:.6f} last_ms={:.6f} query_pools={} scope=lifetime_completed_queue_intervals_not_whole_frame negative_last=unavailable",
                             name,t.samples,t.unavailable,t.totalMilliseconds,t.lastMilliseconds,t.queryPoolAllocations);

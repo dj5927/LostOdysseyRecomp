@@ -4,6 +4,30 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
+## Unreleased / 未发布
+
+### English
+
+- Motion replay (experimental geometric motion vectors):
+  - Fixed polygon-offset gating to permit self-consistent constant depth bias while continuing to reject finite slope bias and non-finite values.
+  - Added `#define XE_SAMPLE(t, s, uv) t.Sample(s, uv)` definition to the depth-only replay pixel shader wrapper, fixing `XE_SAMPLE` compilation failure when `TranslateShader` returns depth-only microcode.
+  - Implemented asynchronous background replay shader compilation throttled to a maximum of 2 concurrent in-flight jobs, avoiding scene loading stalls and black screens.
+  - Matched repeated `DrawHistoryKey` submissions by stable frame occurrence order instead of invalidating duplicates across the frame, increasing Bell automated debug matching from ~533/955 to a stable 955/955 matched/replay draws (`ready=true consume=true`) and closing the reactive coverage gap.
+  - Windows runtime build succeeded; `motion_vector_test` passed 40 checks; `motion_replay_gpu_test --compile-only` passed 11 DXIL/SPIR-V checks; automated Vulkan execution is stable.
+  - User confirmed motion vector consumption is active and functional; visible shimmer in the Bell sequence remains under ongoing TAA investigation and is not resolved or accepted.
+  - D3D12 motion replay PSO creation failure (`E_INVALIDARG 0x80070057`) is logged as tracked follow-up work.
+
+### 简体中文
+
+- Motion replay（实验性几何运动矢量）：
+  - 修正多边形偏移（polygon offset）门控，允许自洽的恒定深度偏移（depth bias），同时继续拒绝斜率偏移（slope bias）与非有限值。
+  - 在仅深度（depth-only）replay 像素着色器包装中补齐 `#define XE_SAMPLE(t, s, uv) t.Sample(s, uv)` 定义，解决无微代码或仅深度着色器时的编译失败。
+  - 支持后台异步编译生成的 replay 着色器，并发数上限限制为 2，避免场景加载过程中的卡顿和黑屏。
+  - 重复的 `DrawHistoryKey` 现按帧内稳定提交顺序（occurrence）进行配对，替代此前直接整帧废弃重复项的做法；Bell 自动化调试场景匹配数由约 533/955 提升至稳定的 955/955 matched/replay（`ready=true consume=true`），消除了 reactive 遮罩覆盖缺口。
+  - Windows 运行时构建成功；`motion_vector_test` 通过 40 项检查；`motion_replay_gpu_test --compile-only` 通过 11 项 DXIL/SPIR-V 检查；Vulkan 自动化运行稳定。
+  - 用户已确认 MV 正常被 consume；Bell 场景中的可见抖动/闪烁依然存在，属于后续继续排查的 TAA 问题，未标记为已修复或已验收。
+  - D3D12 下 motion replay PSO 创建失败（`E_INVALIDARG 0x80070057`）已作为后续 Todo 记录。
+
 ## v0.6.1 — 2026-09-18 / Published / 已发布
 
 ### English

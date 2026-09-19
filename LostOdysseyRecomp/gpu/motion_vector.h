@@ -54,6 +54,7 @@ struct DrawTemporalState {
     // fixed half pixel, VTE and flags. Fetch offsets remain those of CURRENT geometry.
     std::array<uint32_t, 52> shared;
     uint32_t previousIndex = UINT32_MAX;
+    uint32_t occurrence = 0;
     bool usesRelativeConstants = false, valid = false;
     DrawTemporalState() noexcept {} // overwritten by memcpy; do not zero 4 KiB per insertion
 };
@@ -72,14 +73,31 @@ class DrawTemporalTracker {
             }
             draws.clear(); std::fill(slots.begin(), slots.end(), 0);
         }
-        uint32_t Slot(const DrawHistoryKey& key) const {
+        uint32_t EmptySlot(const DrawHistoryKey& key) const {
             if (slots.empty()) return UINT32_MAX;
             size_t i = DrawHistoryKeyHasher{}(key) & (slots.size() - 1);
-            while (slots[i] && !(draws[slots[i] - 1].key == key)) i = (i + 1) & (slots.size() - 1);
+            while (slots[i]) i = (i + 1) & (slots.size() - 1);
             return uint32_t(i);
         }
-        uint32_t Find(const DrawHistoryKey& key) const {
-            const auto s = Slot(key); return s == UINT32_MAX || !slots[s] ? UINT32_MAX : slots[s] - 1;
+        uint32_t Count(const DrawHistoryKey& key) const {
+            if (slots.empty()) return 0;
+            uint32_t count = 0;
+            size_t i = DrawHistoryKeyHasher{}(key) & (slots.size() - 1);
+            while (slots[i]) {
+                count += draws[slots[i] - 1].key == key;
+                i = (i + 1) & (slots.size() - 1);
+            }
+            return count;
+        }
+        uint32_t Find(const DrawHistoryKey& key, uint32_t occurrence = 0) const {
+            if (slots.empty()) return UINT32_MAX;
+            size_t i = DrawHistoryKeyHasher{}(key) & (slots.size() - 1);
+            while (slots[i]) {
+                const uint32_t index = slots[i] - 1;
+                if (draws[index].key == key && draws[index].occurrence == occurrence) return index;
+                i = (i + 1) & (slots.size() - 1);
+            }
+            return UINT32_MAX;
         }
     } tables_[2];
     size_t limit_;
@@ -92,7 +110,7 @@ public:
     struct DiagnosticsStats {
         uint64_t frame = 0;
         uint32_t sceneDrawCount = 0, trackedCurrentDraws = 0, matchedPreviousDraws = 0;
-        uint32_t unmatchedDraws = 0, ambiguousRejectedMatches = 0, directConstantMatches = 0, relativeConstantMatches = 0;
+        uint32_t unmatchedDraws = 0, orderedDuplicateDraws = 0, directConstantMatches = 0, relativeConstantMatches = 0;
         uint32_t overflowDraws = 0, lateDraws = 0;
         uint64_t snapshotBytes = 0;
     };
@@ -115,18 +133,19 @@ public:
         ++stats_.trackedCurrentDraws;
         if (failed_) return {};
         auto& cur = tables_[current_]; const auto& prev = tables_[current_ ^ 1];
-        const auto slot = cur.Slot(key);
-        if (cur.slots[slot]) {
-            cur.draws[cur.slots[slot] - 1].valid = false;
-            ++stats_.ambiguousRejectedMatches;
-            return {cur.slots[slot], nullptr};
-        }
         if (cur.draws.size() == limit_) { ++stats_.overflowDraws; Invalidate(); return {}; }
+        // Repeated instances commonly share shader and geometry identities. Their
+        // submission order is stable across adjacent frames; pair the Nth current
+        // instance with the Nth previous instance. Extra/missing instances remain
+        // unmatched, and replay depth validation still guards visible pixels.
+        const uint32_t occurrence = cur.Count(key);
+        const auto slot = cur.EmptySlot(key);
+        if (occurrence) ++stats_.orderedDuplicateDraws;
         const uint32_t index = uint32_t(cur.draws.size());
         auto& s = cur.draws.emplace_back();
-        s.key = key; s.usesRelativeConstants = relative; s.valid = constants && sharedPrefix &&
+        s.key = key; s.occurrence = occurrence; s.usesRelativeConstants = relative; s.valid = constants && sharedPrefix &&
             (restoredSlot == -1 || (restoredSlot >= 0 && restoredSlot <= 252 && originalVP));
-        s.previousIndex = prev.Find(key);
+        s.previousIndex = prev.Find(key, occurrence);
         if (constants) std::memcpy(s.vsConstants.data(), constants, sizeof(s.vsConstants));
         else s.vsConstants.fill(0);
         // ApplyDrawJitter only modifies this proven 4x4 window. Snapshot the full

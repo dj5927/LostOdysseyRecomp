@@ -103,7 +103,9 @@ inline std::string Pixel(const TranslatedShader* ps) {
         if (entry == std::string::npos) return {};
         prefix = ExtendPushConstants(ps->hlsl.substr(0, entry));
         coverage = ReplaceToken(ps->hlsl.substr(entry), "main", "XeMvCoverage");
-    } else prefix = ExtendPushConstants(std::string("#define XE_PIXEL_SHADER 1\n") + GetShaderCommonHlsl());
+    } else prefix = ExtendPushConstants(std::string(
+        "#define XE_PIXEL_SHADER 1\n"
+        "#define XE_SAMPLE(t, s, uv) t.Sample(s, uv)\n") + GetShaderCommonHlsl());
     if (prefix.empty()) return {};
     std::string wrapper = "\nstruct MvOutput { float2 velocity : SV_Target0; float2 depths : SV_Target1; uint tag : SV_Target2; };\n";
     wrapper += "MvOutput main(in float4 p : SV_Position";

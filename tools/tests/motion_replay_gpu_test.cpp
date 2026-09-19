@@ -85,7 +85,7 @@ public:
         d.depthFunction=RenderComparisonFunction::GREATER_EQUAL;d.depthTargetFormat=RenderFormat::D32_FLOAT;d.cullMode=RenderCullMode::NONE;
         auto base=device->createGraphicsPipeline(d);Require(bool(base),"original translated pipeline");
         gpu::pipeline_cache::Key k{};k.vs=skin?2:1;k.ps=3;k.depthControl=6;k.prim=4;k.rtFormat=uint32_t(RenderFormat::R8G8B8A8_UNORM);k.depthFormat=uint32_t(RenderFormat::D32_FLOAT);
-        auto* motionPipeline=replay.PreparePipeline(k,d,vg.data(),uint32_t(vg.size()),pg.data(),uint32_t(pg.size()));
+        auto* motionPipeline=replay.PreparePipeline(k,d,vg.data(),uint32_t(vg.size()),pg.data(),uint32_t(pg.size()),true);
         Require(motionPipeline!=nullptr,"translated replay pipeline: "+replay.LastError());
         DrawHistoryKey key{};key.vsHash=k.vs;key.psHash=k.ps;key.sceneAllocation=1;key.geometrySignature=1;key.indexCount=3;key.primitiveType=4;
         ++token; tracker.BeginFrame(token,token); // new epoch for isolated fixture, then same epoch next frame
@@ -246,6 +246,12 @@ public:
 int main(int argc, char** argv) {
  try {
     Require(xenos::DxcAvailable(),"pinned DXC available");
+    for(auto format:{xenos::ShaderBinaryFormat::Dxil,xenos::ShaderBinaryFormat::Spirv}) {
+        const auto source=xenos::motion_replay::Pixel(nullptr);
+        const auto c=xenos::CompileHlsl(source,"main","ps_6_0",format);
+        if(!c.ok){std::ofstream("failed-motion.hlsl")<<source;throw std::runtime_error(c.errors);}
+        Require(c.ok,"depth-only replay PS DXIL/SPIR-V compile");
+    }
     for(bool skin:{false,true}) {
         const auto p=motion_fixture::Vertex(skin),ps=motion_fixture::Pixel();auto h=p.Host(),hp=ps.Host();
         auto t=xenos::TranslateShader(h.data(),uint32_t(h.size()),false);auto tp=xenos::TranslateShader(hp.data(),uint32_t(hp.size()),true);
@@ -262,7 +268,7 @@ int main(int argc, char** argv) {
     Fixture f;f.replay.EnableGpuTiming(true);f.current[16]=.2f;auto view=f.Run();auto data=f.Read(view.velocity,RenderFormat::R16G16_FLOAT,4);auto mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);
     const auto at=32*64+38;uint16_t xy[2];std::memcpy(xy,data.data()+at*4,4);
     Near(Half(xy[0]),-6.4f,"GPU rigid backward displacement");Near(Half(xy[1]),0,"GPU rigid Y");Require(mask[at]==0,"rigid interior valid");Require(mask[0]==255,"unwritten pixels invalid");
-    view=f.Run(false,true);mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);Require(mask[at]==255,"late duplicate revokes the FIRST recorded GPU draw too");
+    view=f.Run(false,true);mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);Require(mask[at]==0,"extra ordered instance does not revoke the first recorded GPU draw");
     view=f.Run(false,false,true);mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);Require(mask[at]==255,"original PS alpha discard retained");
     f.current.fill(0);f.previous.fill(0);for(int i=0;i<4;++i){f.current[16*4+i]=f.previous[16*4+i]=.25f;f.current[17*4+i]=f.previous[17*4+i]=.75f;}
     f.current[8*4]=.1f;f.current[9*4]=.3f;f.current[10*4]=.2f;

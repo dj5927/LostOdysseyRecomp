@@ -6,6 +6,8 @@
 #include "shader/motion_replay_hlsl.h"
 #include "shader/dxc_compiler.h"
 #include <bit>
+#include <chrono>
+#include <future>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -46,7 +48,11 @@ class MotionReplayGPU {
         std::unique_ptr<plume::RenderTexture> texture;
         plume::RenderTextureLayout layout = plume::RenderTextureLayout::UNKNOWN;
     } velocity_, depths_, tags_, reactive_;
-    struct Module { std::unique_ptr<plume::RenderShader> shader; std::string error; };
+    struct Module {
+        std::unique_ptr<plume::RenderShader> shader;
+        std::future<xenos::CompiledShader> compilation;
+        std::string source, error;
+    };
     std::unordered_map<uint64_t, Module> vertexModules_, pixelModules_;
     std::unordered_map<Key, std::unique_ptr<plume::RenderPipeline>, KeyHash> pipelines_;
     plume::RenderDevice* device_ = nullptr;
@@ -77,6 +83,8 @@ class MotionReplayGPU {
     GpuPassTimer<128> drawTimer_;
     GpuPassTimer<> maskTimer_;
     uint64_t maskBatchAllocations_ = 0;
+    uint32_t compilingModules_ = 0;
+    static constexpr uint32_t kMaxCompilingModules = 2;
     static constexpr const char* kMaskShader = R"HLSL(
 Texture2D<float2> motionDepth : register(t0);
 Texture2D<uint> motionTag : register(t1);
@@ -121,24 +129,39 @@ float pixel(float4 p : SV_Position) : SV_Target {
         if (vulkan_) b.addConstantBuffer(4);
         b.end();
     }
-    Module& GetModule(bool pixel, uint64_t hash, const uint32_t* guestWords, uint32_t count) {
+    Module& GetModule(bool pixel, uint64_t hash, const uint32_t* guestWords, uint32_t count, bool wait) {
         auto& cache = pixel ? pixelModules_ : vertexModules_;
-        const auto found = cache.find(hash); if (found != cache.end()) return found->second;
-        auto& m = cache[hash];
-        // Endian conversion is identical to Renderer::GetShader.
-        xenos::TranslatedShader translated;
-        if (count && guestWords) {
-            std::vector<uint32_t> words(count);
-            for (uint32_t i = 0; i < count; ++i) {
-                const uint32_t w = guestWords[i];
-                words[i] = (w >> 24) | ((w >> 8) & 0xff00u) | ((w << 8) & 0xff0000u) | (w << 24);
-            }
-            translated = xenos::TranslateShader(words.data(), count, pixel);
-        } else if (!pixel) { m.error = "Missing vertex microcode"; return m; }
-        const auto source = pixel ? xenos::motion_replay::Pixel(count ? &translated : nullptr) : xenos::motion_replay::Vertex(translated);
-        if (source.empty()) { m.error = "Unsupported replay program: " + translated.errors; return m; }
-        auto compiled = xenos::CompileCachedHlsl(source, "main", pixel ? "ps_6_0" : "vs_6_0",
-            vulkan_ ? xenos::ShaderBinaryFormat::Spirv : xenos::ShaderBinaryFormat::Dxil);
+        auto [it, inserted] = cache.try_emplace(hash);
+        auto& m = it->second;
+        if (inserted) {
+            // Endian conversion is identical to Renderer::GetShader.
+            xenos::TranslatedShader translated;
+            if (count && guestWords) {
+                std::vector<uint32_t> words(count);
+                for (uint32_t i = 0; i < count; ++i) {
+                    const uint32_t w = guestWords[i];
+                    words[i] = (w >> 24) | ((w >> 8) & 0xff00u) | ((w << 8) & 0xff0000u) | (w << 24);
+                }
+                translated = xenos::TranslateShader(words.data(), count, pixel);
+            } else if (!pixel) { m.error = "Missing vertex microcode"; return m; }
+            m.source = pixel ? xenos::motion_replay::Pixel(count ? &translated : nullptr) : xenos::motion_replay::Vertex(translated);
+            if (m.source.empty()) { m.error = "Unsupported replay program: " + translated.errors; return m; }
+        }
+        if (m.shader || !m.error.empty()) return m;
+        const char* profile = pixel ? "ps_6_0" : "vs_6_0";
+        const auto format = vulkan_ ? xenos::ShaderBinaryFormat::Spirv : xenos::ShaderBinaryFormat::Dxil;
+        if (!m.compilation.valid() && (wait || compilingModules_ < kMaxCompilingModules)) {
+            auto source = m.source;
+            m.compilation = std::async(std::launch::async, [source = std::move(source), profile, format] {
+                return xenos::CompileCachedHlsl(source, "main", profile, format);
+            });
+            ++compilingModules_;
+        }
+        if (!m.compilation.valid() || (!wait && m.compilation.wait_for(std::chrono::seconds(0)) != std::future_status::ready))
+            return m;
+        auto compiled = m.compilation.get();
+        --compilingModules_;
+        m.source.clear();
         if (!compiled.ok) { m.error = compiled.errors; return m; }
         m.shader = device_->createShader(compiled.bytecode.data(), compiled.bytecode.size(), "main",
             vulkan_ ? plume::RenderShaderFormat::SPIRV : plume::RenderShaderFormat::DXIL);
@@ -223,12 +246,17 @@ public:
         ++serial_; cleared_ = true; return true;
     }
     plume::RenderPipeline* PreparePipeline(const Key& key, plume::RenderGraphicsPipelineDesc desc,
-        const uint32_t* vsWords, uint32_t vsCount, const uint32_t* psWords, uint32_t psCount) {
+        const uint32_t* vsWords, uint32_t vsCount, const uint32_t* psWords, uint32_t psCount, bool wait = false) {
         auto found = pipelines_.find(key); if (found != pipelines_.end()) return found->second.get();
         if (desc.geometryShader || desc.stencilEnabled || !desc.depthEnabled) { ++failedDraws_; return nullptr; }
-        auto& vs = GetModule(false, key.vs, vsWords, vsCount);
-        auto& ps = GetModule(true, key.ps, psWords, psCount);
-        if (!vs.shader || !ps.shader) { ++failedDraws_; error_ = vs.error + ps.error; return nullptr; }
+        auto& vs = GetModule(false, key.vs, vsWords, vsCount, wait);
+        auto& ps = GetModule(true, key.ps, psWords, psCount, wait);
+        if (!vs.shader || !ps.shader) {
+            ++failedDraws_;
+            error_ = vs.error + ps.error;
+            if (error_.empty()) error_ = "Replay shader compilation pending";
+            return nullptr;
+        }
         desc.pipelineLayout = layout_.get(); desc.vertexShader = vs.shader.get(); desc.pixelShader = ps.shader.get();
         desc.depthWriteEnabled = false; desc.depthFunction = plume::RenderComparisonFunction::EQUAL;
         desc.stencilWriteMask = 0; desc.logicOpEnabled = false;

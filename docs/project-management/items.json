@@ -5423,6 +5423,29 @@
         "Target date": "2026-09-17",
         "Evidence": "Added tools/build_linux.sh and tools/build_wsl.bat for fast incremental Linux ELF builds under WSL2/Linux environments, and integrated package_shader_bundle.py into release staging. Verified on WSL2 Manjaro. Published in v0.5.20."
       }
+    },
+    {
+      "key": "d3d12-motion-replay-pso-invalidarg",
+      "title": "Fix D3D12 motion replay PSO creation failure E_INVALIDARG",
+      "body": "<!-- lo-project:d3d12-motion-replay-pso-invalidarg -->\n\n## Background and failure mode\n\nIn automated validation of the geometric motion replay pipeline under Direct3D 12, asynchronously generated replay shaders compile cleanly (DXIL jobs complete successfully). However, the D3D12 replay PSO creation call (`CreateGraphicsPipelineState`) returns `E_INVALIDARG` (`0x80070057`). Runtime execution repeatedly logs `MV pipeline allocation failed`, resulting in `replay=0 ready=false consume=false`.\n\nValidation run reference: `runtime-639254046562050769.log`.\n\nThe Vulkan backend implementation succeeds in the same scene and achieves `replay>0 ready=true consume=true`. This task is scoped strictly to the D3D12 backend.\n\n## Acceptance criteria\n\n- Identify the exact invalid field or state incompatibility in the D3D12 `CreateGraphicsPipelineState` descriptor (e.g., shader bytecode, root signature, input layout, rasterizer, blend, or depth/stencil state) within `motion_replay_gpu.h` / `plume_d3d12.cpp`.\n- D3D12 replay PSO creates successfully without returning `E_INVALIDARG`.\n- Automated test scene achieves `replay>0`, `ready=true`, and `consume=true` under D3D12.\n- No regression on the working Vulkan path.\n\n## Sources\n\n- Validation run: `runtime-639254046562050769.log`\n- `LostOdysseyRecomp/gpu/motion_replay_gpu.h`\n- `thirdparty/plume/plume_d3d12.cpp`\n- `docs/notes/motion-vector-implementation.md`\n",
+      "issue_url": null,
+      "record_type": "backlog",
+      "source_refs": [
+        "runtime-639254046562050769.log",
+        "LostOdysseyRecomp/gpu/motion_replay_gpu.h",
+        "thirdparty/plume/plume_d3d12.cpp",
+        "docs/notes/motion-vector-implementation.md"
+      ],
+      "fields": {
+        "Kind": "Bug",
+        "Area": "Graphics backends",
+        "Status": "Todo",
+        "Delivery": "Not started",
+        "Release": null,
+        "Start date": null,
+        "Target date": null,
+        "Evidence": "Observed in automated validation log runtime-639254046562050769.log: DXIL replay shaders compile successfully, but D3D12 CreateGraphicsPipelineState fails with E_INVALIDARG 0x80070057 ('MV pipeline allocation failed'), yielding replay=0 ready=false consume=false. Vulkan path passes (replay>0 ready=true consume=true). Scoped to D3D12 backend repair."
+      }
     }
   ]
 }
