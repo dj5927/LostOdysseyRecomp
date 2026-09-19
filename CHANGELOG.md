@@ -16,6 +16,12 @@ One record of completed changes, with unpublished work separated from verified r
   - Windows runtime build succeeded; `motion_vector_test` passed 40 checks; `motion_replay_gpu_test --compile-only` passed 11 DXIL/SPIR-V checks; automated Vulkan execution is stable.
   - User confirmed motion vector consumption is active and functional; visible shimmer in the Bell sequence remains under ongoing TAA investigation and is not resolved or accepted.
   - D3D12 motion replay PSO creation failure (`E_INVALIDARG 0x80070057`) is logged as tracked follow-up work.
+- TAA Bell investigation candidate (uncommitted, not user-accepted):
+  - Allowed the cubic motion-pixel footprint to include the predicted primary depth surface plus one background depth surface, and added a guarded stationary-geometry history stabilization path for stable geometry with trusted motion vectors. `LO_TAA_STATIONARY_HISTORY=0` disables the path for comparison, while `LO_TAA_ACCEPTANCE=1` enables an independent diagnostic resolve to display.
+  - The GPU test project passed 791 checks, including the motion/depth/alpha/raw-camera checks; its bounded 32-phase cycle reduced peak-to-peak variation from 10 to 4. A preliminary real Bell comparison showed only partial ROI improvement. User visual acceptance of candidate `607dd6f1…` failed: the upper support edge remained visibly unstable, a distant ground seam also shimmered, and the candidate was reported as having no meaningful improvement. General static-coverage fallback remains unvalidated.
+  - A second static-coverage candidate built successfully; its GPU project passed 811 checks and the runtime build succeeded. A deterministic two-surface ownership-swap fixture reduced peak-to-peak variation from 128 to 10, but this uses CPU-uploaded inputs and a production GPU consumer rather than complete geometry-production validation. The real-scene comparison improved the reported ROIs but retained obvious shimmer; foreground visual acceptance failed for candidates `607dd6f1…` and `3b942ee…`.
+  - Added a local-only TAA live-debug panel and launcher at `127.0.0.1:8769` with serial/applied-serial state, bounded screenshots, GPU traces, pixel reads, ROI previews and `LO_TAA_ACCEPTANCE=2` rejection coloring. The launcher expects a prebuilt debug executable in the selected run directory. Native Continue now has bounded evidence loading `save/user01/save.bin` into the Bell scene, with history and motion consumption state true; same-frame source/depth/MV/reactive trace pixels were also returned. The Vulkan GPU/translation suite passed 826 checks; live parser and trace checks are separate. The tool and Bell shimmer still lack user acceptance.
+  - Added the `exactStationary` MV-source candidate: bit-exact geometry/raster and actual vertex-shader constant reads, strict canonical HLSL-literal parsing, full-bank fallback for relative/unknown reads, and explicit exclusion of unused shared values and PS flags. Fourteen CPU exactness checks, 15 usage checks, and 543 guarded GPU literal-zero checks passed; the prior 826-check suite was not rerun. Added guarded `stationary_color_clip` diagnostics; 25 GPU color checks and parser-field tests passed. The user confirmed the current candidate is clearly steadier, while residual shimmer remains; this is partial visual acceptance, not a complete fix.
 
 ### 简体中文
 
@@ -27,6 +33,12 @@ One record of completed changes, with unpublished work separated from verified r
   - Windows 运行时构建成功；`motion_vector_test` 通过 40 项检查；`motion_replay_gpu_test --compile-only` 通过 11 项 DXIL/SPIR-V 检查；Vulkan 自动化运行稳定。
   - 用户已确认 MV 正常被 consume；Bell 场景中的可见抖动/闪烁依然存在，属于后续继续排查的 TAA 问题，未标记为已修复或已验收。
   - D3D12 下 motion replay PSO 创建失败（`E_INVALIDARG 0x80070057`）已作为后续 Todo 记录。
+- TAA 铃铛排查候选（未提交，未获用户验收）：
+  - 允许 cubic motion-pixel footprint 包含预测主深度表面和一个背景深度表面，并加入仅对稳定几何和可信 motion vector 生效的静止几何 history 稳定路径。可用 `LO_TAA_STATIONARY_HISTORY=0` 做对照，`LO_TAA_ACCEPTANCE=1` 启用独立 resolve 到 display 的诊断。
+  - GPU 测试项目通过 791 项检查，包含运动、深度、alpha、raw/camera-only 检查；限定的 32 相位循环将峰峰值变化由 10 降至 4。Bell 实景初步对照只有部分 ROI 改善。用户对 `607dd6f1…` 候选的画面验收未通过：上方支架边缘仍明显不稳定，远方地面缝隙也抖动，用户确认没有实质好转。通用 static coverage fallback 仍未验证。
+  - 第二个 static coverage 候选已成功构建；GPU 项目通过 811 项检查，runtime 构建成功。确定性两表面 ownership 交换 fixture 将峰峰值由 128 降至 10，但其使用 CPU 上传输入和生产 GPU consumer，不能等同于完整几何生产验证。实景对照虽改善了报告区域，仍有明显抖动；`607dd6f1…` 和 `3b942ee…` 两个候选均未通过前台画面验收。
+  - 增加仅限本机的 TAA 实时调试面板和 launcher，地址为 `127.0.0.1:8769`，支持 serial/applied-serial 状态、限定截图、GPU trace、像素读取、ROI 预览和 `LO_TAA_ACCEPTANCE=2` 拒绝原因着色。launcher 需要运行目录中已有构建好的 debug exe。Native Continue 已有实测证据，可读取 `save/user01/save.bin` 并进入 Bell 场景，history 和 motion consume 状态均为 true；同帧 source/depth/MV/reactive trace 像素也已返回。Vulkan GPU/translation suite 通过 826 项检查，live parser 和 trace 检查独立统计；工具和 Bell 闪烁仍未获用户验收。
+  - 增加 `exactStationary` MV 源头候选：geometry/raster 与实际 vertex shader 常量读取逐位一致，严格解析 canonical HLSL literal，relative/未知读取回退 full bank，并排除明确未使用的 shared 值和 PS flags。14 项 CPU exactness、15 项 usage 和 543 项带保护的 GPU literal-zero 检查通过；旧 826 项检查未重复运行。增加受保护的 `stationary_color_clip` 诊断；25 项 GPU color 检查和 parser 字段测试通过。用户确认当前候选明显更稳定，但仍有残余闪烁；这是部分画面验收，不代表完全修复。
 
 ## v0.6.1 — 2026-09-18 / Published / 已发布
 

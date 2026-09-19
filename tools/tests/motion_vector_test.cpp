@@ -14,7 +14,59 @@ using namespace gpu::temporal;
 static unsigned checks=0;
 static void Require(bool ok,const char* why) {++checks;if(!ok)throw std::runtime_error(why);}
 static Matrix Projection() {return {1,0,0,0, 0,2,0,0, 0,0,100./99,1, 0,0,-100./99,0};}
-int main() {try {
+static void ExactStationary() {
+    DrawTemporalTracker t; DrawHistoryKey key{}; key.geometrySignature=1;
+    std::array<uint32_t,1024> c{}; std::array<uint32_t,52> shared{};
+    MotionRasterContract raster{64,64,{0,0,64,64,0,1},true};
+    uint64_t frame=0;
+    auto collect=[&](const MotionRasterContract* r) {
+        t.BeginFrame(++frame); auto m=t.Collect(key,c.data(),shared.data(),false,-1,nullptr,r);
+        t.FinalizeFrame(); return m;
+    };
+    Require(!collect(&raster).exactStationary,"first frame cannot prove stationary");
+    Require(collect(&raster).exactStationary,"identical complete inputs prove stationary");
+    c[16]^=1; Require(!collect(&raster).exactStationary,"one position-constant bit preserves slow motion");
+    Require(collect(&raster).exactStationary,"unchanged new position becomes stationary");
+    shared[51]^=4; Require(!collect(&raster).exactStationary,"last shared word participates in proof");
+    key.geometrySignature++; Require(!collect(&raster).exactStationary,"changed actual geometry identity cannot be stationary");
+    collect(&raster); raster.width=128; raster.viewport[2]=128;
+    Require(!collect(&raster).exactStationary,"target and viewport resize cannot prove stationary");
+    Require(!collect(nullptr).exactStationary,"missing raster proof fails closed");
+    Require(!collect(&raster).exactStationary,"previous raster proof also required");
+    raster.geometryVerified=false; Require(!collect(&raster).exactStationary,"unverified geometry fails closed");
+    raster.geometryVerified=true;
+    std::array<uint32_t,16> original{};
+    for(unsigned phase=0;phase<4;++phase) {
+        c[16]=0x3f000000u+phase;
+        t.BeginFrame(++frame);
+        auto m=t.Collect(key,c.data(),shared.data(),false,4,original.data(),&raster);
+        Require(phase==0 ? !m.exactStationary : m.exactStationary,"jitter restoration retains exact stationary proof");
+        t.FinalizeFrame();
+    }
+}
+static void ConstantUsage() {
+    const auto usage=ParseMotionConstantUsage("float4 XeConst(int index) {}\nvoid main(\n) {r0=XeConst(4);r1=XeConst(255);}",false);
+    Require(usage.known&&usage.slots[0]==16&&usage.slots[3]==(uint64_t(1)<<63),"literal usage excludes prelude definition and includes last slot");
+    for(const char* body:{"XeConst(4+a0)","XeConst(256)","c [4]","XeOtherConst(4)","vk::RawBufferLoad<float4>(x)"})
+        Require(!ParseMotionConstantUsage(std::string("void main(\n) {")+body+";}",false).known,"unknown constant access falls back to full bank");
+    Require(!ParseMotionConstantUsage("void main(\n) {XeConst(4);}",true).known,"relative metadata forces full bank");
+    Require(!ParseMotionConstantUsage("",false).known,"missing source forces full bank");
+    DrawTemporalTracker t;DrawHistoryKey key{};std::array<uint32_t,1024> c{};std::array<uint32_t,52> shared{};
+    MotionRasterContract raster{64,64,{0,0,64,64,0,1},true};uint64_t frame=0;
+    auto next=[&](const MotionConstantUsage* u){t.BeginFrame(++frame);auto m=t.Collect(key,c.data(),shared.data(),false,-1,nullptr,&raster,u);t.FinalizeFrame();return m.exactStationary;};
+    next(&usage);c[0]=1;Require(next(&usage),"unread float slot does not block stationary proof");
+    c[16]=1;Require(!next(&usage),"one bit in read float slot blocks stationary proof");
+    c[1023]=1;Require(!next(&usage),"all components of last read slot participate");
+    shared[43]=1;shared[47]=1;shared[51]=1;Require(next(&usage),"unused NDC w and PS-only flags do not block proof");
+    shared[51]^=8;Require(!next(&usage),"VS epilogue flags still block proof");
+    c[0]++;Require(!next(nullptr),"unknown current usage falls back to full bank");
+    c[0]++;Require(!next(&usage),"unknown previous usage falls back to full bank");
+}
+int main(int argc,char** argv) {try {
+    if(argc>1&&std::strcmp(argv[1],"--constant-usage-only")==0){ConstantUsage();printf("PASS: %u constant usage checks\n",checks);return 0;}
+    if(argc>1&&std::strcmp(argv[1],"--exact-stationary-only")==0){ExactStationary();printf("PASS: %u exact stationary checks\n",checks);return 0;}
+    ConstantUsage();
+    ExactStationary();
     const auto hash = MotionHashWord(0xcbf29ce484222325ULL, 7);
     Require(hash != MotionHashWord(0xcbf29ce484222325ULL, 8), "stream data changes geometry identity");
     Require(MotionHashWord(hash, 1) != MotionHashWord(hash, 0x100000001ULL), "full arena generation participates in geometry identity");

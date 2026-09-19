@@ -21,7 +21,7 @@ struct MotionReplayConstants {
     uint32_t previousVS[1024]{};
     uint32_t previousShared[52]{};
     float extent[4]{};
-    uint32_t metadata[4]{}; // tag, asuint(current Jx), asuint(current Jy), reserved
+    uint32_t metadata[4]{}; // tag, asuint(current Jx), asuint(current Jy), exactStationary bit 0
 };
 static_assert(sizeof(MotionReplayConstants) == 4336);
 static_assert(offsetof(MotionReplayConstants, extent) == 4304);
@@ -33,6 +33,8 @@ inline MotionReplayConstants MakeMotionReplayConstants(const DrawTemporalTracker
         std::memcpy(c.previousVS, match.previous->vsConstants.data(), sizeof(c.previousVS));
         std::memcpy(c.previousShared, match.previous->shared.data(), sizeof(c.previousShared));
         c.metadata[0] = match.tag;
+        c.metadata[3] = match.exactStationary && match.previous->raster.width == width &&
+            match.previous->raster.height == height ? 1u : 0u;
     }
     c.extent[0] = float(width); c.extent[1] = float(height);
     c.metadata[1] = std::bit_cast<uint32_t>(jx); c.metadata[2] = std::bit_cast<uint32_t>(jy);
@@ -52,6 +54,7 @@ class MotionReplayGPU {
         std::unique_ptr<plume::RenderShader> shader;
         std::future<xenos::CompiledShader> compilation;
         std::string source, error;
+        MotionConstantUsage constantUsage;
     };
     std::unordered_map<uint64_t, Module> vertexModules_, pixelModules_;
     std::unordered_map<Key, std::unique_ptr<plume::RenderPipeline>, KeyHash> pipelines_;
@@ -144,6 +147,7 @@ float pixel(float4 p : SV_Position) : SV_Target {
                 }
                 translated = xenos::TranslateShader(words.data(), count, pixel);
             } else if (!pixel) { m.error = "Missing vertex microcode"; return m; }
+            if(!pixel && translated.errors.empty()) m.constantUsage = ParseMotionConstantUsage(translated.hlsl,translated.usesRelativeConstants);
             m.source = pixel ? xenos::motion_replay::Pixel(count ? &translated : nullptr) : xenos::motion_replay::Vertex(translated);
             if (m.source.empty()) { m.error = "Unsupported replay program: " + translated.errors; return m; }
         }
@@ -169,6 +173,10 @@ float pixel(float4 p : SV_Position) : SV_Target {
         return m;
     }
 public:
+    const MotionConstantUsage* ConstantUsage(uint64_t vsHash) const {
+        const auto it=vertexModules_.find(vsHash);
+        return it==vertexModules_.end()?nullptr:&it->second.constantUsage;
+    }
     bool Init(plume::RenderDevice* device, const plume::RenderDescriptorSetBuilder* originalSets, uint32_t setCount) {
         if (!device || !originalSets || (setCount != 4 && setCount != 5)) return false;
         device_ = device; vulkan_ = device->getCapabilities().shaderFormat == plume::RenderShaderFormat::SPIRV;

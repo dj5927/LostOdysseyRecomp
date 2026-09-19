@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <cmath>
+#include <limits>
 namespace plume { std::unique_ptr<RenderInterface> CreateVulkanInterface(); }
 using namespace plume;
 using namespace gpu::temporal;
@@ -44,8 +45,10 @@ public:
         printf("Device: %s\n",device->getDescription().name.c_str());
         queue=device->createCommandQueue(RenderCommandListType::DIRECT);cmd=queue->createCommandList();fence=device->createCommandFence();
         auto buffer=[&](size_t n, uint32_t f){return device->createBuffer(RenderBufferDesc::UploadBuffer(n,f));};
-        vertices=buffer(256,RenderBufferFlag::STORAGE);vsCB=buffer(4096,RenderBufferFlag::CONSTANT);psCB=buffer(4096,RenderBufferFlag::CONSTANT);
-        sharedCB=buffer(1024,RenderBufferFlag::CONSTANT);mvCB=buffer(4352,RenderBufferFlag::CONSTANT);
+        vertices=buffer(256,RenderBufferFlag::STORAGE);
+        const auto addressableConstant=RenderBufferFlag::CONSTANT|RenderBufferFlag::DEVICE_ADDRESSABLE;
+        vsCB=buffer(4096,addressableConstant);psCB=buffer(4096,addressableConstant);
+        sharedCB=buffer(1024,addressableConstant);mvCB=buffer(4352,addressableConstant);
         upload=buffer(W*H*4,RenderBufferFlag::NONE);readback=device->createBuffer(RenderBufferDesc::ReadbackBuffer(W*H*8));
         std::array<float,12> v={-.9f,-.9f,.5f,1, .9f,-.9f,.5f,1, 0,.9f,.5f,1};Write(vertices.get(),v.data(),sizeof(v));
         color=device->createTexture(RenderTextureDesc::Texture2D(W,H,1,RenderFormat::R8G8B8A8_UNORM,RenderTextureFlag::RENDER_TARGET));
@@ -91,8 +94,9 @@ public:
         ++token; tracker.BeginFrame(token,token); // new epoch for isolated fixture, then same epoch next frame
         const auto epoch=token;
         shared.flags=alphaReject?1u:0u;shared.alpha[0]=.5f;shared.alpha[1]=4;pixel[3]=alphaReject?.1f:1.f;
-        tracker.Collect(key,previous.data(),&shared,skin);tracker.FinalizeFrame();tracker.BeginFrame(++token,epoch);
-        const auto match=tracker.Collect(key,current.data(),&shared,skin);Require(match.previous!=nullptr,"real previous snapshot matched");
+        const MotionRasterContract raster{W,H,{0,0,float(W),float(H),0,1},true};
+        tracker.Collect(key,previous.data(),&shared,skin,-1,nullptr,&raster);tracker.FinalizeFrame();tracker.BeginFrame(++token,epoch);
+        const auto match=tracker.Collect(key,current.data(),&shared,skin,-1,nullptr,&raster);Require(match.previous!=nullptr,"real previous snapshot matched");
         const auto mc=MakeMotionReplayConstants(match,W,H,jitterX,jitterY);
         auto rasterConstants=current;
         if (!skin) { rasterConstants[16]+=2*jitterX/W; rasterConstants[17]-=2*jitterY/H; }
@@ -137,6 +141,14 @@ public:
             if(!taa.Resolve(cmd.get(),in))throw std::runtime_error(taa.LastError());Submit();taa.ReleaseCompleted();auto data=Read(output.get(),RenderFormat::R8G8B8A8_UNORM,4);uint32_t p;std::memcpy(&p,data.data()+(32*W+32)*4,4);return p;};
         auto px=run();Near(float(px&255),104,"TAA consumes geometric -4 pixel displacement",1);Require((px>>24)==123,"MV TAA retains current alpha");
         in.currentJitterX=.25;in.previousJitterX=-.25;px=run();Near(float(px&255),103,"raw history applies jitter difference exactly once",1);
+        in.previousJitterX=0;in.diagnosticAcceptance=true;
+        depths.assign(W*H,std::bit_cast<uint32_t>(.5f));depths[32*W+29]=std::bit_cast<uint32_t>(.25f);Fill(oldDepth.get(),depths,RenderFormat::R32_FLOAT);
+        px=run();Require(px==0xff0000ffu,"motion silhouette accepts one secondary depth surface");
+        depths[32*W+26]=std::bit_cast<uint32_t>(.8f);Fill(oldDepth.get(),depths,RenderFormat::R32_FLOAT);
+        px=run();Require(px==0xff000000u,"motion silhouette rejects a third depth surface");
+        in.diagnosticRejectionReasons=true;Require(run()==0xffff00ffu,"optional geometric reasons identify third depth surface");in.diagnosticRejectionReasons=false;
+        in.diagnosticAcceptance=false;depths.assign(W*H,std::bit_cast<uint32_t>(.5f));Fill(oldDepth.get(),depths,RenderFormat::R32_FLOAT);
+        in.previousJitterX=-.25;
         in.stableGrid=true;px=run();Near(float(px&255),104,"stable history does not subtract current jitter twice",1);
         in.stableGrid=false;in.currentJitterX=in.previousJitterX=0;
         if(currentZ==.5f){in.motionVectorValid=false;px=run();Near(float(px&255),112,"MV disabled uses unchanged camera-only TAA",1);in.motionVectorValid=true;}
@@ -145,6 +157,38 @@ public:
         in.historyValid=false;px=run();Require((px&255)==64,"first/cut frame cannot consume history");
     }
 
+    void ExactStationary() {
+        DrawTemporalTracker proof;
+        DrawHistoryKey key{}; key.geometrySignature=1;
+        MotionRasterContract raster{W,H,{0,0,float(W),float(H),0,1},true};
+        current.fill(0);
+        proof.BeginFrame(1);proof.Collect(key,current.data(),&shared,false,-1,nullptr,&raster);proof.FinalizeFrame();
+        proof.BeginFrame(2);auto match=proof.Collect(key,current.data(),&shared,false,-1,nullptr,&raster);
+        Require(MakeMotionReplayConstants(match,W,H,0,0).metadata[3]==1,"proven identical input reaches GPU stationary flag");
+        Require(MakeMotionReplayConstants(match,W*2,H,0,0).metadata[3]==0,"output extent mismatch clears GPU stationary flag");
+        proof.FinalizeFrame();current[16]=std::bit_cast<float>(1u);
+        proof.BeginFrame(3);match=proof.Collect(key,current.data(),&shared,false,-1,nullptr,&raster);
+        Require(MakeMotionReplayConstants(match,W,H,0,0).metadata[3]==0,"single position bit change never sets GPU stationary flag");
+        proof.FinalizeFrame();
+        for(bool skin:{false,true}) {
+            current.fill(0);previous.fill(0);
+            if(skin) for(unsigned i=0;i<4;++i){current[64+i]=previous[64+i]=.25f;current[68+i]=previous[68+i]=.75f;}
+            for(unsigned phase=0;phase<32;++phase) {
+                const auto j=FrameJitter(phase,W,H);
+                auto view=Run(skin,false,false,float(j.pixelX),float(j.pixelY));
+                auto mv=Read(view.velocity,RenderFormat::R16G16_FLOAT,4),mask=Read(view.reactive,RenderFormat::R8_UNORM,1);
+                unsigned valid=0; bool exact=true;
+                for(unsigned i=0;i<W*H;++i) if(mask[i]==0) {
+                    ++valid; uint32_t bits;std::memcpy(&bits,mv.data()+i*4,4);exact &= bits==0;
+                }
+                Require(valid>0&&exact,"all valid stationary pixels are literal +0 across jitter phases");
+                Require(mask[0]==255,"uncovered pixels stay invalid with exact stationary proof");
+            }
+            auto rejected=Run(skin,false,true,.25f,-.25f);
+            auto mask=Read(rejected.reactive,RenderFormat::R8_UNORM,1);
+            Require(mask[32*W+32]==255,"alpha-rejected stationary coverage remains invalid");
+        }
+    }
     void JitterCycle() {
         gpu::TemporalAA taa;Require(taa.Init(device.get()),"full-cycle consumer initialization");
         auto make=[&](RenderFormat fmt,bool rt=false){return device->createTexture(RenderTextureDesc::Texture2D(W,H,1,fmt,rt?RenderTextureFlag::RENDER_TARGET:RenderTextureFlag::NONE));};
@@ -177,6 +221,204 @@ public:
                 }
             }
         }
+    }
+    void StationaryAccumulation() {
+        current.fill(0);previous.fill(0);auto view=Run();
+        gpu::TemporalAA taa;Require(taa.Init(device.get()),"stationary accumulation GPU initialization");
+        auto make=[&](RenderFormat fmt,bool rt=false){return device->createTexture(RenderTextureDesc::Texture2D(W,H,1,fmt,rt?RenderTextureFlag::RENDER_TARGET:RenderTextureFlag::NONE));};
+        auto cur=make(RenderFormat::R8G8B8A8_UNORM),prev=make(RenderFormat::R8G8B8A8_UNORM,true),out=make(RenderFormat::R8G8B8A8_UNORM,true),old=make(RenderFormat::R32_FLOAT),moving=make(RenderFormat::R16G16_FLOAT);
+        std::vector<uint32_t> pixels(W*H),z(W*H,std::bit_cast<uint32_t>(.5f));
+        Fill(old.get(),z,RenderFormat::R32_FLOAT);
+        // Binary16 +.125 px X, zero Y: the upper endpoint of the stationary fade.
+        Fill(moving.get(),std::vector<uint32_t>(W*H,0x3000u),RenderFormat::R16G16_FLOAT);
+        Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};auto camera=Camera::Create(identity,{0,0,W,H});
+        gpu::TemporalAAInputs in;in.currentColor=cur.get();in.currentDepth=sceneDepth.get();in.historyDepth=old.get();
+        in.motionVector=view.velocity;in.motionDepths=view.depths;in.reactiveMask=view.reactive;in.motionVectorValid=true;
+        in.width=in.historyWidth=W;in.height=in.historyHeight=H;in.currentCamera=in.previousCamera=&*camera;
+        in.historyValid=true;in.rejectAllHistory=false;in.stableGrid=true;in.historyWeight=.85f;
+        auto resolve=[&](){in.historyColor=prev.get();in.output=out.get();cmd->begin();
+            cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(out.get(),RenderTextureLayout::COLOR_WRITE));
+            if(!taa.Resolve(cmd.get(),in))throw std::runtime_error(taa.LastError());Submit();taa.ReleaseCompleted();
+            auto data=Read(out.get(),RenderFormat::R8G8B8A8_UNORM,4);return data[(32*W+32)*4];};
+        auto cycle=[&](bool enabled){
+            in.stabilizeStationaryGeometry=enabled;Fill(prev.get(),std::vector<uint32_t>(W*H,0x7b808080u),RenderFormat::R8G8B8A8_UNORM);
+            float low=255,high=0,sum=0;
+            for(unsigned frame=0;frame<128;++frame){
+                const auto j=FrameJitter(frame%32,W,H),p=FrameJitter((frame+31)%32,W,H);
+                in.currentJitterX=j.pixelX;in.currentJitterY=j.pixelY;in.previousJitterX=p.pixelX;in.previousJitterY=p.pixelY;
+                // A subpixel stationary edge changes coverage with the real Halton
+                // phase. Neighbor extrema retain both surfaces for RGB clamping.
+                for(unsigned y=0;y<H;++y)for(unsigned x=0;x<W;++x){unsigned c=((x%2)!=0) != (j.pixelX<0)?192:64;pixels[y*W+x]=c*0x010101u+0x7b000000u;}
+                Fill(cur.get(),pixels,RenderFormat::R8G8B8A8_UNORM);float value=resolve();
+                if(frame>=96){low=std::min(low,value);high=std::max(high,value);sum+=value;}
+                std::swap(prev,out);
+            }
+            return std::array<float,2>{high-low,sum/32};
+        };
+        auto baseline=cycle(false),stationary=cycle(true);
+        printf("Stationary 32-phase last cycle: default peak/mean %.3f/%.3f, stationary %.3f/%.3f\n",baseline[0],baseline[1],stationary[0],stationary[1]);
+        Require(stationary[0]<baseline[0]*.65f,"stationary strategy reduces last-cycle peak-to-peak coverage variation");
+        Near(stationary[1],baseline[1],"stationary strategy retains cycle mean",4.f);
+        in.currentJitterX=in.currentJitterY=in.previousJitterX=in.previousJitterY=0;
+        in.motionVector=moving.get();in.stabilizeStationaryGeometry=false;auto original=resolve();
+        in.stabilizeStationaryGeometry=true;Require(resolve()==original,"one-eighth pixel motion restores original history policy");
+        Fill(prev.get(),std::vector<uint32_t>(W*H,0x7b808080u),RenderFormat::R8G8B8A8_UNORM);
+        for(unsigned y=0;y<H;++y)for(unsigned x=0;x<W;++x){unsigned c=x%2?192:64;pixels[y*W+x]=c*0x010101u+0x7b000000u;}
+        Fill(cur.get(),pixels,RenderFormat::R8G8B8A8_UNORM);
+        in.motionVector=view.velocity;in.stationaryCoverage=false;in.stationaryHistoryWeight=.85f;auto lowWeight=resolve();
+        in.stationaryHistoryWeight=.95f;Require(resolve()>lowWeight,"runtime stationary weight changes GPU output with coverage disabled");
+        in.motionVector=moving.get();auto defaultRange=resolve();in.stationaryMotionMax=.25f;auto widerRange=resolve();
+        Require(widerRange>defaultRange,"runtime motion maximum changes GPU output without recompiling");
+        in.stationaryMotionMin=.13f;Require(resolve()>widerRange,"runtime motion minimum changes GPU output without recompiling");
+        in.stabilizeStationaryGeometry=false;in.stationaryMotionMax=in.stationaryMotionMin;
+        Require(!taa.Resolve(cmd.get(),in),"stationary policy validates range even when disabled");
+        in.stationaryMotionMin=.002f;in.stationaryMotionMax=16.01f;Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects excessive motion maximum");
+        in.stationaryMotionMax=.125f;in.stationaryMotionMin=-.001f;Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects negative motion minimum");
+        in.stationaryMotionMin=.002f;in.stationaryHistoryWeight=std::numeric_limits<float>::quiet_NaN();Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects nonfinite weight");
+        in.stationaryHistoryWeight=.951f;Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects excessive weight");
+        in.stationaryHistoryWeight=31.f/33.f;in.stationaryCoverage=true;
+        in.motionVector=view.velocity;in.stableGrid=false;in.stabilizeStationaryGeometry=false;original=resolve();
+        in.stabilizeStationaryGeometry=true;Require(resolve()==original,"raw grid retains original accumulation policy");
+        in.stableGrid=true;in.motionVectorValid=false;in.stabilizeStationaryGeometry=false;original=resolve();
+        in.stabilizeStationaryGeometry=true;Require(resolve()==original,"camera-only retains original accumulation policy");
+        in.motionVectorValid=true;z.assign(W*H,std::bit_cast<uint32_t>(.8f));Fill(old.get(),z,RenderFormat::R32_FLOAT);
+        Require(resolve()==uint8_t(pixels[32*W+32]),"stationary strategy retains depth rejection");
+        auto data=Read(out.get(),RenderFormat::R8G8B8A8_UNORM,4);Require(data[(32*W+32)*4+3]==123,"stationary strategy retains current alpha");
+    }
+    void StationaryColorClip() {
+        // Consumer-only fixture: controlled geometry validity isolates color policy.
+        gpu::TemporalAA taa;Require(taa.Init(device.get()),"stationary color clip consumer initialization");
+        auto make=[&](RenderFormat fmt,bool rt=false){return device->createTexture(RenderTextureDesc::Texture2D(W,H,1,fmt,rt?RenderTextureFlag::RENDER_TARGET:RenderTextureFlag::NONE));};
+        auto cur=make(RenderFormat::R8G8B8A8_UNORM),prev=make(RenderFormat::R8G8B8A8_UNORM),out=make(RenderFormat::R8G8B8A8_UNORM,true);
+        auto cd=make(RenderFormat::R32_FLOAT),pd=make(RenderFormat::R32_FLOAT),mv=make(RenderFormat::R16G16_FLOAT),md=make(RenderFormat::R16G16_FLOAT),mask=make(RenderFormat::R32_FLOAT);
+        const unsigned center=32*W+32;
+        std::vector<uint32_t> colors(W*H,0x7b404040u);
+        colors[center-1]=0x7b202020u;colors[center+1]=0x7b606060u;
+        Fill(cur.get(),colors,RenderFormat::R8G8B8A8_UNORM);
+        Fill(prev.get(),std::vector<uint32_t>(W*H,0xff808080u),RenderFormat::R8G8B8A8_UNORM);
+        Fill(cd.get(),std::vector<uint32_t>(W*H,std::bit_cast<uint32_t>(.5f)),RenderFormat::R32_FLOAT);
+        Fill(pd.get(),std::vector<uint32_t>(W*H,std::bit_cast<uint32_t>(.5f)),RenderFormat::R32_FLOAT);
+        Fill(md.get(),std::vector<uint32_t>(W*H,0x38003800u),RenderFormat::R16G16_FLOAT);
+        Fill(mv.get(),std::vector<uint32_t>(W*H,0),RenderFormat::R16G16_FLOAT);
+        Fill(mask.get(),std::vector<uint32_t>(W*H,0),RenderFormat::R32_FLOAT);
+        Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};auto camera=Camera::Create(identity,{0,0,W,H});
+        gpu::TemporalAAInputs in;in.currentColor=cur.get();in.historyColor=prev.get();in.output=out.get();in.currentDepth=cd.get();in.historyDepth=pd.get();
+        in.motionVector=mv.get();in.motionDepths=md.get();in.reactiveMask=mask.get();in.motionVectorValid=true;
+        in.width=in.historyWidth=W;in.height=in.historyHeight=H;in.currentCamera=in.previousCamera=&*camera;
+        in.historyValid=true;in.rejectAllHistory=false;in.stableGrid=true;in.stabilizeStationaryGeometry=true;
+        in.historyWeight=in.stationaryHistoryWeight=.9f;in.rejectOutOfNeighborhoodHistory=true;
+        auto resolve=[&](){cmd->begin();cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(out.get(),RenderTextureLayout::COLOR_WRITE));
+            if(!taa.Resolve(cmd.get(),in))throw std::runtime_error(taa.LastError());Submit();taa.ReleaseCompleted();
+            auto data=Read(out.get(),RenderFormat::R8G8B8A8_UNORM,4);uint32_t result;std::memcpy(&result,data.data()+center*4,4);return result;};
+        Require(resolve()==0x7b404040u,"stationary color clip off retains hard color rejection");
+        in.stationaryColorClip=true;auto result=resolve();
+        Near(float(result&255),92.8f,"stationary out-of-range history clips then blends",1.f);
+        Require((result>>24)==123,"stationary color clipping retains current alpha");
+        in.diagnosticAcceptance=true;result=resolve();
+        Require((result&255)==255&&((result>>16)&255)==0&&std::abs(int((result>>8)&255)-128)<=1,"clipped history diagnostic is orange");
+        in.diagnosticAcceptance=false;
+        Fill(mv.get(),std::vector<uint32_t>(W*H,0x1400u),RenderFormat::R16G16_FLOAT); // 1/1024 pixel
+        in.snapStationaryMotion=true;
+        Require(resolve()==0x7b404040u,"nonzero original motion retains color rejection even when addressing snaps");
+        Fill(mv.get(),std::vector<uint32_t>(W*H,0),RenderFormat::R16G16_FLOAT);
+        in.stableGrid=false;Require(resolve()==0x7b404040u,"raw grid retains hard color rejection");in.stableGrid=true;
+        in.stabilizeStationaryGeometry=false;Require(resolve()==0x7b404040u,"color clipping requires stationary stabilization");in.stabilizeStationaryGeometry=true;
+        Fill(mask.get(),std::vector<uint32_t>(W*H,std::bit_cast<uint32_t>(1.f)),RenderFormat::R32_FLOAT);
+        Require(resolve()==0x7b404040u,"color clipping cannot override reactive rejection");
+        Fill(mask.get(),std::vector<uint32_t>(W*H,0),RenderFormat::R32_FLOAT);
+        Fill(pd.get(),std::vector<uint32_t>(W*H,std::bit_cast<uint32_t>(.8f)),RenderFormat::R32_FLOAT);
+        Require(resolve()==0x7b404040u,"color clipping cannot override history depth rejection");
+        Fill(pd.get(),std::vector<uint32_t>(W*H,std::bit_cast<uint32_t>(.5f)),RenderFormat::R32_FLOAT);
+        Fill(cur.get(),std::vector<uint32_t>(W*H,0x7b000000u),RenderFormat::R8G8B8A8_UNORM);
+        Require(resolve()==0x7b000000u,"uniform black change immediately clamps old history to black");
+    }
+    void StationarySilhouette() {
+        // Deterministic CPU-uploaded two-surface inputs exercise the production GPU
+        // consumer. This fixture makes no claim to test geometry/MV production.
+        gpu::TemporalAA taa;Require(taa.Init(device.get()),"stationary silhouette consumer initialization");
+        auto make=[&](RenderFormat fmt,bool rt=false){return device->createTexture(RenderTextureDesc::Texture2D(W,H,1,fmt,rt?RenderTextureFlag::RENDER_TARGET:RenderTextureFlag::NONE));};
+        auto cur=make(RenderFormat::R8G8B8A8_UNORM),prev=make(RenderFormat::R8G8B8A8_UNORM,true),out=make(RenderFormat::R8G8B8A8_UNORM,true);
+        auto cd=make(RenderFormat::R32_FLOAT),pd=make(RenderFormat::R32_FLOAT),mv=make(RenderFormat::R16G16_FLOAT),md=make(RenderFormat::R16G16_FLOAT),mask=make(RenderFormat::R32_FLOAT);
+        Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};auto camera=Camera::Create(identity,{0,0,W,H});
+        gpu::TemporalAAInputs in;in.currentColor=cur.get();in.currentDepth=cd.get();in.historyDepth=pd.get();
+        in.motionVector=mv.get();in.motionDepths=md.get();in.reactiveMask=mask.get();in.motionVectorValid=true;
+        in.width=in.historyWidth=W;in.height=in.historyHeight=H;in.currentCamera=in.previousCamera=&*camera;
+        in.historyValid=true;in.rejectAllHistory=false;in.stableGrid=true;in.historyWeight=31.f/33.f;
+        const unsigned center=32*W+32,neighbor=32*W+33;
+        std::vector<uint32_t> colors(W*H),depths(W*H),oldDepths(W*H),motion(W*H),replayDepths(W*H),reactive(W*H);
+        auto inputs=[&](double j,double previousJ){
+            for(unsigned y=0;y<H;++y)for(unsigned x=0;x<W;++x){unsigned i=y*W+x;
+                bool currentNear=x+.5-j>=32.5,previousNear=x+.5-previousJ>=32.5;
+                unsigned color=currentNear?192:64,half=currentNear?0x3800:0x3400;
+                colors[i]=color*0x010101u+0x7b000000u;depths[i]=std::bit_cast<uint32_t>(currentNear?.5f:.25f);
+                oldDepths[i]=std::bit_cast<uint32_t>(previousNear?.5f:.25f);replayDepths[i]=half|(half<<16);motion[i]=reactive[i]=0;
+            }
+            in.currentJitterX=j;in.previousJitterX=previousJ;
+        };
+        auto uploadInputs=[&](){Fill(cur.get(),colors,RenderFormat::R8G8B8A8_UNORM);Fill(cd.get(),depths,RenderFormat::R32_FLOAT);
+            Fill(pd.get(),oldDepths,RenderFormat::R32_FLOAT);Fill(mv.get(),motion,RenderFormat::R16G16_FLOAT);
+            Fill(md.get(),replayDepths,RenderFormat::R16G16_FLOAT);Fill(mask.get(),reactive,RenderFormat::R32_FLOAT);};
+        auto resolve=[&](){in.historyColor=prev.get();in.output=out.get();cmd->begin();
+            cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(out.get(),RenderTextureLayout::COLOR_WRITE));
+            if(!taa.Resolve(cmd.get(),in))throw std::runtime_error(taa.LastError());Submit();taa.ReleaseCompleted();
+            auto data=Read(out.get(),RenderFormat::R8G8B8A8_UNORM,4);uint32_t result;std::memcpy(&result,data.data()+center*4,4);return result;};
+        Fill(prev.get(),std::vector<uint32_t>(W*H,0xff808080u),RenderFormat::R8G8B8A8_UNORM);
+        // Experimental addressing snap: a tiny nonzero cubic lobe reaches a third
+        // depth layer even though the center history sample matches its surface.
+        inputs(-.25,-.25);motion[center]=0x1400u; // binary16 1/1024 pixel
+        oldDepths[neighbor]=std::bit_cast<uint32_t>(.375f);uploadInputs();
+        in.diagnosticAcceptance=in.diagnosticRejectionReasons=true;in.stabilizeStationaryGeometry=true;
+        Require(resolve()==0xffff00ffu,"tiny unsnapped history motion reaches third depth layer");
+        in.snapStationaryMotion=true;Require(resolve()==0xff0000ffu,"experimental snap uses matching center history depth");
+        motion[center]=0x1c00u;uploadInputs(); // binary16 1/256 pixel, above default min
+        Require(resolve()==0xffff00ffu,"experimental snap retains third-layer rejection above motion threshold");
+        motion[center]=0x1400u;uploadInputs();in.stabilizeStationaryGeometry=false;
+        Require(resolve()==0xffff00ffu,"experimental snap requires stationary stabilization");
+        in.stabilizeStationaryGeometry=true;in.stableGrid=false;
+        Require(resolve()==0xffff00ffu,"experimental snap does not affect raw history addressing");
+        in.stableGrid=true;in.snapStationaryMotion=false;in.diagnosticRejectionReasons=false;
+        inputs(.25,-.25);uploadInputs();
+        in.diagnosticAcceptance=true;in.stabilizeStationaryGeometry=false;
+        Require(resolve()==0xff000000u,"original consumer rejects static center ownership exchange");
+        in.stabilizeStationaryGeometry=true;Require(resolve()==0xff0000ffu,"stationary two-surface support accepts ownership exchange at identical weight");
+        in.stationaryCoverage=false;Require(resolve()==0xff000000u,"runtime coverage switch independently disables surface support");
+        in.stationaryCoverage=true;Require(resolve()==0xff0000ffu,"runtime coverage switch restores support without recompiling");
+        in.diagnosticRejectionReasons=true;
+        reactive[center]=std::bit_cast<uint32_t>(1.f);uploadInputs();Require(resolve()==0xffff0000u,"optional geometric reasons identify reactive rejection");
+        inputs(.25,-.25);replayDepths[center]=0x38003800u;uploadInputs();Require(resolve()==0xff00ffffu,"optional geometric reasons identify current/replay depth mismatch");
+        inputs(.25,-.25);replayDepths[center]=0;uploadInputs();Require(resolve()==0xffffff00u,"optional geometric reasons identify other invalid inputs");
+        in.diagnosticRejectionReasons=false;
+        for(unsigned mode=0;mode<8;++mode){
+            inputs(.25,-.25);in.stableGrid=true;
+            switch(mode){
+            case 0:reactive[neighbor]=std::bit_cast<uint32_t>(1.f);break;
+            case 1:motion[neighbor]=0x211fu;break; // binary16 approximately .01 px
+            case 2:replayDepths[neighbor]=0x34003800u;break; // current .5, previous .25
+            case 3:oldDepths.assign(W*H,std::bit_cast<uint32_t>(.5f));break;
+            case 4:oldDepths[neighbor]=std::bit_cast<uint32_t>(.375f);break;
+            case 5:depths[neighbor]=std::bit_cast<uint32_t>(.375f);replayDepths[neighbor]=0x36003600u;break;
+            case 6:in.stableGrid=false;in.currentJitterX=in.previousJitterX=0;break;
+            case 7:replayDepths[neighbor]=0x34003400u;break; // replay/current depth mismatch
+            }
+            uploadInputs();Require(resolve()==0xff000000u,"stationary support rejects unsafe fixture "+std::to_string(mode));
+        }
+        in.stableGrid=true;in.diagnosticAcceptance=false;
+        auto cycle=[&](bool enabled){
+            in.stabilizeStationaryGeometry=enabled;Fill(prev.get(),std::vector<uint32_t>(W*H,0x7b808080u),RenderFormat::R8G8B8A8_UNORM);
+            float low=255,high=0,sum=0;
+            for(unsigned frame=0;frame<128;++frame){auto j=FrameJitter(frame%32,W,H),p=FrameJitter((frame+31)%32,W,H);
+                inputs(j.pixelX,p.pixelX);in.currentJitterY=j.pixelY;in.previousJitterY=p.pixelY;uploadInputs();
+                auto pixel=resolve();float value=float(pixel&255);
+                if(frame>=96){low=std::min(low,value);high=std::max(high,value);sum+=value;}
+                if(frame==127)Require((pixel>>24)==123,"stationary silhouette retains current alpha");
+                std::swap(prev,out);
+            }
+            return std::array<float,2>{high-low,sum/32};
+        };
+        auto baseline=cycle(false),coverage=cycle(true);
+        printf("Two-surface 32-phase consumer at equal 31/33 weight: original peak/mean %.3f/%.3f, coverage %.3f/%.3f\n",baseline[0],baseline[1],coverage[0],coverage[1]);
+        Require(coverage[0]<baseline[0]*.35f,"two-surface support reduces ownership flicker independently of weight");
+        Near(coverage[1],baseline[1],"two-surface support preserves cycle coverage mean",6.f);
     }
     void HistorySafety(MotionFrameView validView) {
         const Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
@@ -265,7 +507,10 @@ int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--compile-only") {
         printf("PASS: %u DXIL/SPIR-V compilation checks; no device execution requested\n", checks); return 0;
     }
-    Fixture f;f.replay.EnableGpuTiming(true);f.current[16]=.2f;auto view=f.Run();auto data=f.Read(view.velocity,RenderFormat::R16G16_FLOAT,4);auto mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);
+    Fixture f;
+    if(argc>1&&std::string(argv[1])=="--stationary-color-only"){f.StationaryColorClip();printf("PASS: %u stationary color GPU checks\n",checks);return 0;}
+    if(argc>1&&std::string(argv[1])=="--exact-stationary-only"){f.ExactStationary();printf("PASS: %u exact stationary GPU checks\n",checks);return 0;}
+    f.replay.EnableGpuTiming(true);f.current[16]=.2f;auto view=f.Run();auto data=f.Read(view.velocity,RenderFormat::R16G16_FLOAT,4);auto mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);
     const auto at=32*64+38;uint16_t xy[2];std::memcpy(xy,data.data()+at*4,4);
     Near(Half(xy[0]),-6.4f,"GPU rigid backward displacement");Near(Half(xy[1]),0,"GPU rigid Y");Require(mask[at]==0,"rigid interior valid");Require(mask[0]==255,"unwritten pixels invalid");
     view=f.Run(false,true);mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);Require(mask[at]==0,"extra ordered instance does not revoke the first recorded GPU draw");
@@ -282,7 +527,7 @@ int main(int argc, char** argv) {
     Near(Half(xy[0]),-4,"producer removes jitter once from actual rasterized motion");Near(Half(xy[1]),0,"producer unjittered Y");f.TestTaa(view);
     f.current[18]=.2f;view=f.Run();f.TestTaa(view,.3f);
     f.current.fill(0);f.previous.fill(0);view=f.Run();f.HistorySafety(view);
-    f.JitterCycle();f.TimingLifecycle();
+    f.ExactStationary();f.JitterCycle();f.StationaryAccumulation();f.StationaryColorClip();f.StationarySilhouette();f.TimingLifecycle();
     Require(f.replay.DrawTiming().samples>0&&f.replay.MaskTiming().samples>0,"production replay draw and validity timestamps completed");
     const auto batches=f.replay.MaskBatchAllocations();
     Require(f.replay.PendingCount()==0,"GPU completion releases all in-flight mask resources");f.Stress(1200);

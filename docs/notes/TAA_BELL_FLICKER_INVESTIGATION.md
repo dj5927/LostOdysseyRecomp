@@ -1,10 +1,12 @@
 # TAA Bell-Stand Flicker Investigation (Issue #46 adjacent)
 
-Status: investigation open. No shader mapping or compensation change made.
+Status: investigation open. The exact-stationary MV plus stationary color-clip
+candidate received user confirmation of a clear stability improvement, but
+residual shimmer remains and the Bell Vulkan 4K issue is not resolved.
 Ledger: all 18 `taa-position` cases remain `needs_review` / `not_implemented` /
 `not_validated` / `not_accepted`. This note binds no historical review to new evidence.
 
-## Code changes (opt-in diagnostics only, default behavior unchanged)
+## Previous diagnostic controls (opt-in; default behavior unchanged)
 
 File: `LostOdysseyRecomp/gpu/renderer.cpp`.
 
@@ -17,6 +19,29 @@ File: `LostOdysseyRecomp/gpu/renderer.cpp`.
 - `LO_TEMPORAL_DRAW_LOG_UNKNOWN=1`: additionally records draws that sit in the
   scene viewport but have no position-matrix slot (`temporalSlot<0`). This
   catches every unwhitelisted scene draw in one run instead of guessing hashes.
+
+## Uncommitted candidate repair
+
+The current working tree allows the cubic footprint to include the predicted
+primary depth surface plus one background depth surface, and adds a guarded
+`stabilizeStationaryGeometry` path. The latter applies
+only when the geometry is stable and the motion vector is trusted; for nearly
+stationary geometry (`0.002` to `0.125` pixel motion), it smoothly returns the
+history weight from `31/33` toward `0.85`. Existing rejection and clamp rules
+remain active. Set `LO_TAA_STATIONARY_HISTORY=0` to disable this path for a
+comparison.
+
+`LO_TAA_ACCEPTANCE=1` enables an independent diagnostic resolve from the
+candidate history to display. It does not color or alter the normal history
+path. The candidate is present in the uncommitted working tree at the time of
+this note; no release or user acceptance is implied.
+
+The second candidate adds general static-coverage handling. Its GPU project
+passed 811 checks, and the runtime build succeeded. A two-surface ownership
+swap fixture using the same `31/33` weight changed peak-to-peak variation from
+`128` to `10` and the mean from `132` to `135.875`; these use CPU-uploaded
+deterministic inputs and a production GPU consumer, rather than complete
+geometry-production validation. Eight safety-rejection classes also passed.
 
 ## Evidence so far
 
@@ -46,7 +71,94 @@ File: `LostOdysseyRecomp/gpu/renderer.cpp`.
   so the TAA-only bloom prefilter was mitigating, not causing, the shimmer.
   The flicker source is upstream (jittered scene).
 
-## Verdict (no code repair)
+### Candidate automated evidence
+
+The GPU test project built once and passed 791 checks. In its 32-phase
+stationary-geometry cycle, peak-to-peak variation fell from `10` to `4` and
+the mean moved from `127` to `126`; motion recovery, depth rejection, alpha,
+and raw/camera-only checks also passed. In the same-instance normal/no-jitter/
+no-history-16-frame comparison, the four Bell ROI deltas for normal mode were
+`0.93/2.53/1.49/1.19`, while the no-jitter comparison was approximately zero.
+The acceptance diagnostic accepted `97.6%`–`99.5%` of frames continuously and
+had a color rejection rate below `0.13%`.
+
+These are automated and diagnostic results from `out/bell-resume/gpu-test.log`.
+
+### Exact-stationary and color-clip candidate evidence
+
+The current MV source candidate uses `exactStationary`: identical geometry and
+raster inputs plus the actual vertex-shader constant reads must match bit for
+bit. Canonical generated-HLSL literals are parsed strictly; relative or
+unknown reads fall back to the full bank. Explicitly unused shared values and
+pixel-shader flags are excluded, and zero is not treated as a speed threshold.
+Fourteen CPU exactness checks and fifteen usage checks passed. A bounded GPU
+literal-zero suite passed 543 checks across 32 jitter phases, rigid/skinned
+paths and invalid-input protection. These are additional candidate checks; the
+older 826-check suite was not rerun.
+
+The live `stationary_color_clip` control defaults to `0`. With stable geometry,
+strict zero original motion, valid depth and the other guards satisfied, it
+changes an out-of-range color hard rejection into clamp-and-blend; orange
+diagnostic pixels identify color accepted after clipping. The color group
+passed 25 GPU checks and the new parser field tests passed. The current live
+run used `snap=1`, `motion_min=.002` and `colorclip=1`; it remains diagnostic.
+In `out/bell-resume/live-tuning/color-off|color-on/result.json`, same-session
+32-frame values changed upper `0.60561→0.50872` (16%), video
+`0.61189→0.52842` (13.6%) and ground `0.47061→0.31962` (32%); these are not
+performance measurements. The exact-source-MV frame 877 evidence records
+video and ground at 100% zero and upper at 99.412% zero. The 0.95 stationary
+weight comparison was independently tested, gave only about 4% video benefit,
+and was restored to `31/33`.
+
+The user has now visually reviewed the exact-stationary MV plus stationary
+color-clip candidate and reports that it is clearly steadier, while residual
+shimmer remains. This confirms partial visual improvement for the observed Bell
+scene but does not establish a complete fix or close the investigation.
+
+### Preliminary real Bell candidate result
+
+The current 32-phase real-scene comparison shows partial improvement only:
+the red ROI delta changes from `0.9096` to `0.5652`, cyan from `2.5112` to
+`2.1208`, white from `1.4418` to `1.0725`, and green from `1.1751` to
+`0.9403`, corresponding to roughly 16%–38% improvement across the reported
+regions. The remaining heatmap is concentrated on the outline and is strongly
+associated with pixels that experienced history rejection; approximately 17%
+of the region contributes 63% of the residual. The Windows runtime candidate
+is still being refined, including a stable-grid cross-phase depth-surface
+swap investigation.
+
+This preliminary result does not establish a perceptual fix, whole-game
+coverage, cross-hardware coverage, release readiness, or user acceptance.
+
+For the second candidate's `LO_TAA_ACCEPTANCE=2` diagnostic, rejection causes
+are color-coded without modifying history: blue reactive, yellow current/replay
+depth mismatch, black primary/support mismatch, magenta third layer, cyan
+invalid or boundary, red accepted, and green color rejected. The current
+32-phase visual comparison improved the video ROI from baseline `1.4946` to
+`1.13965`, and the upper-beam ROI from `1.30728` to `0.82713`; residuals
+remain. The second candidate was also rejected in foreground review: the user
+still saw obvious shimmer. Candidates `607dd6f1…` and `3b942ee…` both failed
+visual acceptance.
+
+### User visual acceptance result
+
+The user reviewed candidate `607dd6f1…` in the Bell scene and reported that
+the shimmer remained obvious and had not improved. The primary visible defect
+was the upper crossbar/support metal edge rather than the earlier lower Bell
+ROI; a distant ground seam also showed slight shimmer. The matched 4K ROI was
+`(x=1062, y=255, w=1326, h=188)` and the video ROI was
+`(x=1166, y=299, w=98, h=90)` with match `0.966`. In that video ROI, delta
+changed from `1.4946` to `1.2826` (about 14%); jitter-off remained `0`.
+Acceptance was `95.45%` with `0.73%` color rejection. This candidate failed
+user visual acceptance. The second candidate includes the general
+static-coverage fallback, but both candidates still failed visual acceptance.
+The local live-debug panel and launcher are available for bounded diagnosis.
+Native Continue now has runtime evidence: it loaded `save/user01/save.bin`,
+entered the Bell scene, and reported `history_reused=true`, `motion_ready=true`
+and `motion_consumed=true` at 3840x2160. The tool itself has not received
+separate user acceptance, and the underlying shimmer remains unaccepted.
+
+## Prior verdict before motion-vector and coverage candidates
 
 - The resolve shader (`temporal_aa.cpp`) validates all depth taps, clamps
   history into the current 3x3 neighborhood (active in TAA mode), and
@@ -61,8 +173,11 @@ File: `LostOdysseyRecomp/gpu/renderer.cpp`.
   proportion. Ruled out as a lever.
 - Stable-grid mode (skips display reconstruction, jitter still on) still
   flickers: display reconstruction ruled out.
-- Remaining mechanism is current-frame aliasing on thin swaying geometry
-  sampled at changing Halton phases. Unfixable without motion vectors.
+- The historical pre-motion-vector verdict was that current-frame aliasing on
+  thin swaying geometry sampled at changing Halton phases was unfixable without
+  motion vectors. Motion-vector replay and consumption now exist, but the two
+  current candidates still fail visual acceptance; this historical sentence is
+  not a current diagnosis or acceptance claim.
   `LO_TEMPORAL_HISTORY_WEIGHT` stays as an opt-in diagnostic only; default
   0.85 unchanged. AA mode choice remains the user lever.
 

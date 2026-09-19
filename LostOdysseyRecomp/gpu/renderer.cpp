@@ -763,6 +763,51 @@ namespace gpu::renderer
             int taaDiagnosticAA = -1, taaDiagnosticJitter = -1, taaDiagnosticHistory = -1, taaDiagnosticBloom = -1;
             int taaDiagnosticHDR = 0;
             int taaDiagnosticMaterials = 1;
+            const char* taaLiveDirectory = getenv("LO_TAA_LIVE_DIR");
+            temporal::LiveOptions taaLiveOptions;
+            bool taaLiveApplied = false;
+            std::string taaLiveError;
+            std::chrono::steady_clock::time_point taaLivePoll{};
+            uint64_t taaLiveResolvedFrame = 0;
+            uint32_t taaLiveWidth = 0, taaLiveHeight = 0;
+            double taaLiveJitterX = 0, taaLiveJitterY = 0;
+            bool taaLiveHistoryReused = false, taaLiveMotionReady = false, taaLiveMotionConsumed = false;
+            void PollTaaLive()
+            {
+                if (!taaLiveDirectory || !*taaLiveDirectory) return;
+                const auto now = std::chrono::steady_clock::now();
+                if (now < taaLivePoll) return;
+                taaLivePoll = now + std::chrono::milliseconds(250);
+                const auto directory = std::filesystem::path(taaLiveDirectory);
+                std::ifstream request(directory / "control.txt");
+                temporal::LiveOptions next;
+                if (request && temporal::ReadLiveOptions(request, next, taaLiveError)) {
+                    if (!taaLiveApplied || next.serial != taaLiveOptions.serial) {
+                        taaLiveOptions = next; taaLiveApplied = true;
+                        taaDiagnosticAA = next.aa; taaDiagnosticJitter = next.jitter; taaDiagnosticHistory = next.history;
+                        taaDiagnosticBloom = next.bloom; taaDiagnosticHDR = next.hdr; taaDiagnosticMaterials = next.materials;
+                        if (temporalHistory) temporalHistory->Reset();
+                        if (hdrTemporalHistory) hdrTemporalHistory->Reset();
+                        temporalSupportedFrame = ~0ull; ++temporalEpoch;
+                        taaLiveResolvedFrame = 0; taaLiveHistoryReused = false;
+                        LOG_INFO("renderer: live TAA controls applied serial={} frame={}", next.serial, frame);
+                    }
+                }
+                const auto temporary = directory / "state.json.tmp", destination = directory / "state.json";
+                std::ofstream state(temporary, std::ios::trunc);
+                if (!state) return;
+                state << fmt::format("{{\"applied_serial\":{},\"frame\":{},\"resolved_frame\":{},\"width\":{},\"height\":{},"
+                    "\"history_reused\":{},\"motion_ready\":{},\"motion_consumed\":{},\"aa\":{},\"jitter_x\":{},\"jitter_y\":{},\"acceptance\":{},"
+                    "\"backend\":{},\"source_version\":{},\"request_error\":{}}}",
+                    taaLiveApplied ? taaLiveOptions.serial : 0, frame, taaLiveResolvedFrame, taaLiveWidth, taaLiveHeight,
+                    taaLiveHistoryReused, taaLiveMotionReady, taaLiveMotionConsumed, taaDiagnosticAA,
+                    taaLiveJitterX, taaLiveJitterY, taaLiveApplied ? taaLiveOptions.acceptance : 0,
+                    temporal::LiveJsonString(vulkan ? "Vulkan" : "D3D12"),
+                    temporal::LiveJsonString(lo_version::Source), temporal::LiveJsonString(taaLiveError));
+                state.close();
+                if (state.fail()) return;
+                std::error_code error; std::filesystem::rename(temporary, destination, error);
+            }
             void PollTaaDiagnostic()
             {
                 static const char* path = getenv("LO_TAA_DIAGNOSTIC_REQUEST");
@@ -864,7 +909,9 @@ namespace gpu::renderer
                 {
                     if (target.address != address || ++target.seen != target.occurrence) continue;
                     const uint32_t bpp = format == RenderFormat::R8G8B8A8_UNORM ? 4 :
-                        format == RenderFormat::R16G16B16A16_FLOAT ? 8 : format == RenderFormat::R32_FLOAT ? 4 : 0;
+                        (format == RenderFormat::R16G16B16A16_FLOAT || format == RenderFormat::R32G32_FLOAT) ? 8 :
+                        (format == RenderFormat::R32_FLOAT || format == RenderFormat::R16G16_FLOAT) ? 4 :
+                        format == RenderFormat::R8_UNORM ? 1 : 0;
                     if (!bpp) continue;
                     const uint32_t pitch = (width * bpp + 255) & ~255u;
                     const uint32_t offset = (resolveTraceBytes + 511) & ~511u;
@@ -3490,6 +3537,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 if(sceneAAConfigFrame!=frame) {
                     sceneAAConfigFrame=frame;
                     PollTaaDiagnostic();
+                    PollTaaLive();
                     const auto mode=taaDiagnosticAA >= 0 ? uint32_t(taaDiagnosticAA) : uint32_t(settings::GetConfig().antialiasing);
                     if(sceneAAMode!=mode) {if(temporalHistory)temporalHistory->Reset();temporalSupportedFrame=~0ull;++temporalEpoch;}
                     sceneAAMode=mode;
@@ -3975,7 +4023,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                         FinishMotion(hdrTemporalHistory.get());
                                         hdrTemporalOutput = hdrTemporalHistory->ResolveColor(commandList, tex->texture.get(), hdrScene,
                                             temporalJitter ? jitter.pixelX : 0, temporalJitter ? jitter.pixelY : 0,
-                                            temporalAllowHistory, true, true, motionOptions.consume ? &motionView : nullptr, motionOptions.debug);
+                                            temporalAllowHistory, true, true,
+                                            motionOptions.consume && (!taaLiveApplied || taaLiveOptions.mv_consume) ? &motionView : nullptr,
+                                            motionOptions.debug, taaLiveApplied ? &taaLiveOptions : nullptr);
                                         if (motionOptions.consume && motionView.ready && motionReplay) motionReplay->RecordConsumerUse();
                                         Transition(*tex, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
                                         if (hdrTemporalOutput) {
@@ -4033,8 +4083,14 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                 const auto sample = temporal::FrameJitter(frame, rasterViewport.width, rasterViewport.height);
                                 const double jx = temporalJitter ? sample.pixelX : 0, jy = temporalJitter ? sample.pixelY : 0;
                                 FinishMotion(temporalHistory.get());
+                                const bool consumeMotion = motionOptions.consume && (!taaLiveApplied || taaLiveOptions.mv_consume);
                                 temporalDisplay=temporalHistory->ResolveColor(commandList,tex->texture.get(),temporalScene,jx,jy,temporalAllowHistory && !hdrTonemapApplied,temporalStableGrid,sceneAAMode==3,
-                                    motionOptions.consume ? &motionView : nullptr, motionOptions.debug);
+                                    consumeMotion ? &motionView : nullptr, motionOptions.debug, taaLiveApplied ? &taaLiveOptions : nullptr);
+                                if (taaLiveDirectory) {
+                                    taaLiveResolvedFrame=frame;taaLiveWidth=tex->width;taaLiveHeight=tex->height;
+                                    taaLiveJitterX=jx;taaLiveJitterY=jy;taaLiveHistoryReused=temporalDisplay&&temporalHistory->Reused();
+                                    taaLiveMotionReady=motionView.ready;taaLiveMotionConsumed=temporalDisplay&&consumeMotion&&temporalHistory->MotionVectorValid();
+                                }
                                 if (motionOptions.consume && motionView.ready && motionReplay) motionReplay->RecordConsumerUse();
                                 Transition(*tex,RenderTextureLayout::SHADER_READ,RenderBarrierStage::GRAPHICS);
                                 if(temporalDisplay) {
@@ -4047,6 +4103,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                     QueueResolveTrace(temporalHistory->CurrentDepth(),RenderFormat::R32_FLOAT,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0003u);
                                     if(temporalHistory->CurrentMotionVector())
                                         QueueResolveTrace(temporalHistory->CurrentMotionVector(),RenderFormat::R16G16_FLOAT,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0004u);
+                                    if(temporalHistory->CurrentMotionDepths())
+                                        QueueResolveTrace(temporalHistory->CurrentMotionDepths(),RenderFormat::R32G32_FLOAT,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0005u);
+                                    if(temporalHistory->CurrentReactiveMask())
+                                        QueueResolveTrace(temporalHistory->CurrentReactiveMask(),RenderFormat::R8_UNORM,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0006u);
                                 }
                             }
                             if(!temporalDisplay && sceneAAEnabled && sceneProcessor && !sceneAABusy &&
@@ -4476,8 +4536,35 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         mk.indexCount = indexCount; mk.baseVertex = baseVertex; mk.primitiveType = info.primitiveType;
                         for (uint32_t index : indices) motionGeometry = temporal::MotionHashWord(motionGeometry, index);
                         mk.geometrySignature = motionGeometry;
+                        const temporal::MotionRasterContract motionRaster{
+                            uint32_t(rasterViewport.width), uint32_t(rasterViewport.height),
+                            {rasterViewport.x, rasterViewport.y, rasterViewport.width, rasterViewport.height,
+                             rasterViewport.minDepth, rasterViewport.maxDepth}, true};
                         auto match = drawTemporalTracker.Collect(mk, vsConstants, &shared, vs->info.usesRelativeConstants,
-                            drawJitter.applied ? temporalSlot : -1, motionOriginalVP.data());
+                            drawJitter.applied ? temporalSlot : -1, motionOriginalVP.data(), &motionRaster,
+                            motionReplay ? motionReplay->ConstantUsage(key.vs) : nullptr);
+                        if (taaLiveDirectory && match.previous && !match.exactStationary && frame % 120 == 0 &&
+                            (key.vs == 0x702c643defe73320ull || key.vs == 0xb030ab4e17a20783ull)) {
+                            static uint64_t lastProofFrame[2]{};
+                            static uint32_t proofSamples = 0;
+                            const unsigned proofSlot = key.vs == 0x702c643defe73320ull ? 0 : 1;
+                            if (proofSamples < 8 && lastProofFrame[proofSlot] != frame) {
+                                lastProofFrame[proofSlot] = frame; ++proofSamples;
+                                std::string constantDiff, sharedDiff;
+                                for (unsigned i = 0; i < 256; ++i) {
+                                    const void* current = drawJitter.applied && int(i) >= temporalSlot && int(i) < temporalSlot + 4
+                                        ? static_cast<const void*>(motionOriginalVP.data() + (int(i) - temporalSlot) * 4)
+                                        : static_cast<const void*>(vsConstants + i * 4);
+                                    if (std::memcmp(current, match.previous->vsConstants.data() + i * 4, 16) != 0)
+                                        constantDiff += fmt::format(" {}", i);
+                                }
+                                const auto* sharedWords = reinterpret_cast<const uint32_t*>(&shared);
+                                for (unsigned i = 0; i < 52; ++i)
+                                    if (sharedWords[i] != match.previous->shared[i]) sharedDiff += fmt::format(" {}", i);
+                                LOG_INFO("mv stationary proof vs={:016x} raster={} changed_c=[{}] changed_shared=[{}]", key.vs,
+                                    motionRaster.Supported(), constantDiff, sharedDiff);
+                            }
+                        }
                         mvTimer.AddTo(mvTrackCpuMs);
                         if (motionReplay && motionReplay->UsableThisFrame() && match.previous) {
                             const auto w = uint32_t(rasterViewport.width), h = uint32_t(rasterViewport.height);

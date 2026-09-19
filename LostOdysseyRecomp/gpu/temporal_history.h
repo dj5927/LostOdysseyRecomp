@@ -3,6 +3,8 @@
 #include "motion_frame.h"
 #include "temporal_aa.h"
 #include "temporal_scene.h"
+#include "taa_live_control.h"
+#include <cstdlib>
 
 namespace gpu::temporal {
 struct HistoryContinuityDepthRange {
@@ -237,7 +239,7 @@ public:
     }
     // Caller supplies full scene color in the instance color format and COPY_SOURCE. Output is SHADER_READ.
     // allowHistory is an explicit experiment assertion, NOT inferred scene/MV safety.
-    plume::RenderTexture* ResolveColor(plume::RenderCommandList* commands,plume::RenderTexture* source,const SceneObservation& scene,double jx,double jy,bool allowHistory,bool stableGrid=false,bool colorReactive=false,const MotionFrameView* motion=nullptr,bool motionDebug=false) {
+    plume::RenderTexture* ResolveColor(plume::RenderCommandList* commands,plume::RenderTexture* source,const SceneObservation& scene,double jx,double jy,bool allowHistory,bool stableGrid=false,bool colorReactive=false,const MotionFrameView* motion=nullptr,bool motionDebug=false,const LiveOptions* live=nullptr) {
         auto& current=frames_[frame_%2];auto& previous=frames_[(frame_+1)%2];
         if(!commands||!source||!scene.Ready()||scene.Frame()!=frame_||!current.camera||current.completed||current.depthOrdinal!=scene.Depth().ordinal||scene.Color().width!=width_||scene.Color().height!=height_) {Reset();return nullptr;}
         current.jx=jx;current.jy=jy;current.colorOrdinal=scene.Color().ordinal;current.stableGrid=stableGrid;
@@ -260,6 +262,17 @@ public:
         in.motionVector=motionView_.velocity;in.motionDepths=motionView_.depths;in.reactiveMask=motionView_.reactive;
         in.motionVectorDebug=motionDebug;
         in.motionVectorValid=motionVectorValid_;
+        static const bool stationaryHistory=[] {const char* value=std::getenv("LO_TAA_STATIONARY_HISTORY");return !value||value[0]!='0';}();
+        in.stabilizeStationaryGeometry=stationaryHistory;
+        if(live) {
+            in.stabilizeStationaryGeometry=live->stationary!=0;in.stationaryCoverage=live->coverage!=0;
+            in.snapStationaryMotion=live->snap_stationary!=0;
+            in.stationaryColorClip=live->stationary_color_clip!=0;
+            in.historyWeight=live->history_weight;in.stationaryHistoryWeight=live->stationary_weight;
+            in.stationaryMotionMin=live->motion_min;in.stationaryMotionMax=live->motion_max;
+            in.depthAbsoluteThreshold=live->depth_absolute;in.depthRelativeThreshold=live->depth_relative;
+            in.motionVectorDebug=false;
+        }
         in.width=in.historyWidth=width_;in.height=in.historyHeight=height_;in.currentCamera=&*current.camera;in.previousCamera=previous.camera?&*previous.camera:nullptr;
         in.currentJitterX=jx;in.currentJitterY=jy;in.previousJitterX=reuse?previous.jx:0;in.previousJitterY=reuse?previous.jy:0;in.historyValid=reuse;
         // An explicitly requested geometric frame must not silently become camera
@@ -276,6 +289,17 @@ public:
         }
         if(!aa_.Resolve(commands,in)){Reset();return nullptr;}
         Transition(commands,history_[frame_%2],plume::RenderTextureLayout::SHADER_READ);
+        // Diagnose the same inputs without feeding diagnostic colors into history.
+        static const int acceptanceView=[] {const char* value=std::getenv("LO_TAA_ACCEPTANCE");return value&&value[0]=='2'?2:value&&value[0]=='1'?1:0;}();
+        const int diagnosticView=live?live->acceptance:acceptanceView;
+        if(diagnosticView||(live&&live->mv_debug)) {
+            in.diagnosticAcceptance=diagnosticView!=0;in.motionVectorDebug=!diagnosticView&&live&&live->mv_debug;in.output=display_.texture.get();
+            in.diagnosticRejectionReasons=diagnosticView==2;
+            Transition(commands,display_,plume::RenderTextureLayout::COLOR_WRITE);
+            if(!aa_.Resolve(commands,in)){Reset();return nullptr;}
+            Transition(commands,display_,plume::RenderTextureLayout::SHADER_READ);
+            current.completed=true;valid_=true;reused_=reuse&&!in.rejectAllHistory;return display_.texture.get();
+        }
         if(stableGrid) {current.completed=true;valid_=true;reused_=reuse&&!in.rejectAllHistory;return history_[frame_%2].texture.get();}
         Transition(commands,display_,plume::RenderTextureLayout::COLOR_WRITE);
         if(!aa_.ReconstructDisplay(commands,{history_[frame_%2].texture.get(),display_.texture.get(),width_,height_,jx,jy})){Reset();return nullptr;}
@@ -288,6 +312,8 @@ public:
     // Borrowed diagnostic view, SHADER_READ; restore that layout after a readback.
     plume::RenderTexture* CurrentDepth() const {return depth_[frame_%2].texture.get();}
     plume::RenderTexture* CurrentMotionVector() const {return motionVectorValid_?motionView_.velocity:nullptr;}
+    plume::RenderTexture* CurrentMotionDepths() const {return motionVectorValid_?motionView_.depths:nullptr;}
+    plume::RenderTexture* CurrentReactiveMask() const {return motionVectorValid_?motionView_.reactive:nullptr;}
     void ReleaseCompleted() {if(sparse_)sparse_->ReleaseCompleted();sparseReleaseSerial_=0;aa_.ReleaseCompleted();retired_.clear();}
     uint64_t RecordedSerial() const {return aa_.RecordedSerial();}
     void ReleaseCompletedThrough(uint64_t serial) {

@@ -16,6 +16,19 @@ struct TemporalAAInputs
     // for a stationary camera. Jitter must lie strictly inside (-.5,.5) pixels.
     // False retains the original jittered color/depth history pairing.
     bool stableGrid=false;
+    // Opt-in longer accumulation and verified local two-surface coverage exchange
+    // for stationary geometric MV. Stable-grid only; no geometry identity proof.
+    // Animated shading still relies on the existing color policy.
+    bool stabilizeStationaryGeometry=false;
+    float stationaryHistoryWeight=31.f/33.f;
+    float stationaryMotionMin=.002f, stationaryMotionMax=.125f; // Render pixels.
+    bool stationaryCoverage=true; // Independent coverage fallback within stabilization.
+    // Experimental debug control: snap only near-zero stable history addressing.
+    // The original MV still controls weighting and support validation. Default off.
+    bool snapStationaryMotion=false;
+    // For valid zero geometric motion only, clamp outlying history instead of
+    // discarding it. Moving/reactive/depth-invalid pixels retain existing policy.
+    bool stationaryColorClip=false;
     // All textures are single-sample 2D, exact declared dimensions, mip zero.
     // Colors/output: RGBA8_UNORM, depths: R32_FLOAT host reverse depth (0 clear).
     // Optional current reactive mask: R8_UNORM or R32_FLOAT, >0 rejects history.
@@ -46,10 +59,14 @@ struct TemporalAAInputs
     // Red=accepted history, green=color-reactive rejection, black=other rejection.
     // Overrides color/alpha output (including reset); normal rendering leaves false.
     bool diagnosticAcceptance=false;
+    // With diagnosticAcceptance: geometric rejection reasons blue=reactive,
+    // yellow=current/replay depth, black=missing primary, purple=third surface,
+    // cyan=other. Default keeps the established red/green/black contract.
+    bool diagnosticRejectionReasons=false;
     float historyWeight=.85f; // [0,.95], after 3x3 current RGB neighborhood clamp.
-    // Legacy mode validates every cubic-footprint depth against predicted depth.
-    // Stable mode pairs radius-one near/far support and validates each nonzero
-    // color tap against those two surfaces on the separate raw depth grid.
+    // Camera reprojection pairs radius-one near/far support. Geometric motion
+    // accepts its replayed surface plus one silhouette/background surface in the
+    // cubic footprint; a missing primary surface or third depth layer rejects.
     // Depth agreement is
     // previous depth: |actual-predicted| <= absolute + relative*max(actual,predicted).
     // Both are NONLINEAR host-depth units, NOT world-distance or view-Z tolerances.

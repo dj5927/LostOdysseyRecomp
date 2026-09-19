@@ -34,8 +34,9 @@ struct Constants
     float policy[4]{}; // weight, abs depth, relative depth, unused
     uint32_t active=0, reactive=0, pad0=0, pad1=0;
     float jitter[4]{}; // current xy, previous xy; raster pixel displacement.
+    float stationaryPolicy[4]{}; // stationary weight, motion min/max, coverage enabled.
 };
-static_assert(sizeof(Constants)==144);
+static_assert(sizeof(Constants)==160);
 void DefineSet(RenderDescriptorSetBuilder& set, bool vulkan)
 {
     set.begin(); for(uint32_t i=0;i<7;++i) set.addTexture(i); set.addSampler(vulkan?7:0); if(vulkan) set.addConstantBuffer(8); set.end();
@@ -72,6 +73,7 @@ cbuffer Parameters:register(b0) {
  float4 policy;
  uint active,reactive,pad0,pad1;
  float4 jitter;
+ float4 stationaryPolicy;
 };
 float4 vertex(uint id:SV_VertexID):SV_Position {
  float2 uv=float2((id<<1)&2,id&2);
@@ -88,11 +90,11 @@ float4 cubicWeights(float t) {
               .5*t+2*t*t-1.5*t*t*t,-.5*t*t+.5*t*t*t);
 }
 float4 rejected(float4 center) { return (pad1&2)?float4(0,0,0,1):center; }
-float4 accumulate(float4 center,float3 history,float3 lo,float3 hi) {
+float4 accumulate(float4 center,float3 history,float3 lo,float3 hi,float historyWeight,bool stationaryClip=false) {
  bool colorReject=(pad1&1) && (any(history<lo-1.0/255.0)||any(history>hi+1.0/255.0));
- if(pad1&2)return colorReject?float4(0,1,0,1):float4(1,0,0,1);
- if(colorReject)return center;
- return float4(lerp(center.rgb,clamp(history,lo,hi),policy.x),center.a);
+ if(pad1&2)return colorReject?(stationaryClip?float4(1,.5,0,1):float4(0,1,0,1)):float4(1,0,0,1);
+ if(colorReject&&!stationaryClip)return center;
+ return float4(lerp(center.rgb,clamp(history,lo,hi),historyWeight),center.a);
 }
 float4 stablePixel(float4 position) {
  int2 p=int2(position.xy);float4 center=currentColor.Load(int3(p,0));
@@ -142,39 +144,87 @@ float4 stablePixel(float4 position) {
   history+=historyColor.Load(int3(tap,0)).rgb*weight;
  }
  if(!all(isfinite(history)))return rejected(center);
- return accumulate(center,history,lo,hi);
+ return accumulate(center,history,lo,hi,policy.x);
+}
+// A stationary silhouette can exchange its two raster-depth owners as jitter
+// changes while stable color history still represents their accumulated coverage.
+// This proves only local two-surface support, not persistent geometry identity.
+bool stationaryCoverageSupport(int2 p,float2 centerDepths,float footprintDepth) {
+ if(any(imageSize.xy!=imageSize.zw))return false;
+ float cmin=1,cmax=0,pmin=1,pmax=0;
+ [unroll]for(int y=-1;y<=1;++y)[unroll]for(int x=-1;x<=1;++x) {
+  int2 t=clamp(p+int2(x,y),int2(0,0),int2(imageSize.xy)-1);
+  int2 pt=clamp(int2(floor(float2(t)+.5+jitter.zw)),int2(0,0),int2(imageSize.zw)-1);
+  float mask=reactiveMask.Load(int3(t,0));float2 mv=motionVector.Load(int3(t,0)),md=motionDepths.Load(int3(t,0));
+  float cd=currentDepth.Load(int3(t,0)),pd=historyDepth.Load(int3(pt,0));
+  if(!isfinite(mask)||mask!=0||!all(isfinite(mv))||length(mv)>stationaryPolicy.y||!all(isfinite(md))
+    ||!depthAgrees(cd,md.x)||!depthAgrees(md.y,md.x)||!isfinite(pd)||pd<=0||pd>1)return false;
+  cmin=min(cmin,cd);cmax=max(cmax,cd);pmin=min(pmin,pd);pmax=max(pmax,pd);
+ }
+ if(depthAgrees(cmin,cmax)||!depthAgrees(pmin,cmin)||!depthAgrees(pmax,cmax))return false;
+ if(!depthAgrees(centerDepths.x,centerDepths.y)
+   ||(!depthAgrees(centerDepths.y,cmin)&&!depthAgrees(centerDepths.y,cmax))
+   ||(!depthAgrees(footprintDepth,pmin)&&!depthAgrees(footprintDepth,pmax)))return false;
+ // Matching extrema alone would admit a third surface between the endpoints.
+ [unroll]for(int yy=-1;yy<=1;++yy)[unroll]for(int xx=-1;xx<=1;++xx) {
+  int2 t=clamp(p+int2(xx,yy),int2(0,0),int2(imageSize.xy)-1);
+  int2 pt=clamp(int2(floor(float2(t)+.5+jitter.zw)),int2(0,0),int2(imageSize.zw)-1);
+  float cd=currentDepth.Load(int3(t,0)),pd=historyDepth.Load(int3(pt,0));
+  if((!depthAgrees(cd,cmin)&&!depthAgrees(cd,cmax))||(!depthAgrees(pd,pmin)&&!depthAgrees(pd,pmax)))return false;
+ }
+ return true;
+}
+float4 motionRejected(float4 center,float3 reason) {
+ return ((pad1&2) && (pad1&16))?float4(reason,1):rejected(center);
 }
 float4 motionPixel(float4 position) {
  int2 p=int2(position.xy);float4 center=currentColor.Load(int3(p,0));
  if(!active)return rejected(center);
  float mask=reactiveMask.Load(int3(p,0));
- if(!isfinite(mask)||mask>0)return (pad1&4)?float4(1,0,1,1):rejected(center);
+ if(!isfinite(mask)||mask>0)return (pad1&4)?float4(1,0,1,1):motionRejected(center,float3(0,0,1));
  float2 mv=motionVector.Load(int3(p,0)),md=motionDepths.Load(int3(p,0));
  float d=currentDepth.Load(int3(p,0));
- if(!all(isfinite(mv))||!all(isfinite(md))||!depthAgrees(d,md.x)||md.y<=0||md.y>1)return rejected(center);
+ if(!all(isfinite(mv))||!all(isfinite(md))||md.y<=0||md.y>1)return motionRejected(center,float3(0,1,1));
+ if(!depthAgrees(d,md.x))return motionRejected(center,float3(1,1,0));
  if(pad1&4)return float4(.5+clamp(mv/32,-.5,.5),0,1);
  bool stable=(pad0&1)!=0;
  // MV is unjittered. Convert to the history color/depth grids once.
- float2 q=position.xy+mv+(stable?float2(0,0):jitter.zw-jitter.xy);
+ float2 historyMotion=mv;
+ if(stable && (pad1&8) && (pad1&32) && length(mv)<=stationaryPolicy.y)historyMotion=0;
+ float2 q=position.xy+historyMotion+(stable?float2(0,0):jitter.zw-jitter.xy);
  float2 raw=q+(stable?jitter.zw:float2(0,0));
- if(any(q<.5)||any(q>imageSize.zw-.5)||any(raw<.5)||any(raw>imageSize.zw-.5))return rejected(center);
- int2 first=int2(floor(q-.5));float2 f=frac(q-.5);
- float4 wx=cubicWeights(f.x),wy=cubicWeights(f.y);float3 history=0;
- [unroll]for(int y=0;y<4;++y)[unroll]for(int x=0;x<4;++x) {
-  float weight=wx[x]*wy[y];if(weight==0)continue;
-  int2 tap=clamp(first+int2(x-1,y-1),int2(0,0),int2(imageSize.zw)-1);
-  int2 dtap=stable?int2(floor(float2(tap)+.5+jitter.zw)):tap;
-  dtap=clamp(dtap,int2(0,0),int2(imageSize.zw)-1);
-  if(!depthAgrees(historyDepth.Load(int3(dtap,0)),md.y))return rejected(center);
-  history+=historyColor.Load(int3(tap,0)).rgb*weight;
- }
- if(!all(isfinite(history)))return rejected(center);
+ if(any(q<.5)||any(q>imageSize.zw-.5)||any(raw<.5)||any(raw>imageSize.zw-.5))return motionRejected(center,float3(0,1,1));
+  int2 first=int2(floor(q-.5));float2 f=frac(q-.5);
+  float4 wx=cubicWeights(f.x),wy=cubicWeights(f.y);float3 history=0;
+  float secondaryDepth=0;bool primaryDepthFound=false,secondaryDepthFound=false;
+  [unroll]for(int y=0;y<4;++y)[unroll]for(int x=0;x<4;++x) {
+   float weight=wx[x]*wy[y];if(weight==0)continue;
+   int2 tap=clamp(first+int2(x-1,y-1),int2(0,0),int2(imageSize.zw)-1);
+   int2 dtap=stable?int2(floor(float2(tap)+.5+jitter.zw)):tap;
+   dtap=clamp(dtap,int2(0,0),int2(imageSize.zw)-1);
+   float tapDepth=historyDepth.Load(int3(dtap,0));
+   if(depthAgrees(tapDepth,md.y))primaryDepthFound=true;
+   else if(!secondaryDepthFound){if(!isfinite(tapDepth)||tapDepth<=0||tapDepth>1)return motionRejected(center,float3(0,1,1));secondaryDepth=tapDepth;secondaryDepthFound=true;}
+   else if(!depthAgrees(tapDepth,secondaryDepth))return motionRejected(center,float3(1,0,1));
+   history+=historyColor.Load(int3(tap,0)).rgb*weight;
+  }
+  [branch]if(!primaryDepthFound) {
+   if(!stable || !(pad1&8) || stationaryPolicy.w==0 || length(mv)>stationaryPolicy.y)return motionRejected(center,float3(0,0,0));
+   if(!stationaryCoverageSupport(p,md,secondaryDepth))return motionRejected(center,float3(0,0,0));
+  }
+ if(!all(isfinite(history)))return motionRejected(center,float3(0,1,1));
  float3 lo=center.rgb,hi=center.rgb;
  [unroll]for(int y=-1;y<=1;++y)[unroll]for(int x=-1;x<=1;++x) {
   int2 t=clamp(p+int2(x,y),int2(0,0),int2(imageSize.xy)-1);
   float3 c=currentColor.Load(int3(t,0)).rgb;lo=min(lo,c);hi=max(hi,c);
  }
- return accumulate(center,history,lo,hi);
+ // Default 31/33 gives an effective size of 32 independent samples, not a sliding
+ // window. Geometric displacement excludes jitter; fade over the configured range.
+ float historyWeight=policy.x;
+ if(stable && (pad1&8))
+  historyWeight=lerp(max(policy.x,stationaryPolicy.x),policy.x,smoothstep(stationaryPolicy.y,stationaryPolicy.z,length(mv)));
+  const bool stationaryClip=stable && (pad1&8) && (pad1&64) && all(mv==0);
+  return accumulate(center,history,lo,hi,historyWeight,stationaryClip);
 }
 float4 pixel(float4 position:SV_Position):SV_Target {
  if(pad0&4)return motionPixel(position);
@@ -209,7 +259,7 @@ float4 pixel(float4 position:SV_Position):SV_Target {
   int2 tap=clamp(p+int2(x,y),int2(0,0),int2(imageSize.xy)-1);
   float3 c=currentColor.Load(int3(tap,0)).rgb;lo=min(lo,c);hi=max(hi,c);
  }
- return accumulate(center,history,lo,hi);
+ return accumulate(center,history,lo,hi,policy.x);
 }
 float4 displayPixel(float4 position:SV_Position):SV_Target {
  if(all(policy.xy==0)) return currentColor.Load(int3(int2(position.xy),0));
@@ -280,13 +330,19 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
        ||!std::isfinite(in.depthAbsoluteThreshold)||in.depthAbsoluteThreshold<0||in.depthAbsoluteThreshold>1
        ||!std::isfinite(in.depthRelativeThreshold)||in.depthRelativeThreshold<0||in.depthRelativeThreshold>1)
         return fail("Invalid temporal weight/depth policy");
+    if(!std::isfinite(in.stationaryHistoryWeight)||in.stationaryHistoryWeight<0||in.stationaryHistoryWeight>.95f
+       ||!std::isfinite(in.stationaryMotionMin)||in.stationaryMotionMin<0
+       ||!std::isfinite(in.stationaryMotionMax)||in.stationaryMotionMax<=in.stationaryMotionMin||in.stationaryMotionMax>16)
+        return fail("Invalid stationary temporal policy");
     Constants c;c.size[0]=float(in.width);c.size[1]=float(in.height);
     c.pad0=in.stableGrid?1u:0u;
-    c.pad1=(in.rejectOutOfNeighborhoodHistory?1u:0u)|(in.diagnosticAcceptance?2u:0u)|(in.motionVectorDebug?4u:0u);
+    c.pad1=(in.rejectOutOfNeighborhoodHistory?1u:0u)|(in.diagnosticAcceptance?2u:0u)|(in.motionVectorDebug?4u:0u)|(in.stabilizeStationaryGeometry?8u:0u)|(in.diagnosticRejectionReasons?16u:0u)|(in.snapStationaryMotion?32u:0u)|(in.stationaryColorClip?64u:0u);
     if(in.stableGrid)for(double j:{in.currentJitterX,in.currentJitterY,in.previousJitterX,in.previousJitterY})
         if(!std::isfinite(j)||std::abs(j)>=.5)return fail("Stable coverage mode requires jitter strictly within half a raster pixel");
     c.jitter[0]=float(in.currentJitterX);c.jitter[1]=float(in.currentJitterY);c.jitter[2]=float(in.previousJitterX);c.jitter[3]=float(in.previousJitterY);
     c.policy[0]=in.historyWeight;c.policy[1]=in.depthAbsoluteThreshold;c.policy[2]=in.depthRelativeThreshold;
+    c.stationaryPolicy[0]=in.stationaryHistoryWeight;c.stationaryPolicy[1]=in.stationaryMotionMin;
+    c.stationaryPolicy[2]=in.stationaryMotionMax;c.stationaryPolicy[3]=in.stationaryCoverage?1.f:0.f;
     const bool active=in.historyValid&&!in.rejectAllHistory&&in.historyWeight>0;
     if(active)
     {

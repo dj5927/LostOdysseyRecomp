@@ -137,6 +137,10 @@ inline std::string Pixel(const TranslatedShader* ps) {
     if (!all(isfinite(o.velocity)) || !isfinite(o.depths.y) || o.depths.y <= 0 || o.depths.y > 1) {
         o.velocity = 0; o.depths.y = 0; return o;
     }
+    // Identical unjittered inputs prove zero geometric displacement. Avoid the
+    // rounding residue of interpolated clip subtraction plus jitter cancellation.
+    // Coverage and finite/depth checks above still control validity.
+    if ((meta.w & 1u) != 0) o.velocity = float2(0.0, 0.0);
     o.tag = meta.x;
     return o;
 }

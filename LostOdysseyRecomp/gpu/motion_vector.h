@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <string_view>
+#include <string>
+#include <cctype>
 #include <vector>
 
 namespace gpu::temporal {
@@ -47,12 +50,65 @@ struct DrawHistoryKeyHasher {
     }
 };
 
+// Explicit proof supplied by the caller that geometry identity covers every bound
+// immutable stream/index input. The replay mapping assumes a full-target viewport.
+struct MotionRasterContract {
+    uint32_t width = 0, height = 0;
+    std::array<float, 6> viewport{}; // x, y, width, height, minDepth, maxDepth
+    bool geometryVerified = false;
+    bool Supported() const {
+        return geometryVerified && width && height && viewport[0] == 0 && viewport[1] == 0 &&
+            viewport[2] == float(width) && viewport[3] == float(height) &&
+            viewport[4] == 0 && viewport[5] == 1;
+    }
+};
+
+struct MotionConstantUsage {
+    std::array<uint64_t,4> slots{};
+    bool known = false;
+};
+// Only the canonical translator's main body is accepted. The prelude defines
+// XeConst(int), which must not be confused with a dynamic call. Unknown syntax
+// (including relative addressing) always falls back to complete-bank comparison.
+inline MotionConstantUsage ParseMotionConstantUsage(std::string_view source, bool relative) {
+    MotionConstantUsage result;
+    if(relative)return result;
+    const auto entry=source.find("void main(\n");
+    if(entry==std::string_view::npos)return result;
+    std::string compact;
+    for(char c:source.substr(entry)) if(!std::isspace(static_cast<unsigned char>(c)))compact+=c;
+    std::string_view body=compact;
+    if(body.find('#')!=std::string_view::npos || body.find("c[")!=std::string_view::npos ||
+       body.find("XE_CONSTANTS_ADDRESS")!=std::string_view::npos ||
+       body.find("RawBufferLoad")!=std::string_view::npos)return result;
+    // Other constant accessors are outside this parser's contract.
+    for(size_t p=0;(p=body.find("Const",p))!=std::string_view::npos;p+=5) {
+        if(p>=2&&body.substr(p-2,8)=="XeConst(" && (p==2 || (!std::isalnum(static_cast<unsigned char>(body[p-3])) && body[p-3]!='_')))continue;
+        if(p>=6&&body.substr(p-6,12)=="XeLoopConst(")continue;
+        return result;
+    }
+    size_t pos=0;
+    while((pos=body.find("XeConst",pos))!=std::string_view::npos) {
+        pos+=7;
+        if(pos==body.size()||body[pos++]!='(')return {};
+        const size_t start=pos; unsigned slot=0;
+        while(pos<body.size()&&body[pos]>='0'&&body[pos]<='9') {
+            slot=slot*10+unsigned(body[pos++]-'0');if(slot>255)return {};
+        }
+        if(pos==start||pos==body.size()||body[pos++]!=')')return {};
+        result.slots[slot/64]|=uint64_t(1)<<(slot%64);
+    }
+    result.known=true;return result;
+}
+
 struct DrawTemporalState {
     DrawHistoryKey key;
     std::array<float, 1024> vsConstants;
     // Exact first 208 bytes of XeShared: bool/loop banks, viewport transform,
     // fixed half pixel, VTE and flags. Fetch offsets remain those of CURRENT geometry.
     std::array<uint32_t, 52> shared;
+    MotionRasterContract raster;
+    MotionConstantUsage constantUsage;
     uint32_t previousIndex = UINT32_MAX;
     uint32_t occurrence = 0;
     bool usesRelativeConstants = false, valid = false;
@@ -114,7 +170,7 @@ public:
         uint32_t overflowDraws = 0, lateDraws = 0;
         uint64_t snapshotBytes = 0;
     };
-    struct Match { uint32_t tag = 0; const DrawTemporalState* previous = nullptr; };
+    struct Match { uint32_t tag = 0; const DrawTemporalState* previous = nullptr; bool exactStationary = false; };
     explicit DrawTemporalTracker(size_t limit = kMaxDraws) : limit_(std::clamp(limit, size_t(1), kMaxDraws)) {}
     void BeginFrame(uint64_t frame, uint64_t epoch = 0) {
         if (begun_ && frame == frame_ && epoch == epoch_) return;
@@ -128,7 +184,7 @@ public:
     }
     void Invalidate() { failed_ = true; std::fill(validity_.begin(), validity_.end(), 0); }
     Match Collect(const DrawHistoryKey& key, const void* constants, const void* sharedPrefix, bool relative,
-        int restoredSlot = -1, const void* originalVP = nullptr) {
+        int restoredSlot = -1, const void* originalVP = nullptr, const MotionRasterContract* raster = nullptr, const MotionConstantUsage* usage = nullptr) {
         if (!begun_ || finalized_) { ++stats_.lateDraws; Invalidate(); return {}; }
         ++stats_.trackedCurrentDraws;
         if (failed_) return {};
@@ -145,6 +201,8 @@ public:
         auto& s = cur.draws.emplace_back();
         s.key = key; s.occurrence = occurrence; s.usesRelativeConstants = relative; s.valid = constants && sharedPrefix &&
             (restoredSlot == -1 || (restoredSlot >= 0 && restoredSlot <= 252 && originalVP));
+        s.raster = raster ? *raster : MotionRasterContract{};
+        s.constantUsage = usage && !relative ? *usage : MotionConstantUsage{};
         s.previousIndex = prev.Find(key, occurrence);
         if (constants) std::memcpy(s.vsConstants.data(), constants, sizeof(s.vsConstants));
         else s.vsConstants.fill(0);
@@ -161,7 +219,26 @@ public:
         cur.slots[slot] = index + 1;
         const auto* p = s.previousIndex != UINT32_MAX && prev.draws[s.previousIndex].valid
             ? &prev.draws[s.previousIndex] : nullptr;
-        return {index + 1, s.valid ? p : nullptr};
+        bool constantsEqual = false;
+        if (p) {
+            if (s.constantUsage.known && p->constantUsage.known && s.constantUsage.slots == p->constantUsage.slots) {
+                constantsEqual = true;
+                for(unsigned slot=0;slot<256;++slot) if(s.constantUsage.slots[slot/64]&(uint64_t(1)<<(slot%64)))
+                    if(std::memcmp(s.vsConstants.data()+slot*4,p->vsConstants.data()+slot*4,16)!=0){constantsEqual=false;break;}
+            } else constantsEqual = std::memcmp(s.vsConstants.data(),p->vsConstants.data(),sizeof(s.vsConstants)) == 0;
+        }
+        // VS epilogue reads xyz of both NDC vectors, both half-pixel words,
+        // vtxFmt, and flags bits 2/3. Other flag bits control pixel shading.
+        bool sharedEqual = p && std::memcmp(s.shared.data(),p->shared.data(),43*sizeof(uint32_t))==0 &&
+            std::memcmp(s.shared.data()+44,p->shared.data()+44,3*sizeof(uint32_t))==0 &&
+            std::memcmp(s.shared.data()+48,p->shared.data()+48,3*sizeof(uint32_t))==0 &&
+            ((s.shared[51]^p->shared[51])&0xCu)==0;
+        const bool stationary = s.valid && p && s.raster.Supported() && p->raster.Supported() &&
+            s.raster.width == p->raster.width && s.raster.height == p->raster.height &&
+            std::memcmp(s.raster.viewport.data(), p->raster.viewport.data(), sizeof(s.raster.viewport)) == 0 &&
+            constantsEqual &&
+            sharedEqual;
+        return {index + 1, s.valid ? p : nullptr, stationary};
     }
     // Compatibility entry for CPU fixtures. Production uses Collect with complete shared prefix.
     const DrawTemporalState* RecordDraw(const DrawHistoryKey& key, const float* c,
