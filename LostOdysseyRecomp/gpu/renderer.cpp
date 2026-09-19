@@ -94,8 +94,8 @@ namespace gpu::renderer
             const auto result = captureArchive.get();
             if (result.saved)
             {
-                LOG_INFO("render capture ZIP saved: {}", FileSystem::PathUtf8(result.archive));
-                captureStatus = L"ZIP 已保存 / ZIP saved: " + result.archive.wstring();
+                LOG_INFO("render capture archive saved: {}", FileSystem::PathUtf8(result.archive));
+                captureStatus = L"归档已保存 / Archive saved: " + result.archive.wstring();
                 if (result.cleanupError)
                 {
                     LOG_WARNING("render capture source cleanup failed: {}: {}",
@@ -105,9 +105,9 @@ namespace gpu::renderer
             }
             else
             {
-                LOG_WARNING("render capture ZIP failed: {}: {}",
+                LOG_WARNING("render capture archive failed: {}: {}",
                     FileSystem::PathUtf8(result.directory), result.error.message());
-                captureStatus = L"ZIP 失败，原始文件保留 / ZIP failed: " + result.directory.wstring();
+                captureStatus = L"归档失败，原始文件保留 / Archive failed: " + result.directory.wstring();
             }
             captureBusy = false;
         }
@@ -5771,7 +5771,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
         r.debugCaptureCompleted = 0;
         r.captureFrame = 0;
         // Optional diagnostics use the existing consent and background uploader.
-        // This signal never uploads the local ZIP, logs or paths.
+        // This signal never uploads the local archive, logs or paths.
         taa_collection::RequestUpload();
         std::lock_guard lock(captureMutex);
         if (ok || shaderSources)
@@ -5782,14 +5782,14 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     if (shaderSources) shaderSources->Write(captureDirectory);
                     if (!ok) throw std::system_error(std::make_error_code(std::errc::io_error));
                 });
-                captureStatus = ok ? L"后台压缩 ZIP，可继续游戏 / Compressing ZIP in background" :
+                captureStatus = ok ? L"后台压缩，可继续游戏 / Compressing capture in background" :
                     L"后台保存不完整捕获 / Saving incomplete capture in background";
-                LOG_INFO("render capture ZIP started in background: {}", FileSystem::PathUtf8(directory));
+                LOG_INFO("render capture archive started in background: {}", FileSystem::PathUtf8(directory));
                 return;
             }
-            catch (const std::exception& e) { LOG_ERROR("render capture ZIP start: {}", e.what()); }
+            catch (const std::exception& e) { LOG_ERROR("render capture archive start: {}", e.what()); }
         }
-        captureStatus = (ok ? L"ZIP 失败，原始文件保留 / ZIP failed: " :
+        captureStatus = (ok ? L"归档失败，原始文件保留 / Archive failed: " :
             L"导出不完整 / Incomplete: ") + directory.wstring();
         captureBusy = false;
     }

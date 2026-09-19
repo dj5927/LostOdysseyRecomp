@@ -121,6 +121,8 @@ Keep the working directory consistent so the intended save/profile folders are u
 
 **Startup and failure logs.** Each normal launch writes `logs/runtime-<timestamp>.log` in the working directory and mirrors output to `stderr`; set `LO_LOG_FILE=<path>` to choose another file, or `LO_LOG_FILE=0` to disable the duplicate file sink. v0.5.11 additionally records the Windows build, process/native architecture, source/build revision, PE image metadata, compiler, startup memory baseline, GPU, raw driver version, vendor/type and `reported_device_memory_bytes`. When reporting a startup or renderer failure, attach the complete current runtime log and include the executable/source version, backend, GPU and driver details recorded near startup. The diagnostic records preserve raw API codes and the failed resource or allocation context, but they are investigation evidence and do not by themselves identify a root cause. See the [build and logging guide](docs/BUILDING.md) for the path and retention rules.
 
+For a visual issue, press **F1** while it is visible and choose **Capture render state**. Wait for the background archive to finish, then attach the archive at the path shown by the status message: Windows produces a `.zip` archive and Linux produces a `.tar.gz` archive. If archiving fails, the raw capture folder is retained for recovery.
+
 | Action | Keyboard |
 | :--- | :--- |
 | Start / Back | Enter / Backspace |
