@@ -294,6 +294,29 @@ void TestIndexContentAndBudget()
         "byte pressure evicts old index payloads");
 }
 
+void TestVertexSamplingPolicy()
+{
+    using namespace gpu::geometry_prepare;
+    std::vector<uint8_t> source(16384, 0);
+    VertexEntry vertex{};
+    IndexEntry index{};
+    vertex.content.Capture(source.data(), source.size());
+    index.content.Capture(source.data(), source.size());
+    source[601] = 1;
+    Check(vertex.content.Matches(source.data(), source.size()), "vertex sampling accepts known blind spot by policy");
+    Check(!index.content.Matches(source.data(), source.size()), "index validation remains exact despite vertex policy");
+    source[601] = 0;
+    for (size_t offset : {size_t(0), size_t(511), size_t(512), size_t(575), size_t(15872), size_t(16383)}) {
+        source[offset] = 1;
+        Check(!vertex.content.Matches(source.data(), source.size()), "vertex detects sampled changes");
+        source[offset] = 0;
+    }
+    source.resize(8192);
+    vertex.content.Capture(source.data(), source.size());
+    source[601] = 1;
+    Check(!vertex.content.Matches(source.data(), source.size()), "small vertex buffers remain exact");
+}
+
 void TestExactContent()
 {
     using gpu::geometry_prepare::ExactContent;
@@ -339,6 +362,7 @@ int main()
     TestIndexCache();
     TestIndexContentAndBudget();
     TestExactContent();
+    TestVertexSamplingPolicy();
     std::printf("vertex cache: %llu checks passed (bounded metadata fixture; no GPU or game)\n",
         static_cast<unsigned long long>(checks));
 }

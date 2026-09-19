@@ -74,6 +74,7 @@ D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定�
 - [~] **v0.5.8 TAA 与 CPU 纳入：**[v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8) 已于 2026-09-13T15:11:11Z 从 6e6f11cf 公开发布；[Release CI 34764115203](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34764115203) 通过。干净 source-0.5.8 包已通过 ZIP CRC、全部 50 个 payload hash，以及四个公开资产的匿名核验（bytes、SHA、sidecar 和 API digest）。其中包含 TAA cde8b50 解决及 SIMD／LO_QUERY_TRACE presence cache 修复。TAA 原场景视觉验收和更广的性能／shader 启动调查仍待完成；历史 v0.5.6 有界城市发布证据及既有 40 W 窗口均保留其原始身份。
 
 - [ ] **索引缓存命中复制优化：**exact-content index cache 命中后仍会把已转换的 index 数据复制到 scratch。先对真实热点和实际收益做 profile，再评估免复制或引用路径；必须保留源字节验证、upload 生命周期、缓存替换及引用失效安全。此项仅为未来优化，尚未实现、构建或 benchmark。
+- [ ] **Issue #57 低成本顶点缓存失效：**当前大顶点缓存命中使用头尾片段和跨区采样，以降低 CPU 比较成本。采样范围之外的合成修改仍可能漏检，但目前没有任何已知游戏 bug 由此行为引起。只有在有可靠的写入／失效机制以及实机复现或有界运行时证据后再重开；小顶点和 index buffer 的精确校验必须保留。当前采样策略 fixture 通过 3,668,957 项检查；尚未建立游戏或发布二进制性能结果。
 - [ ] **重复实例运动配对的低成本实现：**当前按提交顺序配对重复实例，保证相邻帧 Nth-to-Nth 的运动匹配，不能简单删除这层逻辑。只有 profile 证明成本明显后，才探索保持等价行为的低开销实现，并在同一 Uhra 场景用 MV tracked/matched/replay 计数、画面和 FPS A/B 验证。此项待办，尚未实现或测试。
 
 - [x] **Vulkan 像素着色器 LoopEnd 谓词退出：**v0.5.7 已从 954d0e17 发布，CI 34743383193 通过且全部安装包交付核验完成。既有有界 LoopEnd guard、64-lane GPU/reference 和 cache 证据保留。负责人于 2026-09-15 关闭实机 GPU 验收等待；LoopEnd 谓词退出修复已随 v0.5.7 发布。复杂循环与跨场景覆盖仍待完成。

@@ -1,5 +1,20 @@
 # Project status
 
+## Issue #57 development vertex-cache sampling / Issue #57 开发中的顶点缓存采样策略
+
+The development source temporarily prioritizes vertex-cache CPU cost: small
+vertex buffers still use exact comparison, while large vertex-cache hits use
+bounded head/tail and strided samples. Index-cache hits retain complete
+source-byte verification. This can miss a synthetic mutation outside the
+sampled bytes, but no known game bug has been caused by sampling. The focused
+Clang `-O2` `LoVertexCacheTest` passed 3,668,957 checks, including sampled
+changes, small-buffer exactness and the selected large-vertex blind-spot
+policy. This is source-level fixture evidence only; no game run, release-binary
+performance result or player acceptance is claimed. A reliable low-cost vertex
+write/invalidation mechanism remains backlog work.
+
+开发源码暂时优先降低顶点缓存 CPU 成本：小顶点缓冲仍使用精确比较，大顶点缓存命中改用有界的头尾片段和跨区采样；index cache 命中继续保留完整源字节校验。采样字节之外的合成修改可能漏检，但目前没有任何已知游戏 bug 由采样引起。Clang `-O2` 定向 `LoVertexCacheTest` 通过 3,668,957 项检查，覆盖采样变化、小缓冲精确性和已选择的大顶点采样盲区策略。这只是源码 fixture 证据，不代表实机运行、发布二进制性能或玩家验收。可靠且低成本的顶点写入／失效机制仍列入 backlog。
+
 ## Issue #54 language-menu safety correction / Issue #54 语言菜单安全修正
 
 The language menu now ignores invalid table counts and indices without reading or rewriting the selected language, shows `—` for unavailable entries, and follows the native parser's 16-entry capacity. The existing `82481BE8` USA/Europe host-language mapping and independent text/voice semantics are unchanged. `LO_TRACE_LANGUAGE=1` enables bounded opt-in tracing for lookup, menu and native-cache stages. The specific cause of the reported cutscene voice issue remains unconfirmed; no save was available and no real-game reproduction was performed. The correction is pending the next release and does not establish Issue #54 acceptance.

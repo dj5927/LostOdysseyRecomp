@@ -9,7 +9,7 @@ namespace gpu::geometry_prepare
     struct VertexEntry
     {
         uint64_t offset;
-        ExactContent content;
+        VertexSampledContent content;
         uint64_t lastFrame;
         uint8_t slot = 0;
     };

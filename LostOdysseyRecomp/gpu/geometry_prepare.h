@@ -88,6 +88,7 @@ namespace gpu::geometry_prepare
     // CPU snapshot. Never read the write-combined GPU upload heap.
     class ExactContent
     {
+    protected:
         std::vector<uint8_t> snapshot;
         bool captured = false;
     public:
@@ -104,6 +105,28 @@ namespace gpu::geometry_prepare
             snapshot.resize(bytes);
             if (bytes) std::memcpy(snapshot.data(), data, bytes);
             captured = true;
+        }
+    };
+    // Performance-first vertex policy: large buffers retain the v0.5.8 sample
+    // coverage. Unsampled writes may be missed; tracked in the roadmap (#57).
+    // Index caches must keep ExactContent, including motion-index hash reuse.
+    class VertexSampledContent : public ExactContent
+    {
+    public:
+        bool Matches(const uint8_t* data, size_t bytes) const
+        {
+            if (!captured || snapshot.size() != bytes) return false;
+            if (bytes <= 8192) return ExactContent::Matches(data, bytes);
+            if (std::memcmp(data, snapshot.data(), 512) != 0 ||
+                std::memcmp(data + bytes - 512, snapshot.data() + bytes - 512, 512) != 0)
+                return false;
+            const size_t step = (bytes - 1024) / 64;
+            for (size_t i = 0; i < 64; ++i)
+            {
+                const size_t offset = 512 + i * step;
+                if (!EqualSampleBlock64(data + offset, snapshot.data() + offset)) return false;
+            }
+            return true;
         }
     };
     // Source compatibility for diagnostics that used the old helper name.
