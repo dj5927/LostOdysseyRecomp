@@ -69,6 +69,11 @@ int main(int argc,char** argv) {try {
     ExactStationary();
     const auto hash = MotionHashWord(0xcbf29ce484222325ULL, 7);
     Require(hash != MotionHashWord(0xcbf29ce484222325ULL, 8), "stream data changes geometry identity");
+    std::vector<uint32_t> indices{0, 1, 2, 2, 3, 0};
+    const auto indexHash = MotionHashIndices(indices);
+    Require(indexHash == MotionHashIndices(indices), "cached and direct index signatures agree");
+    indices[3] = 4;
+    Require(indexHash != MotionHashIndices(indices), "changed index invalidates motion geometry identity");
     Require(MotionHashWord(hash, 1) != MotionHashWord(hash, 0x100000001ULL), "full arena generation participates in geometry identity");
     DrawTemporalTracker t(8);DrawHistoryKey k{};k.vsHash=7;k.sceneAllocation=1;k.geometrySignature=2;
     std::array<uint32_t,1024> constants{};std::array<uint32_t,52> shared{};
@@ -123,6 +128,11 @@ int main(int argc,char** argv) {try {
     MotionVectorProducer p({1,1});auto one=Camera::Create(Projection(),{0,0,1,1});float depth=1;std::vector<MotionVectorPixel> grid;
     Require(p.EvaluateGrid(&depth,&*one,&*one,nullptr,grid)&&grid[0].reactiveMask==0,"CPU grid shares depth endpoint contract");
     Require(p.EvaluateGrid(&depth,&*one,nullptr,nullptr,grid)&&grid[0].reactiveMask==1,"no previous camera is invalid, not stationary");
-    const auto opts=MotionOptions::Environment();if(!std::getenv("LO_MV_ENABLE"))Require(!opts.enabled&&!opts.replay&&!opts.consume,"master default OFF");
+    const auto opts=MotionOptions::Environment();
+    const char* motionOverride=std::getenv("LO_MV_ENABLE");
+    if(!motionOverride||std::string_view(motionOverride)=="1")
+        Require(opts.enabled&&opts.replay&&opts.consume,"TAA motion defaults on");
+    else if(std::string_view(motionOverride)=="0")
+        Require(!opts.enabled&&!opts.replay&&!opts.consume,"TAA motion comparison switch disables replay");
     printf("PASS: %u motion lifecycle/reference checks; zero steady-state tracking allocations\n",checks);return 0;
 } catch(const std::exception& e){fprintf(stderr,"FAIL: %s\n",e.what());return 1;}}

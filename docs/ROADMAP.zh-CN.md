@@ -10,6 +10,8 @@ v0.6.1 已于 2026-09-18T17:49:18Z 从 `ebd2ef13969a28fcabf26a4eb2dafa9c09ca965d
 
 [v0.6.1](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1) 是当前公开发布版本。其更新器在 Windows 和 Linux 上于导入前检查更新；真实更新事务、实体手柄输入和 GUI 验收仍待完成。
 
+- [ ] **v0.6.2 发布准备：**本地补丁候选包含已接受的 Uhra 4K Vulkan TAA 策略和实验性几何运动矢量 replay。源码／构建证据及 RTX 5080 Uhra 限定验收已记录，但 CI、发布资产、公开发布、更广场景、1080p internal 到 4K output 的移动相机覆盖和 D3D12 replay PSO 验收仍待完成。
+
 [v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0) 已于 2026-09-18T15:21:34Z 从 `4b4b6c617172d43c7a73477881263e6e542d6cdf` 公开发布。[Release CI 35359206991](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991) 已通过审计、Windows Release 和 Linux Release 门槛。公开发布包含 Windows 与 Linux 发布包、独立便携式 Vulkan 着色器包及 SHA-256 校验文件。Windows ZIP、Linux AppImage 和 shader pack 的 hash 分别为 `7ebcad6c2660ea6bcce801df3e6eb0f9bb6faef87e5108898618c1144031d161`、`46c1c10e9dbaf0dc5db490aa3fd2f5b195eea8ccdbd7e35a0996f978292d3901` 和 `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`。原生 Linux GPU、Steam Deck、AppImage 更新事务和全流程游戏仍待验证。
 
 [v0.5.20](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.20) 作为上一里程碑保留记录。其 Release CI、包来源和六个公开资产均通过核验；其中引入的便携式 shader pack 与在线 PowerPC 源码编译继续包含在 v0.6.0 中。历史提交、hash 和验证边界见 [STATUS](STATUS.md)。
@@ -70,6 +72,9 @@ D3D12 仍是可用基线。Windows Vulkan 已有 RTX 5080 实机场景的界定�
 
 
 - [~] **v0.5.8 TAA 与 CPU 纳入：**[v0.5.8](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.5.8) 已于 2026-09-13T15:11:11Z 从 6e6f11cf 公开发布；[Release CI 34764115203](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/34764115203) 通过。干净 source-0.5.8 包已通过 ZIP CRC、全部 50 个 payload hash，以及四个公开资产的匿名核验（bytes、SHA、sidecar 和 API digest）。其中包含 TAA cde8b50 解决及 SIMD／LO_QUERY_TRACE presence cache 修复。TAA 原场景视觉验收和更广的性能／shader 启动调查仍待完成；历史 v0.5.6 有界城市发布证据及既有 40 W 窗口均保留其原始身份。
+
+- [ ] **索引缓存命中复制优化：**exact-content index cache 命中后仍会把已转换的 index 数据复制到 scratch。先对真实热点和实际收益做 profile，再评估免复制或引用路径；必须保留源字节验证、upload 生命周期、缓存替换及引用失效安全。此项仅为未来优化，尚未实现、构建或 benchmark。
+- [ ] **重复实例运动配对的低成本实现：**当前按提交顺序配对重复实例，保证相邻帧 Nth-to-Nth 的运动匹配，不能简单删除这层逻辑。只有 profile 证明成本明显后，才探索保持等价行为的低开销实现，并在同一 Uhra 场景用 MV tracked/matched/replay 计数、画面和 FPS A/B 验证。此项待办，尚未实现或测试。
 
 - [x] **Vulkan 像素着色器 LoopEnd 谓词退出：**v0.5.7 已从 954d0e17 发布，CI 34743383193 通过且全部安装包交付核验完成。既有有界 LoopEnd guard、64-lane GPU/reference 和 cache 证据保留。负责人于 2026-09-15 关闭实机 GPU 验收等待；LoopEnd 谓词退出修复已随 v0.5.7 发布。复杂循环与跨场景覆盖仍待完成。
 - [x] **相邻重复 resolve copy 消除：**v0.5.7 已从 954d0e17 发布，CI 34743383193 通过且全部安装包交付核验完成。既有 CPU 与 D3D12/Vulkan FP16 fixture 证据保留。负责人于 2026-09-15 关闭实机命中等待；相邻 resolve copy 消除已随 v0.5.7 发布。跨场景命中覆盖仍待完成。

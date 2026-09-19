@@ -4,51 +4,23 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
-## Unreleased / 未发布
+## v0.6.2 — 2026-09-19
 
 ### English
 
-- Motion replay (experimental geometric motion vectors):
-  - Fixed polygon-offset gating to permit self-consistent constant depth bias while continuing to reject finite slope bias and non-finite values.
-  - Added `#define XE_SAMPLE(t, s, uv) t.Sample(s, uv)` definition to the depth-only replay pixel shader wrapper, fixing `XE_SAMPLE` compilation failure when `TranslateShader` returns depth-only microcode.
-  - Implemented asynchronous background replay shader compilation throttled to a maximum of 2 concurrent in-flight jobs, avoiding scene loading stalls and black screens.
-  - Matched repeated `DrawHistoryKey` submissions by stable frame occurrence order instead of invalidating duplicates across the frame, increasing Bell automated debug matching from ~533/955 to a stable 955/955 matched/replay draws (`ready=true consume=true`) and closing the reactive coverage gap.
-  - Windows runtime build succeeded; `motion_vector_test` passed 40 checks; `motion_replay_gpu_test --compile-only` passed 11 DXIL/SPIR-V checks; automated Vulkan execution is stable.
-  - User confirmed motion vector consumption is active and functional; visible shimmer in the Bell sequence remains under ongoing TAA investigation and is not resolved or accepted.
-  - D3D12 motion replay PSO creation failure (`E_INVALIDARG 0x80070057`) is logged as tracked follow-up work.
-- TAA Bell/Uhra investigation (local Uhra debug candidate accepted; unreleased):
-  - Allowed the cubic motion-pixel footprint to include the predicted primary depth surface plus one background depth surface, and added a guarded stationary-geometry history stabilization path for stable geometry with trusted motion vectors. `LO_TAA_STATIONARY_HISTORY=0` disables the path for comparison, while `LO_TAA_ACCEPTANCE=1` enables an independent diagnostic resolve to display.
-  - The GPU test project passed 791 checks, including the motion/depth/alpha/raw-camera checks; its bounded 32-phase cycle reduced peak-to-peak variation from 10 to 4. A preliminary real Bell comparison showed only partial ROI improvement. User visual acceptance of candidate `607dd6f1…` failed: the upper support edge remained visibly unstable, a distant ground seam also shimmered, and the candidate was reported as having no meaningful improvement. General static-coverage fallback remains unvalidated.
-  - A second static-coverage candidate built successfully; its GPU project passed 811 checks and the runtime build succeeded. A deterministic two-surface ownership-swap fixture reduced peak-to-peak variation from 128 to 10, but this uses CPU-uploaded inputs and a production GPU consumer rather than complete geometry-production validation. The real-scene comparison improved the reported ROIs but retained obvious shimmer; foreground visual acceptance failed for candidates `607dd6f1…` and `3b942ee…`.
-  - Added a local-only TAA live-debug panel and launcher at `127.0.0.1:8769` with serial/applied-serial state, bounded screenshots, GPU traces, pixel reads, ROI previews and `LO_TAA_ACCEPTANCE=2` rejection coloring. The launcher expects a prebuilt debug executable in the selected run directory. Native Continue now has bounded evidence loading `save/user01/save.bin` into the Bell scene, with history and motion consumption state true; same-frame source/depth/MV/reactive trace pixels were also returned. The Vulkan GPU/translation suite passed 826 checks; live parser and trace checks are separate. The tool and Bell shimmer still lack user acceptance.
-  - Added the `exactStationary` MV-source candidate: bit-exact geometry/raster and actual vertex-shader constant reads, strict canonical HLSL-literal parsing, full-bank fallback for relative/unknown reads, and explicit exclusion of unused shared values and PS flags. Fourteen CPU exactness checks, 15 usage checks, and 543 guarded GPU literal-zero checks passed; the prior 826-check suite was not rerun. Added guarded `stationary_color_clip` diagnostics; 25 GPU color checks and parser-field tests passed. The user confirmed the current candidate is clearly steadier, while residual shimmer remains; this is partial visual acceptance, not a complete fix.
-  - Added the independent `history_fp16` precision candidate with 50 precision-only GPU checks, FP16 parser/half-trace checks, stationary-range checks and runtime build evidence. Same-executable 32-frame comparisons were slightly worse at weight `31/33` than the RGBA8 baseline; higher stationary weights remain diagnostic and may trail motion. The earlier `127/129` candidate used `history_fp16=0`, `snap=1` and `colorclip=1`; it was later rejected after a frame-rate drop.
-  - Latest user observation of the higher stationary-weight candidate found only a slight, hard-to-distinguish improvement and reported lower frame rate without obvious trailing. It is not accepted; controls were restored to the RGBA8 `31/33` baseline while frame-time diagnosis continues.
-  - Extended the local TAA debug panel with `jitter_scale` (`0..1`), `gpu_timing` stage state, and a Uhra ROI preset. Running candidates report `last_ms`; the current timing build exposes cumulative `total_ms`. Uhra 50% scale and short PresentMon observations remain bounded diagnostics pending visual acceptance and do not claim a default fix.
-  - Extended the local debug workflow with the opt-in `stationary_multi_surface` Uhra candidate and `-ExeName` selection. The user found the `.5`/multi-v2 local candidate steadier on diagonal edges with no obvious trailing at about 60 FPS; this remains Uhra-only debug evidence and does not claim a default, whole-map, cross-platform or release fix.
-  - Dated Uhra debug acceptance (2026-09-19): the user accepted the local 4K-output candidate with `jitter_scale=.5`, stationary multi-surface, stationary color clipping and valid history/MV inputs at about 60 FPS. This remains scene-specific debug acceptance with slight shimmer; the 1080p-internal moving-camera case still shimmers severely, and `moving_bilinear_fallback` remains disabled after no clear perceptual benefit.
+- Apply the accepted Uhra TAA policy to the normal TAA path: 0.5 jitter scale, stationary motion snapping, stationary color clipping and multi-surface history, with RGBA8 history at `31/33`. Experimental FP16 history and moving bilinear fallback remain off.
+- Enable experimental geometric motion-vector replay for TAA by default, while retaining `LO_MV_ENABLE=0` as a comparison switch. Repeated instances are paired by stable submission order so adjacent-frame Nth-to-Nth motion matching remains intact.
+- Reuse exact-content index fingerprints in the index cache while retaining complete source-byte verification. In the same Uhra Vulkan 4K internal/output scene on an RTX 5080, hidden muted A-B-A-B captures without pacing measured 60.34/59.00 FPS for the candidate, versus 54.61 FPS for a separate Release build and 54.57 FPS for the former RelWithDebInfo main binary.
+- Validation includes MV audit steady tracked/matched/replay 988 with failed 0, `LoMotionVectorTest` 71 checks and `LoVertexCacheTest` 3,668,948 checks. User foreground review of the same Uhra steel-frame scene found image quality acceptable at about 60 FPS.
+- Scope remains bounded to the tested Uhra scene, Vulkan and the local RTX 5080. The 1080p-internal to 4K moving-camera limitation, broader scene coverage and D3D12 replay PSO creation follow-up remain open.
 
 ### 简体中文
 
-- Motion replay（实验性几何运动矢量）：
-  - 修正多边形偏移（polygon offset）门控，允许自洽的恒定深度偏移（depth bias），同时继续拒绝斜率偏移（slope bias）与非有限值。
-  - 在仅深度（depth-only）replay 像素着色器包装中补齐 `#define XE_SAMPLE(t, s, uv) t.Sample(s, uv)` 定义，解决无微代码或仅深度着色器时的编译失败。
-  - 支持后台异步编译生成的 replay 着色器，并发数上限限制为 2，避免场景加载过程中的卡顿和黑屏。
-  - 重复的 `DrawHistoryKey` 现按帧内稳定提交顺序（occurrence）进行配对，替代此前直接整帧废弃重复项的做法；Bell 自动化调试场景匹配数由约 533/955 提升至稳定的 955/955 matched/replay（`ready=true consume=true`），消除了 reactive 遮罩覆盖缺口。
-  - Windows 运行时构建成功；`motion_vector_test` 通过 40 项检查；`motion_replay_gpu_test --compile-only` 通过 11 项 DXIL/SPIR-V 检查；Vulkan 自动化运行稳定。
-  - 用户已确认 MV 正常被 consume；Bell 场景中的可见抖动/闪烁依然存在，属于后续继续排查的 TAA 问题，未标记为已修复或已验收。
-  - D3D12 下 motion replay PSO 创建失败（`E_INVALIDARG 0x80070057`）已作为后续 Todo 记录。
-- TAA Bell／Uhra 排查（Uhra 本地 debug 候选已验收，尚未发布）：
-  - 允许 cubic motion-pixel footprint 包含预测主深度表面和一个背景深度表面，并加入仅对稳定几何和可信 motion vector 生效的静止几何 history 稳定路径。可用 `LO_TAA_STATIONARY_HISTORY=0` 做对照，`LO_TAA_ACCEPTANCE=1` 启用独立 resolve 到 display 的诊断。
-  - GPU 测试项目通过 791 项检查，包含运动、深度、alpha、raw/camera-only 检查；限定的 32 相位循环将峰峰值变化由 10 降至 4。Bell 实景初步对照只有部分 ROI 改善。用户对 `607dd6f1…` 候选的画面验收未通过：上方支架边缘仍明显不稳定，远方地面缝隙也抖动，用户确认没有实质好转。通用 static coverage fallback 仍未验证。
-  - 第二个 static coverage 候选已成功构建；GPU 项目通过 811 项检查，runtime 构建成功。确定性两表面 ownership 交换 fixture 将峰峰值由 128 降至 10，但其使用 CPU 上传输入和生产 GPU consumer，不能等同于完整几何生产验证。实景对照虽改善了报告区域，仍有明显抖动；`607dd6f1…` 和 `3b942ee…` 两个候选均未通过前台画面验收。
-  - 增加仅限本机的 TAA 实时调试面板和 launcher，地址为 `127.0.0.1:8769`，支持 serial/applied-serial 状态、限定截图、GPU trace、像素读取、ROI 预览和 `LO_TAA_ACCEPTANCE=2` 拒绝原因着色。launcher 需要运行目录中已有构建好的 debug exe。Native Continue 已有实测证据，可读取 `save/user01/save.bin` 并进入 Bell 场景，history 和 motion consume 状态均为 true；同帧 source/depth/MV/reactive trace 像素也已返回。Vulkan GPU/translation suite 通过 826 项检查，live parser 和 trace 检查独立统计；工具和 Bell 闪烁仍未获用户验收。
-  - 增加 `exactStationary` MV 源头候选：geometry/raster 与实际 vertex shader 常量读取逐位一致，严格解析 canonical HLSL literal，relative/未知读取回退 full bank，并排除明确未使用的 shared 值和 PS flags。14 项 CPU exactness、15 项 usage 和 543 项带保护的 GPU literal-zero 检查通过；旧 826 项检查未重复运行。增加受保护的 `stationary_color_clip` 诊断；25 项 GPU color 检查和 parser 字段测试通过。用户确认当前候选明显更稳定，但仍有残余闪烁；这是部分画面验收，不代表完全修复。
-  - 增加独立的 `history_fp16` 精度候选，50 项 precision-only GPU 检查、FP16 parser/half-trace、静止范围检查和 runtime 构建证据通过。同一 exe 的 32 帧对照显示 FP16 在权重 `31/33` 下略差于 RGBA8 基线；更高静止权重仍是诊断选项，可能产生运动拖影。此前的 `127/129` 候选使用 `history_fp16=0`、`snap=1` 和 `colorclip=1`，随后因帧率下降未获验收。
-  - 用户对更高静止权重候选的最新观察是改善轻微且肉眼难辨，未明显看到拖影，但反馈帧率降低。该候选未通过验收；控制已恢复为 RGBA8 `31/33` 基线，继续排查帧时间。
-  - 扩展本地 TAA 调试面板，增加 `jitter_scale`（`0..1`）、`gpu_timing` 分阶段 state 计时和 Uhra ROI 预置。当前运行候选报告 `last_ms`，当前 timing build 暴露累计 `total_ms`。Uhra 50% scale 与短样本 PresentMon 仍是限定诊断，等待画面验收，不宣称默认修复。
-  - 扩展本地调试流程，增加 opt-in 的 `stationary_multi_surface` Uhra 候选和 `-ExeName` 选择。用户确认 `.5`/multi-v2 在斜线区域更稳定，未明显看到拖影且约 60 FPS；这仍是 Uhra 本地调试证据，不代表默认、全地图、跨平台或正式修复。
-  - 记录 2026-09-19 Uhra debug 验收：用户接受 4K output 候选（`jitter_scale=.5`、静止多表面、静止颜色裁剪、history/MV 有效），约 60 FPS。该验收仅限当前场景 debug 候选且仍有轻微抖动；1080p internal 的移动相机仍严重抖动，`moving_bilinear_fallback` 在无明显感知收益后保持关闭。
+- 将已接受的 Uhra TAA 策略应用到正常 TAA 路径：0.5 抖动幅度、静止运动 snap、静止颜色裁剪和多表面 history，使用 RGBA8 history 与 `31/33` 权重。实验性 FP16 history 和 moving bilinear fallback 仍关闭。
+- TAA 默认启用实验性几何运动矢量 replay，保留 `LO_MV_ENABLE=0` 对照开关。重复实例继续按稳定提交顺序配对，保持相邻帧 Nth-to-Nth 运动匹配。
+- index cache 复用 exact-content index fingerprint，同时保留完整源字节验证。在 RTX 5080 的 Vulkan、Uhra 4K 内部／输出同一场景中，隐藏静音、无 pacing 的 A-B-A-B 对照测得候选 60.34/59.00 FPS；独立 Release 构建为 54.61 FPS，之前的 RelWithDebInfo 主程序为 54.57 FPS。
+- 验证包括 MV audit steady tracked/matched/replay 为 988、failed 为 0，`LoMotionVectorTest` 71 项和 `LoVertexCacheTest` 3,668,948 项。用户在同一 Uhra 钢架场景前台观察，确认画质可接受、约 60 FPS。
+- 范围限定为已测试的 Uhra 场景、Vulkan 和本机 RTX 5080。1080p internal 到 4K output 的移动相机限制、更广场景覆盖和 D3D12 replay PSO 创建后续工作仍开放。
 
 ## v0.6.1 — 2026-09-18 / Published / 已发布
 

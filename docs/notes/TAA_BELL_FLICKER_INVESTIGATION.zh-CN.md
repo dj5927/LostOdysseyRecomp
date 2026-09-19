@@ -154,6 +154,33 @@ history 和 MV 输入均有效。在 `debug-moving-bilinear-opt.exe` 上（SHA-2
 没有明显感知收益，保持关闭。早期 fallback 虽改善画面却降至 55–58 FPS，仍未
 验收。尚未定位到具体材质 shader。
 
+### 主渲染路径接入（Uhra 本地画面验收）
+
+在 Uhra 本地验收之后，已将接受的策略接入正常渲染路径。没有实时面板快照覆盖时，
+使用 `jitter_scale=.5`、`snap_stationary=1`、`stationary_color_clip=1` 和
+`stationary_multi_surface=1`，并继续使用 RGBA8 history、静止权重 `31/33`，关闭
+`history_fp16=0` 与 `moving_bilinear_fallback=0`。TAA 默认启用几何运动矢量；
+`LO_MV_ENABLE=0` 仍是明确的对照开关，非 TAA 模式不会运行 motion replay。
+
+本地 CMake RelWithDebInfo 构建已通过，`LoMotionVectorTest` 在默认启用和
+`LO_MV_ENABLE=0` 对照路径共通过 71 项检查，主 EXE/PDB 已部署且与构建输出哈希一致。
+index-signature-cache 候选 SHA-256 为
+`2BC90983FC5F866E16F52ACD0B7642347CAD1792FF67A687A2551817EA53707E`，旧程序保留为
+`LostOdysseyRecomp.exe.pre-index-hash-20260919`。普通程序后台静音运行并通过原生 Continue 读档，Vulkan 日志
+`runtime-1789846180585750.log` 记录第 960、1080、1200、1320、1440 帧的运动
+重放已就绪且被 TAA 使用，运行中没有实时面板覆盖。同一 Uhra 存档、Vulkan、4K
+internal/output、120 FPS 目标且无 pacing 的隐藏静音 A-B-A-B 采样中，旧版 heartbeat
+均值分别为 54.61 FPS（独立 Release 构建）和 54.57 FPS（先前的 RelWithDebInfo
+主程序），新版为 60.34/59.00 FPS。Release `/O2`/`/Ob2` 单独构建仍为 54.61 FPS；
+关闭 TAA collector 为 54.78、开启为 55.68，不能据此认定 collector 是主因。
+asm-profiler 热点指向 `memcmp` 和 Vulkan driver 最近符号，但采样不能精确归因。
+index cache 复用 exact-content index fingerprint，同时保留完整源字节验证。
+`LoVertexCacheTest` 已通过 3,668,948 项；MV audit 中 steady tracked/matched/replay
+为 988，failed 为 0。用户在前台同一 Uhra 钢架位置、4K 内部／输出下观察，反馈持续帧率
+约 60 FPS，画质保持、可以接受。另一次正常运行移动视角记录 1,882–2,605 draws/frame
+和 38–55 FPS，条件不同，不能与固定 A-B-A-B 对照直接比较。已接受的 4K Uhra 场景结果
+不代表全游戏、跨平台或正式发布验收，1080p internal 到 4K output 的移动相机限制仍未解决。
+
 ### Bell 候选的初步实景结果
 
 当前 32 相位真实场景对照仅显示部分改善：red ROI delta 从 `0.9096` 降至

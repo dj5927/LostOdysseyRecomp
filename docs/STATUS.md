@@ -18,6 +18,37 @@ Development progress on the experimental geometric motion replay pipeline:
 - 验证：Windows 运行时构建通过；`motion_vector_test` 通过 40 项生命周期与 occurrence 检查；`motion_replay_gpu_test --compile-only` 通过 11 项 DXIL/SPIR-V 编译检查；Vulkan 自动化运行稳定。
 - 边界与用户反馈：用户已确认 MV 被正常消费（`consume=true`）；Bell 场景中的可见抖动依然存在，属于继续排查的 TAA 问题，未标记为已修复或已验收。D3D12 下 replay PSO 创建返回 `E_INVALIDARG 0x80070057`，仍为已记录的后续待办。
 
+## v0.6.2 release preparation / v0.6.2 发布准备
+
+The local v0.6.2 candidate applies the accepted Uhra TAA policy to the normal
+TAA path: 0.5 jitter scale, stationary motion snapping, stationary color
+clipping and multi-surface history, with RGBA8 history at `31/33`; FP16 history
+and moving bilinear fallback remain off. Geometric motion vectors are enabled
+by default for TAA, with `LO_MV_ENABLE=0` retained as a comparison switch.
+
+On Vulkan with an RTX 5080, the user accepted image quality in the same Uhra
+4K internal/output steel-frame scene at about 60 FPS. Hidden muted A-B-A-B
+captures without pacing measured 60.34/59.00 FPS for the candidate, compared
+with 54.61 FPS for a separate Release build and 54.57 FPS for the former
+RelWithDebInfo main binary. MV audit steady tracked/matched/replay was 988 with
+failed 0; `LoMotionVectorTest` passed 71 checks and `LoVertexCacheTest` passed
+3,668,948 checks. These are local, scene-bounded results. The 1080p-internal
+to 4K moving-camera limitation, broader scene coverage and D3D12 replay PSO
+follow-up remain open. v0.6.2 is not yet published; CI, assets and public
+release verification remain pending.
+
+当前 v0.6.2 候选已将 Uhra 验收过的 TAA 策略应用到正常 TAA 路径：0.5 抖动幅度、静止运动
+snap、静止颜色裁剪和多表面 history，RGBA8 history 权重为 `31/33`；FP16 history 和
+moving bilinear fallback 仍关闭。TAA 默认启用几何运动矢量，`LO_MV_ENABLE=0` 仍可作为
+对照开关。
+
+RTX 5080 的 Vulkan、Uhra 4K 内部／输出同一钢架场景中，用户以约 60 FPS 接受画质。隐藏
+静音、无 pacing 的 A-B-A-B 对照中，候选为 60.34/59.00 FPS，独立 Release 构建为 54.61
+FPS，之前的 RelWithDebInfo 主程序为 54.57 FPS。MV audit 的 steady tracked/matched/replay
+为 988，failed 为 0；`LoMotionVectorTest` 通过 71 项，`LoVertexCacheTest` 通过 3,668,948
+项。这些是本机和限定场景结果。1080p internal 到 4K output 的移动相机限制、更广场景覆盖和
+D3D12 replay PSO 后续工作仍开放。v0.6.2 尚未发布，CI、资产和公开发布核验仍待完成。
+
 ## v0.6.1 published / v0.6.1 已发布
 
 The automatic updater now checks for a newer release before game-data import on Windows and Linux. A newer release opens an app-branded SDL prompt with release notes and Install/Later actions; accepting applies the update and relaunches before import, while declining or an offline check continues normally. Headless and background runs skip this UI. Windows runtime build, focused Windows/Linux prompt tests and changed Linux syntax checks passed. Live network update acceptance, physical controller input and GUI acceptance remain unverified.

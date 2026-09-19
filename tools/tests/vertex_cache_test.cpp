@@ -260,6 +260,8 @@ void TestIndexContentAndBudget()
     auto found = cache.find(key);
     Check(found != cache.end() && !found->second.content.Matches(source.data(), source.size()),
         "same-frame middle index mutation invalidates cached output");
+    found->second.motionIndexHash = 0x1234;
+    found->second.motionIndexHashReady = true;
     IndexEntry replacement;
     replacement.data.resize(key.count);
     ConvertIndices(source.data(), replacement.data.data(), key.count, false, key.endian);
@@ -269,6 +271,7 @@ void TestIndexContentAndBudget()
     found = cache.find(key);
     Check(found != cache.end() && found->second.content.Matches(source.data(), source.size()), "changed indices recaptured");
     Check(found->second.data[300] == 1, "changed index converted instead of reusing old output");
+    Check(!found->second.motionIndexHashReady, "changed indices discard the cached motion signature");
     Check(cache.AllocatedBytes() == 49152 && cache.PeakBytes() == 49152, "replacement does not double count bytes");
 
     // A larger replacement for the same key cannot leave stale data behind.

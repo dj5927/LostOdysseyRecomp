@@ -289,10 +289,13 @@ public:
         in.motionVector=motionView_.velocity;in.motionDepths=motionView_.depths;in.reactiveMask=motionView_.reactive;
         in.motionVectorDebug=motionDebug;
         in.motionVectorValid=motionVectorValid_;
+        // Serial zero is the built-in main policy, not a live diagnostic
+        // snapshot. Preserve environment diagnostics in that case.
+        const bool liveOverride=live&&live->serial!=0;
         static const bool stationaryHistory=[] {const char* value=std::getenv("LO_TAA_STATIONARY_HISTORY");return !value||value[0]!='0';}();
         in.stabilizeStationaryGeometry=stationaryHistory;
         if(live) {
-            in.stabilizeStationaryGeometry=live->stationary!=0;in.stationaryCoverage=live->coverage!=0;
+            in.stabilizeStationaryGeometry=stationaryHistory&&live->stationary!=0;in.stationaryCoverage=live->coverage!=0;
             in.snapStationaryMotion=live->snap_stationary!=0;
             in.stationaryColorClip=live->stationary_color_clip!=0;
             in.stationaryMultiSurface=live->stationary_multi_surface!=0;
@@ -300,7 +303,7 @@ public:
             in.historyWeight=live->history_weight;in.stationaryHistoryWeight=live->stationary_weight;
             in.stationaryMotionMin=live->motion_min;in.stationaryMotionMax=live->motion_max;
             in.depthAbsoluteThreshold=live->depth_absolute;in.depthRelativeThreshold=live->depth_relative;
-            in.motionVectorDebug=false;
+            if(liveOverride)in.motionVectorDebug=false;
         }
         in.width=in.historyWidth=width_;in.height=in.historyHeight=height_;in.currentCamera=&*current.camera;in.previousCamera=previous.camera?&*previous.camera:nullptr;
         in.currentJitterX=jx;in.currentJitterY=jy;in.previousJitterX=reuse?previous.jx:0;in.previousJitterY=reuse?previous.jy:0;in.historyValid=reuse;
@@ -320,9 +323,11 @@ public:
         Transition(commands,history_[frame_%2],plume::RenderTextureLayout::SHADER_READ);
         // Diagnose the same inputs without feeding diagnostic colors into history.
         static const int acceptanceView=[] {const char* value=std::getenv("LO_TAA_ACCEPTANCE");return value&&value[0]=='2'?2:value&&value[0]=='1'?1:0;}();
-        const int diagnosticView=live?live->acceptance:acceptanceView;
-        if(diagnosticView||(live&&live->mv_debug)) {
-            in.diagnosticAcceptance=diagnosticView!=0;in.motionVectorDebug=!diagnosticView&&live&&live->mv_debug;in.output=display_.texture.get();
+        const int diagnosticView=liveOverride?live->acceptance:acceptanceView;
+        if(diagnosticView||in.motionVectorDebug||(liveOverride&&live->mv_debug)) {
+            in.diagnosticAcceptance=diagnosticView!=0;
+            in.motionVectorDebug=!diagnosticView&&(in.motionVectorDebug||(liveOverride&&live->mv_debug));
+            in.output=display_.texture.get();
             in.diagnosticRejectionReasons=diagnosticView==2;
             Transition(commands,display_,plume::RenderTextureLayout::COLOR_WRITE);
             if(!aa_.Resolve(commands,in)){Reset();return nullptr;}

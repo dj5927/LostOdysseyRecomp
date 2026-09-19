@@ -40,6 +40,11 @@ struct DrawHistoryKey {
     v ^= v >> 27; v *= 0x94d049bb133111ebULL; v ^= v >> 31;
     return (h ^ v) * 0x100000001b3ULL;
 }
+[[nodiscard]] inline uint64_t MotionHashIndices(const std::vector<uint32_t>& indices) {
+    uint64_t hash = MotionHashWord(0xcbf29ce484222325ull, indices.size());
+    for (uint32_t index : indices) hash = MotionHashWord(hash, index);
+    return hash;
+}
 struct DrawHistoryKeyHasher {
     size_t operator()(const DrawHistoryKey& k) const noexcept {
         uint64_t h = MotionHashWord(k.vsHash, k.psHash);

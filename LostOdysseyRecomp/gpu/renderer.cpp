@@ -764,8 +764,12 @@ namespace gpu::renderer
             int taaDiagnosticHDR = 0;
             int taaDiagnosticMaterials = 1;
             const char* taaLiveDirectory = getenv("LO_TAA_LIVE_DIR");
+            const temporal::LiveOptions taaMainOptions = temporal::MainTaaOptions();
             temporal::LiveOptions taaLiveOptions;
             bool taaLiveApplied = false;
+            const temporal::LiveOptions& ActiveTaaOptions() const {
+                return taaLiveApplied ? taaLiveOptions : taaMainOptions;
+            }
             std::string taaLiveError;
             std::chrono::steady_clock::time_point taaLivePoll{};
             uint64_t taaLiveResolvedFrame = 0;
@@ -3746,7 +3750,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     depth ? depth->allocationSerial : 0,
                     {rasterViewport.x, rasterViewport.y, rasterViewport.width, rasterViewport.height},
                     vsConstants, psConstants, &temporalScene.Depth(), jitterSampledDepth ? &*jitterSampledDepth : nullptr,
-                    taaLiveApplied ? taaLiveOptions.jitter_scale : 1.0);
+                    ActiveTaaOptions().jitter_scale);
                 const uint32_t collectionFlags=(temporalViewport?1u:0u)|(temporalJitter?2u:0u)|
                     (drawJitter.applied?4u:0u)|((depthControl&4)?8u:0u)|
                     (jitterAnchor&&depth&&depth->allocationSerial==jitterAnchor->depthAllocation?16u:0u);
@@ -4037,13 +4041,13 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                     if (hdrScene.ObserveColor(hdrSource)) {
                                         Transition(*tex, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
                                         const auto jitter = temporal::FrameJitter(frame, tex->width, tex->height,
-                                            taaLiveApplied ? taaLiveOptions.jitter_scale : 1.0);
+                                            ActiveTaaOptions().jitter_scale);
                                         FinishMotion(hdrTemporalHistory.get());
                                         hdrTemporalOutput = hdrTemporalHistory->ResolveColor(commandList, tex->texture.get(), hdrScene,
                                             temporalJitter ? jitter.pixelX : 0, temporalJitter ? jitter.pixelY : 0,
                                             temporalAllowHistory, true, true,
                                             motionOptions.consume && (!taaLiveApplied || taaLiveOptions.mv_consume) ? &motionView : nullptr,
-                                            motionOptions.debug, taaLiveApplied ? &taaLiveOptions : nullptr);
+                                            motionOptions.debug, &ActiveTaaOptions());
                                         if (motionOptions.consume && motionView.ready && motionReplay) motionReplay->RecordConsumerUse();
                                         Transition(*tex, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
                                         if (hdrTemporalOutput) {
@@ -4100,12 +4104,12 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             if(temporalExperiment && temporalHistory && temporalScene.Ready() && tex->format==RenderFormat::R8G8B8A8_UNORM) {
                                 Transition(*tex,RenderTextureLayout::COPY_SOURCE,RenderBarrierStage::COPY);
                                 const auto sample = temporal::FrameJitter(frame, rasterViewport.width, rasterViewport.height,
-                                    taaLiveApplied ? taaLiveOptions.jitter_scale : 1.0);
+                                    ActiveTaaOptions().jitter_scale);
                                 const double jx = temporalJitter ? sample.pixelX : 0, jy = temporalJitter ? sample.pixelY : 0;
                                 FinishMotion(temporalHistory.get());
                                 const bool consumeMotion = motionOptions.consume && (!taaLiveApplied || taaLiveOptions.mv_consume);
                                 temporalDisplay=temporalHistory->ResolveColor(commandList,tex->texture.get(),temporalScene,jx,jy,temporalAllowHistory && !hdrTonemapApplied,temporalStableGrid,sceneAAMode==3,
-                                    consumeMotion ? &motionView : nullptr, motionOptions.debug, taaLiveApplied ? &taaLiveOptions : nullptr);
+                                    consumeMotion ? &motionView : nullptr, motionOptions.debug, &ActiveTaaOptions());
                                 if (taaLiveDirectory) {
                                     taaLiveResolvedFrame=frame;taaLiveWidth=tex->width;taaLiveHeight=tex->height;
                                     taaLiveJitterX=jx;taaLiveJitterY=jy;taaLiveHistoryReused=temporalDisplay&&temporalHistory->Reused();
@@ -4243,6 +4247,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 RenderFormat indexFormat = RenderFormat::R32_UINT;
                 uint32_t indexCount = info.indexCount;
                 bool indexCached = false;
+                geometry_prepare::IndexEntry* cachedIndexEntry = nullptr;
                 uint32_t indexSrcCount = 0;
                 const uint8_t* indexSrc = nullptr;
                 size_t indexSrcBytes = 0;
@@ -4260,6 +4265,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         if (it != indexCache.end() && it->second.content.Matches(indexSrc, indexSrcBytes))
                         {
                             indices = it->second.data;
+                            cachedIndexEntry = &it->second;
                             it->second.lastFrame = frame;
                             ++indexCacheHits;
                             useIndices = true;
@@ -4558,7 +4564,19 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         mk.vsHash = key.vs; mk.psHash = key.ps; mk.sceneAllocation = depth->allocationSerial;
                         mk.indexBufferAddress = useIndices ? info.indexBase : 0;
                         mk.indexCount = indexCount; mk.baseVertex = baseVertex; mk.primitiveType = info.primitiveType;
-                        for (uint32_t index : indices) motionGeometry = temporal::MotionHashWord(motionGeometry, index);
+                        // The exact-content index cache can reuse this digest
+                        // across draws; uncached and replaced data recompute it.
+                        uint64_t indexHash;
+                        if (cachedIndexEntry && cachedIndexEntry->motionIndexHashReady)
+                            indexHash = cachedIndexEntry->motionIndexHash;
+                        else {
+                            indexHash = temporal::MotionHashIndices(indices);
+                            if (cachedIndexEntry) {
+                                cachedIndexEntry->motionIndexHash = indexHash;
+                                cachedIndexEntry->motionIndexHashReady = true;
+                            }
+                        }
+                        motionGeometry = temporal::MotionHashWord(motionGeometry, indexHash);
                         mk.geometrySignature = motionGeometry;
                         const temporal::MotionRasterContract motionRaster{
                             uint32_t(rasterViewport.width), uint32_t(rasterViewport.height),

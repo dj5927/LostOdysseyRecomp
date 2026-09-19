@@ -19,6 +19,12 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## v0.6.2 更新
+
+v0.6.2 包含实验性几何运动矢量 replay，以及已接受的主路径 TAA 策略。正常 TAA 路径使用 0.5 抖动幅度、静止运动 snap、静止颜色裁剪和多表面 history，RGBA8 history 权重为 `31/33`；实验性 FP16 history 和 moving bilinear fallback 仍关闭。在 RTX 5080 的 Vulkan、Uhra 4K 同一场景中，用户以约 60 FPS 接受了画面质量。这是限定场景和本机的证据，不代表全游戏或跨平台验收。
+
+隐藏静音、无 pacing 的 A-B-A-B 对照中，候选为 60.34/59.00 FPS，独立 Release 构建为 54.61 FPS，之前的 RelWithDebInfo 主程序为 54.57 FPS。1080p internal 到 4K output 的移动相机限制、更广场景覆盖和 D3D12 replay PSO 后续工作仍开放。
+
 ## v0.6.1 发布版
 
 已发布版本：[v0.6.1](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1)。Windows 和 Linux 现在会在导入游戏资料前检查更新。发现新版本时，带有应用品牌的提示会显示发布说明以及“安装”或“稍后”操作；接受后在导入前应用更新并重新启动。下载进度仍使用现有的更新器窗口。

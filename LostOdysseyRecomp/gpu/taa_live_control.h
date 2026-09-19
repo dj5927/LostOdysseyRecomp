@@ -16,6 +16,16 @@ struct LiveOptions {
     float history_weight=.85f,stationary_weight=31.f/33.f,motion_min=.002f,motion_max=.125f;
     float depth_absolute=1e-5f,depth_relative=.01f;
 };
+// Accepted 4K Uhra policy for the normal TAA path. Keep the live-control
+// parser's baseline defaults separate so diagnostic snapshots stay explicit.
+inline LiveOptions MainTaaOptions() {
+    LiveOptions value;
+    value.jitter_scale=.5f;
+    value.snap_stationary=1;
+    value.stationary_color_clip=1;
+    value.stationary_multi_surface=1;
+    return value;
+}
 // A complete snapshot is applied at a render-frame boundary. Reject a malformed
 // request as a whole; never mix a partial write with the previous configuration.
 inline bool ReadLiveOptions(std::istream& input,LiveOptions& output,std::string& error) {

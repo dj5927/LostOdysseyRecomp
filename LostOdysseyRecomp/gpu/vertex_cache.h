@@ -107,6 +107,10 @@ namespace gpu::geometry_prepare
         std::vector<uint32_t> data;
         // Source guest bytes the conversion was built from.
         SampledContent content;
+        // Lazily computed on a motion draw; exact source validation above
+        // ensures this fingerprint still describes the cached output.
+        uint64_t motionIndexHash = 0;
+        bool motionIndexHashReady = false;
         uint64_t lastFrame = 0;
         size_t AllocatedBytes() const { return content.AllocatedBytes() + data.capacity() * sizeof(uint32_t); }
     };

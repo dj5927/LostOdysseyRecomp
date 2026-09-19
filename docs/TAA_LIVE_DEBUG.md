@@ -92,6 +92,38 @@ SHA-256 `00FC2575AD0D515EBC7A68CB2F26110981B271024974E4C870078A2F54E3E3A0`.
 This candidate has local Uhra visual acceptance only; it is not a default or
 whole-game fix.
 
+## Main renderer policy
+
+The accepted Uhra policy is now wired into the normal renderer path when no
+live-panel snapshot is active: `jitter_scale=.5`, `snap_stationary=1`,
+`stationary_color_clip=1` and `stationary_multi_surface=1`. The normal path
+keeps RGBA8 history, stationary weight `31/33`, `history_fp16=0` and
+`moving_bilinear_fallback=0`. TAA uses geometric motion vectors by default;
+`LO_MV_ENABLE=0` remains an explicit comparison switch, and motion replay is
+not run for non-TAA modes.
+
+This documents the local source integration requested after the Uhra debug
+acceptance. The local CMake RelWithDebInfo build passed, `LoMotionVectorTest`
+passed 69 checks covering the default-enabled and `LO_MV_ENABLE=0` comparison
+paths, and the main EXE/PDB were deployed with matching build-output hashes.
+The deployed index-signature-cache candidate has SHA-256
+`2BC90983FC5F866E16F52ACD0B7642347CAD1792FF67A687A2551817EA53707E`; the
+previous binary is preserved as `LostOdysseyRecomp.exe.pre-index-hash-20260919`.
+On the same Uhra save with Vulkan at 4K internal/output, a 120 FPS target and
+no pacing, hidden muted A-B-A-B captures measured heartbeat means of
+54.61 FPS for a separate Release build and 54.57 FPS for the former
+RelWithDebInfo main binary, versus 60.34/59.00 FPS for the candidate.
+Release `/O2`/`/Ob2` remained at 54.61 FPS. Separate TAA-collector samples
+measured 54.78 FPS disabled versus 55.68 FPS enabled, which does not identify
+the collector as the main cause. Main-binary visual acceptance remains bounded
+to the same Uhra scene: the user reported unchanged, acceptable image quality
+at about 60 FPS. `LoMotionVectorTest` now passes 71 checks
+and `LoVertexCacheTest` passes 3,668,948 checks; index reuse still performs
+complete source-byte verification. The earlier 4K Uhra acceptance does not
+establish whole-game, cross-platform or release acceptance.
+Live-panel values continue to override the main policy only after a complete
+snapshot is applied.
+
 Current bounded evidence includes 826 Vulkan GPU/translation checks in
 `out/bell-resume/gpu-live-test.log`; live parser and trace checks are separate.
 Runtime state at 3840x2160 shows
@@ -148,6 +180,29 @@ Uhra ROI 预置。当前运行构建同时提供最新的 `last_ms` 和累计的
 并已关闭 `gpu_timing`。需要时可用 `-ExeName` 选择具体候选 exe；当前 exe SHA-256
 为 `00FC2575AD0D515EBC7A68CB2F26110981B271024974E4C870078A2F54E3E3A0`。这只是
 Uhra 本地画面验收，不是默认或全游戏修复。
+
+## 主渲染路径策略
+
+已接受的 Uhra 策略现在接入正常渲染路径：没有实时面板快照覆盖时，启用
+`jitter_scale=.5`、`snap_stationary=1`、`stationary_color_clip=1` 和
+`stationary_multi_surface=1`。正常路径继续使用 RGBA8 history、静止权重
+`31/33`，并关闭 `history_fp16=0` 与 `moving_bilinear_fallback=0`。TAA 默认使用
+几何运动矢量；`LO_MV_ENABLE=0` 仍可作为明确的对照开关，非 TAA 模式不会运行
+motion replay。
+
+这里记录的是 Uhra debug 验收之后的本地源码接入。本地 CMake RelWithDebInfo
+构建已通过，`LoMotionVectorTest` 在默认启用和 `LO_MV_ENABLE=0` 对照路径共通过
+69 项检查，主 EXE/PDB 已部署且与构建输出哈希一致。主 EXE SHA-256 为
+`2BC90983FC5F866E16F52ACD0B7642347CAD1792FF67A687A2551817EA53707E`，旧程序保留为
+`LostOdysseyRecomp.exe.pre-index-hash-20260919`。同一 Uhra 存档、Vulkan、4K
+internal/output、120 FPS 目标且无 pacing 的隐藏静音 A-B-A-B 采样中，旧版 heartbeat
+均值分别为 54.61 FPS（独立 Release 构建）和 54.57 FPS（先前的 RelWithDebInfo
+主程序），新版为 60.34/59.00 FPS。Release `/O2`/`/Ob2` 单独构建仍为
+54.61 FPS；关闭 TAA collector 为 54.78、开启为 55.68，不能据此认定 collector 是
+主因。`LoMotionVectorTest` 已通过 71 项，`LoVertexCacheTest` 已通过 3,668,948 项；
+index 复用仍执行完整源字节验证。主 binary 的画面验收限定在同一 Uhra 场景：用户反馈
+画质保持、可以接受，持续帧率约 60 FPS。此前 4K Uhra 验收不代表全游戏、跨平台
+或正式发布验收。只有在完整快照应用后，实时面板参数才会覆盖主路径策略。
 
 参数调节无需编译；shader 算法或 coverage 改动仍需重新构建和验证。需先将已构建
 的 `LostOdysseyRecomp-debug.exe` 复制到运行目录；脚本不会自动构建。

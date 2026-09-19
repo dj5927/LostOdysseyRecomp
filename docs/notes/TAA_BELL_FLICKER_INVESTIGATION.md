@@ -190,6 +190,47 @@ rejection to `.69%` without obvious perceptual benefit at about 60 FPS and
 remains disabled. An earlier fallback improved appearance but reduced 60 FPS to
 55–58 and remains unaccepted. No specific material shader is identified.
 
+### Main renderer integration — local Uhra visual acceptance
+
+After the local Uhra acceptance, the accepted policy was wired into the normal
+renderer path. When no live-panel snapshot is active it uses
+`jitter_scale=.5`, `snap_stationary=1`, `stationary_color_clip=1` and
+`stationary_multi_surface=1`, with RGBA8 history, stationary weight `31/33`,
+`history_fp16=0` and `moving_bilinear_fallback=0`. TAA enables geometric motion
+vectors by default; `LO_MV_ENABLE=0` remains an explicit comparison switch,
+and motion replay is skipped for non-TAA modes.
+
+The local CMake RelWithDebInfo build passed, `LoMotionVectorTest` passed 71
+checks covering both default-enabled and `LO_MV_ENABLE=0` comparison paths,
+and the main EXE/PDB were deployed with matching build-output hashes. The
+deployed index-signature-cache candidate has SHA-256
+`2BC90983FC5F866E16F52ACD0B7642347CAD1792FF67A687A2551817EA53707E`; the
+previous binary is preserved as `LostOdysseyRecomp.exe.pre-index-hash-20260919`.
+The normal executable's background, muted native-Continue run loaded the save
+on Vulkan. `runtime-1789846180585750.log` recorded motion replay ready and
+consumed at frames 960, 1080, 1200, 1320 and 1440 without a live-panel override.
+In the same Uhra save on Vulkan at 4K internal/output with a 120 FPS target and
+no pacing, hidden muted A-B-A-B captures measured heartbeat means of
+54.61 FPS for the separate Release build and 54.57 FPS for the former
+RelWithDebInfo main executable, versus 60.34/59.00 FPS for the candidate.
+Release `/O2`/`/Ob2` remained at 54.61 FPS. Separate TAA-collector samples
+measured 54.78 FPS disabled versus 55.68 FPS enabled, so these samples do not
+support the collector as the main cause. An asm-profiler sample pointed at
+`memcmp` and a Vulkan-driver nearest symbol, but sampling alone does not
+precisely attribute the cost. The index-signature cache reuses exact-content
+index fingerprints while retaining complete source-byte verification.
+`LoVertexCacheTest` passes 3,668,948 checks; the motion audit reports steady
+tracked/matched/replay 988 with failed 0.
+
+The user reviewed the same Uhra steel-frame scene in the foreground at 4K
+internal/output and reported about 60 FPS with image quality unchanged and
+acceptable. A separate normal run recorded 1,882–2,605 draws/frame and
+38–55 FPS while moving the view; its conditions differ from the fixed A-B-A-B
+comparison and it is not used as a direct performance comparison. This remains
+bounded to Uhra and the local machine. The accepted 4K Uhra scene result does
+not establish whole-game, cross-platform or release acceptance, and the known
+1080p-internal to 4K moving-camera limitation remains open.
+
 ### Preliminary real Bell candidate result
 
 The current 32-phase real-scene comparison shows partial improvement only:
