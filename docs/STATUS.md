@@ -1,5 +1,11 @@
 # Project status
 
+## Issue #54 language-menu safety correction / Issue #54 语言菜单安全修正
+
+The language menu now ignores invalid table counts and indices without reading or rewriting the selected language, shows `—` for unavailable entries, and follows the native parser's 16-entry capacity. The existing `82481BE8` USA/Europe host-language mapping and independent text/voice semantics are unchanged. `LO_TRACE_LANGUAGE=1` enables bounded opt-in tracing for lookup, menu and native-cache stages. The specific cause of the reported cutscene voice issue remains unconfirmed; no save was available and no real-game reproduction was performed. The correction is pending the next release and does not establish Issue #54 acceptance.
+
+语言菜单现在会忽略无效语言表数量和索引，不读取或改写当前选择；无效项显示为 `—`，容量遵循原生 parser 的 16 项限制。既有 `82481BE8` USA/Europe 宿主语言映射及文字／配音独立语义保持不变。`LO_TRACE_LANGUAGE=1` 可开启默认关闭且有界的 lookup、菜单和原生缓存阶段追踪。具体过场配音问题的根因尚未确认；没有存档，本次未做实机复现。修正待下个版本发布，也不代表 Issue #54 已完成验收。
+
 ## Experimental geometric motion vectors (v0.6.2 / v0.6.2 已纳入)
 
 Development progress on the experimental geometric motion replay pipeline:

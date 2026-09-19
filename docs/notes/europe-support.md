@@ -1,5 +1,9 @@
 # USA/Europe edition support
 
+## 2026-09-19 Issue #54 language-menu safety correction — pending next release
+
+The language menu now rejects invalid table counts and indices without reading or rewriting a selection, and displays `—` for an unavailable entry. Its capacity follows the native parser limit of 16 entries. The existing `82481BE8` host-language coverage for IDs 1–9 and the separate text/voice selection semantics are unchanged. An opt-in, bounded `LO_TRACE_LANGUAGE=1` trace records the lookup, menu and native-cache stages for future reports. The specific cause of the reported cutscene voice issue remains unconfirmed; no save was available and no real-game reproduction was performed. This correction is pending the next release.
+
 Status: **2026-09-06, included in published v0.2**. Commit `dcc946299cdc2984783793ad5871a0ad0b90a2c9` and its `v0.2` tag were pushed to both remotes. The dated local test packages below preserve pre-release evidence; they are not the official release artifact. Chapter-boundary gameplay and a complete playthrough remain unverified.
 
 ## 2026-09-14 FMV/event subtitle mapping clarification — included in published v0.5.12

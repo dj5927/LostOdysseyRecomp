@@ -9,6 +9,7 @@
 #include <kernel/io/file_system.h>
 #include <os/logger.h>
 #include <stdafx.h>
+#include "language_trace.h"
 extern "C" PPC_FUNC(__imp__sub_822F19B0);
 extern "C" PPC_FUNC(__imp__sub_82481BE8);
 extern "C" PPC_FUNC(__imp__sub_82870E38);
@@ -63,18 +64,18 @@ uint32_t ConfigAddress(uint8_t *base)
 uint32_t VoiceCount(uint8_t *base)
 {
     // The original 82482028/82482038 access this resource-populated list.
-    return std::clamp(uint32_t(PPC_LOAD_U8(0x8336A5F0 + 419)), 1u, 10u);
+    return language::VoiceCount(PPC_LOAD_U8(language::Registry + 419));
 }
 uint32_t VoiceLanguage(uint8_t *base, uint32_t index)
 {
-    return PPC_LOAD_U16(0x8336A5F0 + 288 + std::min(index, VoiceCount(base) - 1) * 2);
+    return index < VoiceCount(base) ? PPC_LOAD_U16(language::Registry + 288 + index * 2) : 0;
 }
 const wchar_t *VoiceName(uint8_t *base, uint32_t index)
 {
     constexpr const wchar_t *names[] = {L"English", L"English", L"日本語", L"Deutsch", L"Français",
                                        L"Español", L"Italiano", L"한국어", L"繁體中文", L"简体中文"};
     const auto language = VoiceLanguage(base, index);
-    return language < std::size(names) ? names[language] : L"Unknown";
+    return language >= 1 && language < std::size(names) ? names[language] : L"Unknown";
 }
 void Publish(uint8_t *base, uint32_t config)
 {
@@ -123,7 +124,15 @@ void Publish(uint8_t *base, uint32_t config)
         std::vector<std::wstring> voices;
         for (uint32_t i = 0; i < VoiceCount(base); ++i)
             voices.emplace_back(VoiceName(base, i));
-        addChoices(L"Voice language", L"語音語言", std::move(voices), PPC_LOAD_U32(config + 24));
+        const auto index = PPC_LOAD_U32(config + 24);
+        const bool valid = index < voices.size();
+        addChoices(L"Voice language", L"語音語言", std::move(voices), index, valid);
+        if (!valid)
+        {
+            next.rows.back().value = L"—";
+            next.rows.back().choices.clear();
+            next.rows.back().selectedChoice = -1;
+        }
         addSlider(L"Music", L"音樂音量", PPC_LOAD_U32(config + 8));
         addSlider(L"Sound effects", L"音效音量", PPC_LOAD_U32(config + 12));
     }
@@ -346,8 +355,8 @@ void PointerClick(float x, float y, bool reverse)
 PPC_FUNC(sub_82481BE8)
 {
     const uint32_t language = settings::GameLanguage();
-    if (language >= 1 && language <= 9 && ctx.r3.u32 == 0x8336A5F0 &&
-        (ctx.r4.u32 == 0 || ctx.r4.u32 == language))
+    const auto object = ctx.r3.u32, request = ctx.r4.u32, caller = uint32_t(ctx.lr);
+    if (settings::language::ResourceOverride(language, object, request))
     {
         ctx.r3.u64 = PPC_LOAD_U32(0x832455F0 + language * 4);
         static const bool logged = [] {
@@ -355,9 +364,11 @@ PPC_FUNC(sub_82481BE8)
             return true;
         }();
         (void)logged;
+        settings::language::TraceLookup(base, language, object, request, caller, ctx.r3.u32, true);
         return;
     }
     __imp__sub_82481BE8(ctx, base);
+    settings::language::TraceLookup(base, language, object, request, caller, ctx.r3.u32, false);
 }
 
 PPC_FUNC(sub_822F19B0)
@@ -437,6 +448,7 @@ PPC_FUNC(sub_822F19B0)
         status.clear();
         Publish(base, config);
         LOG_INFO("settings: replacement opened at guest menu {:#x}", menu);
+        language::TraceConfig(base, config, "menu-open");
         for (uint32_t i = 0; i < VoiceCount(base); ++i)
             LOG_INFO("settings: voice option {} -> language {}", i, VoiceLanguage(base, i));
     }
@@ -603,7 +615,14 @@ PPC_FUNC(sub_822F19B0)
         else if (tab == 1)
         {
             if (row == 0)
+            {
+                if (PPC_LOAD_U32(config + 24) >= VoiceCount(base))
+                {
+                    Publish(base, config);
+                    return;
+                }
                 PPC_STORE_U32(config + 24, cycle(PPC_LOAD_U32(config + 24), VoiceCount(base)));
+            }
             else
             {
                 auto offset = row == 1 ? 8 : 12;
@@ -665,18 +684,22 @@ PPC_FUNC(sub_822F19B0)
     }
     if (changed)
     {
+        language::TraceConfig(base, config, "menu-before-apply");
         PPCContext call = ctx;
         call.r3.u32 = config;
         __imp__sub_82870E38(call, base);
+        language::TraceConfig(base, config, "menu-after-apply");
     }
     if ((input & 0x1000) && tab == 0 && row == 7)
     {
         PPCContext call = ctx;
         call.r3.u32 = config;
+        language::TraceConfig(base, config, "menu-before-defaults");
         __imp__sub_828710A0(call, base);
         call = ctx;
         call.r3.u32 = config;
         __imp__sub_82870E38(call, base);
+        language::TraceConfig(base, config, "menu-after-defaults");
         status = Tr(L"Game defaults restored.", L"遊戲預設設定已恢復。");
     }
     if ((input & 0x1000) && tab == 2 && row == 8)
@@ -750,7 +773,9 @@ PPC_FUNC(sub_822F19B0)
         pending = 0;
         PPCContext apply = ctx;
         apply.r3.u64 = config;
+        language::TraceConfig(base, config, "menu-before-close");
         __imp__sub_82870E38(apply, base);
+        language::TraceConfig(base, config, "menu-after-close-apply");
         PPCContext close = ctx;
         close.r3.u64 = menu;
         __imp__sub_82889E50(close, base);
