@@ -459,6 +459,8 @@ namespace gpu::renderer
             temporal::SceneObservation temporalScene;
             std::shared_ptr<taa_collection::SparseDepthGPU> sparseCollector;
             temporal::DrawTemporalTracker drawTemporalTracker;
+            double mvTrackCpuMs = 0;
+            uint64_t mvScratchBytes = 0;
             const temporal::MotionOptions motionOptions = temporal::MotionOptions::Environment();
             std::unique_ptr<temporal::MotionReplayGPU> motionReplay;
             bool motionInitFailed = false;
@@ -467,7 +469,9 @@ namespace gpu::renderer
             void FinishMotion(temporal::HistoryOwner* history) {
                 if (!motionOptions.enabled || !history || motionFinalizedFrame == frame) return;
                 motionFinalizedFrame = frame;
+                render_batch::CpuTimer<> timer(motionOptions.timing);
                 const auto& flags = drawTemporalTracker.FinalizeFrame();
+                timer.AddTo(mvTrackCpuMs);
                 if (motionReplay && !drawTemporalTracker.Failed()) {
                     motionView = motionReplay->Finish(commandList, history->CurrentDepth(), flags);
                     if (motionView.ready) history->RecordExternalRead();
@@ -1623,6 +1627,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 consecutiveResolveCopies.Invalidate();
                 if (!listOpen)
                     return;
+                if (motionReplay) motionReplay->SealTimings(commandList);
                 Gpu().drawProbe.End(commandList);
                 if (timingQueries) commandList->writeTimestamp(timingQueries, 1);
                 commandList->end();
@@ -3525,17 +3530,21 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     temporalHistory->BeginFrame(frame,temporalEpoch,
                         taa_collection::DiagnosticsActive() || (diagnosticStart&&frame>=diagnosticFrame&&temporalFramesLogged<256) || (withTrace&&resolveTraceRemaining));
                     if (hdrTemporalHistory) hdrTemporalHistory->BeginFrame(frame, temporalEpoch, resolveTraceRemaining != 0);
+                    temporalHistory->EnableGpuTiming(motionOptions.timing);
+                    if (hdrTemporalHistory) hdrTemporalHistory->EnableGpuTiming(motionOptions.timing);
                     if (motionOptions.enabled) {
+                        render_batch::CpuTimer<> mvTimer(motionOptions.timing);
                         drawTemporalTracker.BeginFrame(frame, temporalEpoch);
+                        mvTimer.AddTo(mvTrackCpuMs);
                         if (motionView.frame != frame || motionView.epoch != temporalEpoch) motionView = {};
                         if (motionOptions.replay && !motionReplay && !motionInitFailed) {
                             motionReplay = std::make_unique<temporal::MotionReplayGPU>();
                             if (!motionReplay->Init(device, setBuilders, vulkan ? 5 : 4)) {
-                                LOG_ERROR("mv: initialization failed; original TAA retained: {}", motionReplay->LastError());
+                                LOG_ERROR("mv: initialization failed; requested geometric history rejected: {}", motionReplay->LastError());
                                 motionReplay.reset(); motionInitFailed = true;
                             }
                         }
-                        if (motionReplay) motionReplay->BeginFrame(frame, temporalEpoch);
+                        if (motionReplay) {motionReplay->EnableGpuTiming(motionOptions.timing);motionReplay->BeginFrame(frame, temporalEpoch);}
                     }
                 }
                 taaInit.AddTo(tTaa);
@@ -3644,11 +3653,17 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     depth->allocationSerial == jitterAnchor->depthAllocation && rasterViewport.x == 0 && rasterViewport.y == 0 &&
                     rasterViewport.width == jitterAnchor->viewport.width && rasterViewport.height == jitterAnchor->viewport.height;
                 const bool motionDepthWrite = motionScene && (depthControl & 6) == 6;
-                const bool motionSupported = motionDepthWrite && !drawTemporalTracker.Failed() && temporalSlot >= 0 && !vs->info.textureSlotMask &&
+                const bool motionSupported = motionDepthWrite && !drawTemporalTracker.Failed() && temporalSlot >= 0 && temporalSlot <= 252 && !vs->info.textureSlotMask &&
                     !vs->info.usesPointSize && vs->info.errors.empty() && (!ps || (!ps->info.writesDepth && ps->info.errors.empty())) &&
                     !(key.depthControl & 1) && key.prim != 8 && key.depthBias == 0 && key.slopeBias == 0 && layerDepthOffset == 0;
-                std::array<uint32_t, 1024> motionOriginalVS;
-                if (motionSupported) std::memcpy(motionOriginalVS.data(), vsConstants, sizeof(vsConstants));
+                // Save only the words jitter can change. Collect copies the FULL
+                // VS bank once and restores this proven matrix window in its arena.
+                std::array<uint32_t, 16> motionOriginalVP;
+                if (motionSupported) {
+                    render_batch::CpuTimer<> timer(motionOptions.timing);
+                    std::memcpy(motionOriginalVP.data(), vsConstants + temporalSlot * 4, sizeof(motionOriginalVP));
+                    mvScratchBytes += sizeof(motionOriginalVP); timer.AddTo(mvTrackCpuMs);
+                }
                 uint64_t motionGeometry = 0xcbf29ce484222325ull;
                 bool motionStreamsValid = true;
                 const bool diagnosticMaterialBypass = taaDiagnosticMaterials == 0 &&
@@ -3779,6 +3794,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     }
                     shared.vfetchOffset[slot] = uint32_t(offset);
                     if (motionSupported) {
+                        render_batch::CpuTimer<> mvTimer(motionOptions.timing);
                         // Every stream, not the first fetch. Arena uploads are immutable;
                         // an overwrite/re-upload or recycled arena invalidates history.
                         motionGeometry = temporal::MotionHashWord(motionGeometry, slot);
@@ -3786,6 +3802,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         motionGeometry = temporal::MotionHashWord(motionGeometry, d1);
                         motionGeometry = temporal::MotionHashWord(motionGeometry, offset);
                         motionGeometry = temporal::MotionHashWord(motionGeometry, motionArenaGeneration[offset / gpu::render_arena::kSlotArenaSize]);
+                        mvTimer.AddTo(mvTrackCpuMs);
                     }
                     if (vfTrace)
                         vfTraceLine += fmt::format(" vf{}=arena+{:#x}({:#x},{}dw,e{})", slot, offset, address, sizeDwords, d1 & 3);
@@ -4427,13 +4444,16 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         drawTemporalTracker.Invalidate();
                         if (motionReplay) motionReplay->AbortFrame();
                     } else {
+                        render_batch::CpuTimer<> mvTimer(motionOptions.timing);
                         temporal::DrawHistoryKey mk{};
                         mk.vsHash = key.vs; mk.psHash = key.ps; mk.sceneAllocation = depth->allocationSerial;
                         mk.indexBufferAddress = useIndices ? info.indexBase : 0;
                         mk.indexCount = indexCount; mk.baseVertex = baseVertex; mk.primitiveType = info.primitiveType;
                         for (uint32_t index : indices) motionGeometry = temporal::MotionHashWord(motionGeometry, index);
                         mk.geometrySignature = motionGeometry;
-                        auto match = drawTemporalTracker.Collect(mk, motionOriginalVS.data(), &shared, vs->info.usesRelativeConstants);
+                        auto match = drawTemporalTracker.Collect(mk, vsConstants, &shared, vs->info.usesRelativeConstants,
+                            drawJitter.applied ? temporalSlot : -1, motionOriginalVP.data());
+                        mvTimer.AddTo(mvTrackCpuMs);
                         if (motionReplay && motionReplay->UsableThisFrame()) {
                             const auto w = uint32_t(rasterViewport.width), h = uint32_t(rasterViewport.height);
                             auto* mp = motionReplay->PreparePipeline(key, DescribePipeline(key, vs, ps, false),
@@ -5633,6 +5653,26 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             static const bool stats = getenv("LO_GPU_STATS") != nullptr;
             static auto lastFrame = std::chrono::steady_clock::now();
             g_renderer->Flush();
+            {
+                auto& r = *g_renderer;
+                if (r.motionOptions.log && r.frame % 120 == 0) {
+                    const auto& st = r.drawTemporalTracker.Stats();
+                    LOG_INFO("mv audit frame={} timing={} mv_track_cpu_ms={:.6f} unique={} duplicate={} snapshot_bytes={} scratch_bytes={} scope=current_frame_tracking_wall_and_copy_bytes",
+                        r.frame,r.motionOptions.timing,r.mvTrackCpuMs,r.drawTemporalTracker.ActiveDrawCount(),
+                        st.ambiguousRejectedMatches,st.snapshotBytes,r.mvScratchBytes);
+                    auto log = [&](const char* name,const temporal::GpuPassTimingStats& t) {
+                        LOG_INFO("mv timestamp pass={} samples={} unavailable={} total_ms={:.6f} last_ms={:.6f} query_pools={} scope=lifetime_completed_queue_intervals_not_whole_frame negative_last=unavailable",
+                            name,t.samples,t.unavailable,t.totalMilliseconds,t.lastMilliseconds,t.queryPoolAllocations);
+                    };
+                    if(r.motionReplay) {
+                        log("replay_draw",r.motionReplay->DrawTiming()); log("validity_mask",r.motionReplay->MaskTiming());
+                        LOG_INFO("mv resources pending={} pooled_batches={} batch_allocations={}",r.motionReplay->PendingCount(),r.motionReplay->BatchCount(),r.motionReplay->MaskBatchAllocations());
+                    }
+                    if(r.temporalHistory) {log("taa",r.temporalHistory->ResolveTiming());log("display",r.temporalHistory->DisplayTiming());}
+                    if(r.hdrTemporalHistory) log("hdr_taa",r.hdrTemporalHistory->ResolveTiming());
+                }
+                r.mvTrackCpuMs = 0; r.mvScratchBytes = 0;
+            }
             if ((stats || render_timing::Enabled()) && (render_timing::Enabled() || g_renderer->frame % 60 == 0))
                 LOG_INFO("renderer resolve copies frame={} recorded={} skipped={} reuse={} scope=current_frame_consecutive_color_resolves",
                     g_renderer->frame, g_renderer->resolveCopiesRecorded, g_renderer->resolveCopiesSkipped, g_renderer->resolveCopyReuse);

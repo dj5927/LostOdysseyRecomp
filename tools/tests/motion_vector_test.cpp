@@ -36,7 +36,7 @@ int main() {try {
     t.BeginFrame(6,11);Require(!t.Collect(k,constants.data(),shared.data(),true).previous,"frame gap invalidates history");
     t.BeginFrame(7,11);Require(!t.Collect(k,constants.data(),shared.data(),true).previous,"unfinished frame cannot supply history");t.FinalizeFrame();
     t.BeginFrame(8,11);m=t.Collect(k,constants.data(),shared.data(),true);Require(t.FinalizeFrame()[m.tag]==1,"consecutive unique draw accepted");
-    Require(t.Stats().skinnedMatches==1,"relative-state diagnostic count after freeze");
+    Require(t.Stats().relativeConstantMatches==1,"relative-state diagnostic count after freeze");
     t.Collect(k,constants.data(),shared.data(),true);Require(t.Failed()&&t.FinalizeFrame()[m.tag]==0,"late collection invalidates entire frozen view");
     t.BeginFrame(9,11);Require(!t.Collect(k,constants.data(),shared.data(),true).previous,"failed frame not promoted");t.FinalizeFrame();
     t.BeginFrame(10,11);auto other=k;other.geometrySignature++;Require(!t.Collect(other,constants.data(),shared.data(),false).previous,"changed geometry generation rejects previous");t.FinalizeFrame();
@@ -44,6 +44,17 @@ int main() {try {
     DrawTemporalTracker bounded(2);bounded.BeginFrame(1);bounded.Collect(k,constants.data(),shared.data(),false);other.vsHash++;bounded.Collect(other,constants.data(),shared.data(),false);other.vsHash++;
     bounded.Collect(other,constants.data(),shared.data(),false);Require(bounded.Failed()&&bounded.ActiveDrawCount()==2,"capacity overflow bounded, no growth/fake match");
     const auto& validity=bounded.FinalizeFrame();Require(std::all_of(validity.begin(),validity.end(),[](auto x){return x==0;}),"overflow invalidates all tags");
+    DrawTemporalTracker restored;
+    auto uploaded=constants;std::array<uint32_t,16> original{};
+    for(unsigned i=0;i<16;++i){original[i]=0x3f800000u+i;uploaded[252*4+i]=0x40000000u+i;}
+    restored.BeginFrame(1);restored.Collect(k,uploaded.data(),shared.data(),true,252,original.data());restored.FinalizeFrame();
+    restored.BeginFrame(2);auto recovered=restored.Collect(k,uploaded.data(),shared.data(),true,252,original.data());
+    Require(recovered.previous&&std::memcmp(recovered.previous->vsConstants.data()+252*4,original.data(),64)==0,"pre-jitter matrix restored bit-exact at last legal slot");
+    Require(std::memcmp(recovered.previous->vsConstants.data(),uploaded.data(),252*16)==0,"full bank outside proven jitter window is preserved");
+    Require(uploaded[252*4]==0x40000000u,"snapshot never mutates the uploaded guest constant bank");
+    Require(restored.Stats().snapshotBytes==4096+208+64,"snapshot copy bytes count actual full-bank/prefix/restore writes");
+    restored.FinalizeFrame();restored.BeginFrame(3);
+    Require(!restored.Collect(k,uploaded.data(),shared.data(),true,253,original.data()).previous,"out-of-range matrix window fails closed");
     DrawTemporalTracker steady(128);
     for(uint64_t f=1;f<=3;++f){steady.BeginFrame(f);for(unsigned i=0;i<100;++i){k.vsHash=i;steady.Collect(k,constants.data(),shared.data(),false);}steady.FinalizeFrame();}
     const size_t before=allocations;

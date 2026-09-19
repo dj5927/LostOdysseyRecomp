@@ -1,5 +1,6 @@
 #include <gpu/motion_replay_gpu.h>
 #include <gpu/temporal_history.h>
+#include <gpu/temporal_jitter.h>
 #include <gpu/shader/dxc_compiler.h>
 #include "motion_replay_fixture.h"
 #include <cstdio>
@@ -59,7 +60,7 @@ public:
         pixel[0]=pixel[1]=pixel[2]=.5f;pixel[3]=1;
     }
     static void Write(RenderBuffer* b,const void* data,size_t n){auto* p=b->map();if(!p)throw std::runtime_error("map failed");std::memcpy(p,data,n);b->unmap();}
-    void Submit(){cmd->end();const RenderCommandList* c[]={cmd.get()};queue->executeCommandLists(c,1,nullptr,0,nullptr,0,fence.get());queue->waitForCommandFence(fence.get());replay.ReleaseCompletedThrough(replay.RecordedSerial());}
+    void Submit(){replay.SealTimings(cmd.get());cmd->end();const RenderCommandList* c[]={cmd.get()};queue->executeCommandLists(c,1,nullptr,0,nullptr,0,fence.get());queue->waitForCommandFence(fence.get());replay.ReleaseCompletedThrough(replay.RecordedSerial());}
     std::unique_ptr<RenderShader> Compile(const std::string& source,bool ps) {
         auto c=xenos::CompileHlsl(source,"main",ps?"ps_6_0":"vs_6_0",xenos::ShaderBinaryFormat::Spirv);
         if(!c.ok)throw std::runtime_error(c.errors);
@@ -122,7 +123,7 @@ public:
         cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(target,RenderTextureLayout::SHADER_READ));Submit();
     }
     void TestTaa(MotionFrameView view,float currentZ=.5f) {
-        gpu::TemporalAA taa;Require(taa.Init(device.get()),"production TAA initializes for geometric MV");
+        gpu::TemporalAA taa;taa.EnableGpuTiming(true);Require(taa.Init(device.get()),"production TAA initializes for geometric MV");
         auto make=[&](RenderFormat fmt,bool rt=false){return device->createTexture(RenderTextureDesc::Texture2D(W,H,1,fmt,rt?RenderTextureFlag::RENDER_TARGET:RenderTextureFlag::NONE));};
         auto cur=make(RenderFormat::R8G8B8A8_UNORM),prev=make(RenderFormat::R8G8B8A8_UNORM),oldDepth=make(RenderFormat::R32_FLOAT),output=make(RenderFormat::R8G8B8A8_UNORM,true);
         std::vector<uint32_t> colors(W*H),history(W*H),depths(W*H,std::bit_cast<uint32_t>(.5f));
@@ -143,6 +144,91 @@ public:
         px=run();Require((px&255)==64,"geometric previous depth rejects occluded history");
         in.historyValid=false;px=run();Require((px&255)==64,"first/cut frame cannot consume history");
     }
+
+    void JitterCycle() {
+        gpu::TemporalAA taa;Require(taa.Init(device.get()),"full-cycle consumer initialization");
+        auto make=[&](RenderFormat fmt,bool rt=false){return device->createTexture(RenderTextureDesc::Texture2D(W,H,1,fmt,rt?RenderTextureFlag::RENDER_TARGET:RenderTextureFlag::NONE));};
+        auto cur=make(RenderFormat::R8G8B8A8_UNORM),prev=make(RenderFormat::R8G8B8A8_UNORM),old=make(RenderFormat::R32_FLOAT),out=make(RenderFormat::R8G8B8A8_UNORM,true);
+        std::vector<uint32_t> pixels(W*H),history(W*H),z(W*H,std::bit_cast<uint32_t>(.5f));
+        for(unsigned y=0;y<H;++y)for(unsigned x=0;x<W;++x){unsigned a=x%2?192:64,b=32+4*x;pixels[y*W+x]=a*0x010101u+0xff000000u;history[y*W+x]=b*0x010101u+0xff000000u;}
+        Fill(cur.get(),pixels,RenderFormat::R8G8B8A8_UNORM);Fill(prev.get(),history,RenderFormat::R8G8B8A8_UNORM);Fill(old.get(),z,RenderFormat::R32_FLOAT);
+        Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};auto camera=Camera::Create(identity,{0,0,W,H});
+        for(bool skin:{false,true}) {
+            current.fill(0);previous.fill(0);
+            if(skin) for(unsigned i=0;i<4;++i){current[64+i]=previous[64+i]=.25f;current[68+i]=previous[68+i]=.75f;}
+            for(unsigned phase=0;phase<32;++phase) {
+                const auto j=FrameJitter(phase,W,H),p=FrameJitter((phase+31)%32,W,H);
+                auto view=Run(skin,false,false,float(j.pixelX),float(j.pixelY));
+                auto mv=Read(view.velocity,RenderFormat::R16G16_FLOAT,4),mask=Read(view.reactive,RenderFormat::R8_UNORM,1);
+                uint16_t v[2];std::memcpy(v,mv.data()+(32*W+32)*4,4);
+                Require(mask[32*W+32]==0&&std::abs(Half(v[0]))<.002f&&std::abs(Half(v[1]))<.002f,"stationary real program has zero geometric MV through jitter cycle");
+                gpu::TemporalAAInputs in;in.currentColor=cur.get();in.historyColor=prev.get();in.currentDepth=sceneDepth.get();in.historyDepth=old.get();in.output=out.get();
+                in.motionVector=view.velocity;in.motionDepths=view.depths;in.reactiveMask=view.reactive;in.motionVectorValid=true;
+                in.width=in.historyWidth=W;in.height=in.historyHeight=H;in.currentCamera=in.previousCamera=&*camera;in.historyValid=true;in.rejectAllHistory=false;in.historyWeight=.5f;
+                in.currentJitterX=j.pixelX;in.currentJitterY=j.pixelY;in.previousJitterX=p.pixelX;in.previousJitterY=p.pixelY;
+                for(bool stable:{false,true}) {
+                    in.stableGrid=stable;cmd->begin();cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(out.get(),RenderTextureLayout::COLOR_WRITE));
+                    if(!taa.Resolve(cmd.get(),in))throw std::runtime_error(taa.LastError());Submit();taa.ReleaseCompleted();
+                    auto data=Read(out.get(),RenderFormat::R8G8B8A8_UNORM,4);
+                    // Ramp = 32+4*x, current center=64, weight=.5. Stable q is the
+                    // stable grid itself; raw q also contains previous-current jitter.
+                    float expected=112.f+(stable?0.f:2.f*float(p.pixelX-j.pixelX));
+                    Near(float(data[(32*W+32)*4]),expected,stable?"stable grid cycle does not drift":"raw grid cycle compensates jitter once",1.1f);
+                }
+            }
+        }
+    }
+    void HistorySafety(MotionFrameView validView) {
+        const Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
+        auto frame=[&](HistoryOwner& owner,uint64_t number,bool pattern,const MotionFrameView* motion,double jitter=0,bool expect=true) {
+            std::vector<uint32_t> pixels(W*H),z(W*H,std::bit_cast<uint32_t>(.5f));
+            for(unsigned y=0;y<H;++y)for(unsigned x=0;x<W;++x){unsigned a=pattern?(x%2?192:64):128;pixels[y*W+x]=a*0x010101u+0xff000000u;}
+            Fill(color.get(),pixels,RenderFormat::R8G8B8A8_UNORM);Fill(sceneDepth.get(),z,RenderFormat::R32_FLOAT);
+            SceneObservation scene;scene.Reset(number);SceneAnchor anchor;anchor.depthAllocation=7;anchor.viewport={0,0,W,H};
+            for(unsigned i=0;i<16;++i)anchor.vpBits[i]=std::bit_cast<uint32_t>(float(identity[i]));
+            scene.ObserveCamera(anchor);scene.ObserveDepth(7,{number,number*2+1,0x1000,24,W,H,true});
+            owner.BeginFrame(number,42);cmd->begin();
+            cmd->barriers(RenderBarrierStage::COPY,RenderTextureBarrier(sceneDepth.get(),RenderTextureLayout::COPY_SOURCE));
+            Require(owner.CaptureDepth(cmd.get(),sceneDepth.get(),scene),"HistoryOwner records frame-qualified depth");
+            cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(sceneDepth.get(),RenderTextureLayout::SHADER_READ));
+            scene.ObserveColor({number,number*2+2,0x2000,6,W,H,true});
+            cmd->barriers(RenderBarrierStage::COPY,RenderTextureBarrier(color.get(),RenderTextureLayout::COPY_SOURCE));
+            auto* result=owner.ResolveColor(cmd.get(),color.get(),scene,jitter,0,true,true,false,motion);
+            Require(bool(result)==expect,"HistoryOwner resolve success/failure contract");
+            auto serial=owner.RecordedSerial();Submit();owner.ReleaseCompletedThrough(serial);
+            return result?Read(result,RenderFormat::R8G8B8A8_UNORM,4)[(32*W+32)*4]:uint8_t(0);
+        };
+        validView.frame=2;validView.epoch=42;validView.depthAllocation=7;
+        for(unsigned mode=0;mode<9;++mode) {
+            HistoryOwner owner;Require(owner.Init(device.get()),"HistoryOwner safety initialization");owner.EnableGpuTiming(true);
+            frame(owner,1,false,nullptr);
+            auto view=validView;const MotionFrameView* supplied=&view;
+            switch(mode){case 0:supplied=nullptr;break;case 1:view={};break;case 2:++view.frame;break;case 3:++view.epoch;break;case 4:++view.depthAllocation;break;case 5:--view.width;break;case 6:view.reactive=nullptr;break;case 7:view.ready=false;break;default:break;}
+            const auto pixel=frame(owner,2,true,supplied);
+            const bool reuse=mode==0||mode==8;
+            Require(owner.Reused()==reuse,"readiness failure cannot masquerade as camera-history reuse");
+            Require(reuse?pixel>100:pixel==64,"invalid geometric frame preserves current color instead of camera history");
+            Require(owner.ResolveTiming().samples==2,"owner resolves timestamps at its own fence serial");
+        }
+        HistoryOwner reset;Require(reset.Init(device.get()),"history reset fixture");
+        frame(reset,1,false,nullptr);frame(reset,2,true,nullptr,.75,false);
+        frame(reset,3,true,nullptr);Require(reset.Completed()&&!reset.Reused(),"unused invalid previous jitter cannot poison reset frame");
+        frame(reset,4,true,nullptr);Require(reset.Reused(),"normal history resumes after reset");
+    }
+    void TimingLifecycle() {
+        GpuPassTimer<2,2> timer;
+        cmd->begin();Require(!timer.Begin(device.get(),cmd.get())&&timer.Stats().queryPoolAllocations==0,"disabled GPU timers allocate nothing");Submit();
+        timer.Enable(true);
+        for(unsigned i=1;i<=2;++i){cmd->begin();Require(timer.Begin(device.get(),cmd.get()),"bounded timer begins interval");timer.End(cmd.get(),i);timer.Seal(cmd.get());Submit();}
+        Require(timer.PendingCount()==2&&timer.Stats().samples==0,"timestamps retained until explicit completion callback");
+        cmd->begin();Require(!timer.Begin(device.get(),cmd.get()),"in-flight query bound reports unavailable rather than reallocating");Submit();
+        timer.ReleaseCompletedThrough(1);Require(timer.PendingCount()==1&&timer.Stats().samples==1,"only completed timestamp prefix is read");
+        timer.ReleaseCompletedThrough(2);Require(timer.PendingCount()==0&&timer.Stats().samples==2,"later timestamp remains until its own completion");
+        const auto allocations=timer.Stats().queryPoolAllocations;
+        for(unsigned i=3;i<20;++i){cmd->begin();Require(timer.Begin(device.get(),cmd.get()),"reused timer interval");timer.End(cmd.get(),i);timer.Seal(cmd.get());Submit();timer.ReleaseCompletedThrough(i);}
+        Require(timer.Stats().queryPoolAllocations==allocations&&timer.Stats().samples==19,"native timestamp pools reused after fence without stale samples");
+    }
+
     void Stress(unsigned frames) {
         for(unsigned i=0;i<frames;++i){cmd->begin();replay.BeginFrame(++token,1000);if(!replay.BeginScene(cmd.get(),1,depth.get(),W,H))throw std::runtime_error("stress BeginScene");
             auto view=replay.Finish(cmd.get(),sceneDepth.get(),std::vector<uint32_t>{0,1});if(!view.ready)throw std::runtime_error("stress Finish");Submit();
@@ -173,7 +259,7 @@ int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--compile-only") {
         printf("PASS: %u DXIL/SPIR-V compilation checks; no device execution requested\n", checks); return 0;
     }
-    Fixture f;f.current[16]=.2f;auto view=f.Run();auto data=f.Read(view.velocity,RenderFormat::R16G16_FLOAT,4);auto mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);
+    Fixture f;f.replay.EnableGpuTiming(true);f.current[16]=.2f;auto view=f.Run();auto data=f.Read(view.velocity,RenderFormat::R16G16_FLOAT,4);auto mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);
     const auto at=32*64+38;uint16_t xy[2];std::memcpy(xy,data.data()+at*4,4);
     Near(Half(xy[0]),-6.4f,"GPU rigid backward displacement");Near(Half(xy[1]),0,"GPU rigid Y");Require(mask[at]==0,"rigid interior valid");Require(mask[0]==255,"unwritten pixels invalid");
     view=f.Run(false,true);mask=f.Read(view.reactive,RenderFormat::R8_UNORM,1);Require(mask[at]==255,"late duplicate revokes the FIRST recorded GPU draw too");
@@ -189,7 +275,12 @@ int main(int argc, char** argv) {
     view=f.Run(false,false,false,.25f,-.125f);data=f.Read(view.velocity,RenderFormat::R16G16_FLOAT,4);std::memcpy(xy,data.data()+at*4,4);
     Near(Half(xy[0]),-4,"producer removes jitter once from actual rasterized motion");Near(Half(xy[1]),0,"producer unjittered Y");f.TestTaa(view);
     f.current[18]=.2f;view=f.Run();f.TestTaa(view,.3f);
+    f.current.fill(0);f.previous.fill(0);view=f.Run();f.HistorySafety(view);
+    f.JitterCycle();f.TimingLifecycle();
+    Require(f.replay.DrawTiming().samples>0&&f.replay.MaskTiming().samples>0,"production replay draw and validity timestamps completed");
+    const auto batches=f.replay.MaskBatchAllocations();
     Require(f.replay.PendingCount()==0,"GPU completion releases all in-flight mask resources");f.Stress(1200);
+    Require(f.replay.MaskBatchAllocations()<=batches+2,"1200 frames plus resize do not allocate mask batches linearly");
     printf("PASS: %u motion replay GPU/translation checks\n",checks);return 0;
  } catch(const std::exception& e){fprintf(stderr,"FAIL: %s\n",e.what());return 1;}
 }

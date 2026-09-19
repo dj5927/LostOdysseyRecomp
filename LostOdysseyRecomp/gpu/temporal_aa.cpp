@@ -22,6 +22,7 @@ struct TemporalAA::Impl
     struct Pending { uint64_t serial=0; std::unique_ptr<RenderBuffer> constants; std::unique_ptr<RenderDescriptorSet> set; std::unique_ptr<RenderFramebuffer> framebuffer; };
     std::vector<Pending> pending;
     uint64_t recordedSerial=0;
+    temporal::GpuPassTimer<> resolveTimer, displayTimer;
 };
 namespace
 {
@@ -227,10 +228,14 @@ float4 displayPixel(float4 position:SV_Position):SV_Target {
 TemporalAA::TemporalAA():impl(std::make_unique<Impl>()) {}
 TemporalAA::~TemporalAA()=default;
 const std::string& TemporalAA::LastError() const { return impl->error; }
-void TemporalAA::ReleaseCompleted() { impl->pending.clear(); }
+void TemporalAA::EnableGpuTiming(bool enabled) {impl->resolveTimer.Enable(enabled);impl->displayTimer.Enable(enabled);}
+const temporal::GpuPassTimingStats& TemporalAA::ResolveTiming() const {return impl->resolveTimer.Stats();}
+const temporal::GpuPassTimingStats& TemporalAA::DisplayTiming() const {return impl->displayTimer.Stats();}
+void TemporalAA::ReleaseCompleted() { ReleaseCompletedThrough(impl->recordedSerial); }
 uint64_t TemporalAA::RecordedSerial() const { return impl->recordedSerial; }
 void TemporalAA::RecordExternalUse() { ++impl->recordedSerial; }
 void TemporalAA::ReleaseCompletedThrough(uint64_t serial) {
+    impl->resolveTimer.ReleaseCompletedThrough(serial);impl->displayTimer.ReleaseCompletedThrough(serial);
     std::erase_if(impl->pending,[serial](const Impl::Pending& pending){return pending.serial<=serial;});
 }
 bool TemporalAA::Init(RenderDevice* device)
@@ -316,15 +321,17 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
     if(p.vulkan) {
         pending.constants=p.device->createBuffer(RenderBufferDesc::UploadBuffer(sizeof(Constants),RenderBufferFlag::CONSTANT));
         if(!pending.constants){p.error="Temporal constants allocation failed";return false;}
-        auto* mapped=pending.constants->map();memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
+        auto* mapped=pending.constants->map();if(!mapped){p.error="Temporal constants map failed";return false;}memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
         pending.set->setBuffer(8,pending.constants.get(),sizeof(c));
     }
 
     pending.serial=p.recordedSerial+1;p.pending.push_back(std::move(pending));++p.recordedSerial;auto& resources=p.pending.back();
+    const bool timed=p.resolveTimer.Begin(p.device,commands);
     commands->setFramebuffer(resources.framebuffer.get());RenderViewport viewport(0,0,float(in.width),float(in.height));RenderRect scissor(0,0,in.width,in.height);
     commands->setViewports(&viewport,1);commands->setScissors(&scissor,1);
     commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(p.pipeline.get());
     if(!p.vulkan) commands->setGraphicsPushConstants(0,&c);commands->setGraphicsDescriptorSet(resources.set.get(),0);commands->drawInstanced(3,1,0,0);
+    if(timed)p.resolveTimer.End(commands,p.recordedSerial);
     return true;
 }
 }
@@ -347,20 +354,25 @@ bool TemporalAA::ReconstructDisplay(RenderCommandList* commands,const TemporalDi
     if(p.vulkan) {
         pending.constants=p.device->createBuffer(RenderBufferDesc::UploadBuffer(sizeof(Constants),RenderBufferFlag::CONSTANT));
         if(!pending.constants){p.error="Temporal constants allocation failed";return false;}
-        auto* mapped=pending.constants->map();memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
+        auto* mapped=pending.constants->map();if(!mapped){p.error="Temporal constants map failed";return false;}memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
         pending.set->setBuffer(8,pending.constants.get(),sizeof(c));
     }
     pending.serial=p.recordedSerial+1;p.pending.push_back(std::move(pending));++p.recordedSerial;auto& resources=p.pending.back();
+    const bool timed=p.displayTimer.Begin(p.device,commands);
     commands->setFramebuffer(resources.framebuffer.get());RenderViewport viewport(0,0,float(in.width),float(in.height));RenderRect scissor(0,0,in.width,in.height);
     commands->setViewports(&viewport,1);commands->setScissors(&scissor,1);
     commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(p.displayPipeline.get());
     if(!p.vulkan) commands->setGraphicsPushConstants(0,&c);commands->setGraphicsDescriptorSet(resources.set.get(),0);commands->drawInstanced(3,1,0,0);
+    if(timed)p.displayTimer.End(commands,p.recordedSerial);
     return true;
 }
 }
 #else
 namespace gpu {
-struct TemporalAA::Impl {std::string error="Temporal AA requires plume";};
+struct TemporalAA::Impl {std::string error="Temporal AA requires plume";temporal::GpuPassTimingStats timingStats;};
+void TemporalAA::EnableGpuTiming(bool){}
+const temporal::GpuPassTimingStats& TemporalAA::ResolveTiming()const{return impl->timingStats;}
+const temporal::GpuPassTimingStats& TemporalAA::DisplayTiming()const{return impl->timingStats;}
 TemporalAA::TemporalAA():impl(std::make_unique<Impl>()){} TemporalAA::~TemporalAA()=default;
 bool TemporalAA::Init(plume::RenderDevice*){return false;}
 bool TemporalAA::Init(plume::RenderDevice*,bool){return false;}

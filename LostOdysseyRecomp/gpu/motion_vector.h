@@ -54,7 +54,7 @@ struct DrawTemporalState {
     // fixed half pixel, VTE and flags. Fetch offsets remain those of CURRENT geometry.
     std::array<uint32_t, 52> shared;
     uint32_t previousIndex = UINT32_MAX;
-    bool isSkinned = false, valid = false;
+    bool usesRelativeConstants = false, valid = false;
     DrawTemporalState() noexcept {} // overwritten by memcpy; do not zero 4 KiB per insertion
 };
 
@@ -92,8 +92,9 @@ public:
     struct DiagnosticsStats {
         uint64_t frame = 0;
         uint32_t sceneDrawCount = 0, trackedCurrentDraws = 0, matchedPreviousDraws = 0;
-        uint32_t unmatchedDraws = 0, ambiguousRejectedMatches = 0, rigidMatches = 0, skinnedMatches = 0;
+        uint32_t unmatchedDraws = 0, ambiguousRejectedMatches = 0, directConstantMatches = 0, relativeConstantMatches = 0;
         uint32_t overflowDraws = 0, lateDraws = 0;
+        uint64_t snapshotBytes = 0;
     };
     struct Match { uint32_t tag = 0; const DrawTemporalState* previous = nullptr; };
     explicit DrawTemporalTracker(size_t limit = kMaxDraws) : limit_(std::clamp(limit, size_t(1), kMaxDraws)) {}
@@ -108,7 +109,8 @@ public:
         if (validity_.capacity() < limit_ + 1) validity_.reserve(limit_ + 1);
     }
     void Invalidate() { failed_ = true; std::fill(validity_.begin(), validity_.end(), 0); }
-    Match Collect(const DrawHistoryKey& key, const void* constants, const void* sharedPrefix, bool relative) {
+    Match Collect(const DrawHistoryKey& key, const void* constants, const void* sharedPrefix, bool relative,
+        int restoredSlot = -1, const void* originalVP = nullptr) {
         if (!begun_ || finalized_) { ++stats_.lateDraws; Invalidate(); return {}; }
         ++stats_.trackedCurrentDraws;
         if (failed_) return {};
@@ -122,10 +124,19 @@ public:
         if (cur.draws.size() == limit_) { ++stats_.overflowDraws; Invalidate(); return {}; }
         const uint32_t index = uint32_t(cur.draws.size());
         auto& s = cur.draws.emplace_back();
-        s.key = key; s.isSkinned = relative; s.valid = constants && sharedPrefix;
+        s.key = key; s.usesRelativeConstants = relative; s.valid = constants && sharedPrefix &&
+            (restoredSlot == -1 || (restoredSlot >= 0 && restoredSlot <= 252 && originalVP));
         s.previousIndex = prev.Find(key);
         if (constants) std::memcpy(s.vsConstants.data(), constants, sizeof(s.vsConstants));
         else s.vsConstants.fill(0);
+        // ApplyDrawJitter only modifies this proven 4x4 window. Snapshot the full
+        // bank ONCE, then restore these original bits; no bone-window assumption.
+        if (s.valid && restoredSlot >= 0) {
+            std::memcpy(s.vsConstants.data() + restoredSlot * 4, originalVP, 16 * sizeof(uint32_t));
+            stats_.snapshotBytes += 16 * sizeof(uint32_t);
+        }
+        if (constants) stats_.snapshotBytes += sizeof(s.vsConstants);
+        if (sharedPrefix) stats_.snapshotBytes += sizeof(s.shared);
         if (sharedPrefix) std::memcpy(s.shared.data(), sharedPrefix, sizeof(s.shared));
         else s.shared.fill(0);
         cur.slots[slot] = index + 1;
@@ -135,11 +146,11 @@ public:
     }
     // Compatibility entry for CPU fixtures. Production uses Collect with complete shared prefix.
     const DrawTemporalState* RecordDraw(const DrawHistoryKey& key, const float* c,
-        const uint32_t* b = nullptr, const uint32_t* l = nullptr, bool skinned = false) {
+        const uint32_t* b = nullptr, const uint32_t* l = nullptr, bool relative = false) {
         std::array<uint32_t, 52> shared{};
         if (b) std::memcpy(shared.data(), b, 8 * sizeof(uint32_t));
         if (l) std::memcpy(shared.data() + 8, l, 32 * sizeof(uint32_t));
-        return Collect(key, c, shared.data(), skinned).previous;
+        return Collect(key, c, shared.data(), relative).previous;
     }
     const std::vector<uint32_t>& FinalizeFrame() {
         if (finalized_) return validity_;
@@ -152,7 +163,7 @@ public:
             const bool accept = !failed_ && s.valid && s.previousIndex != UINT32_MAX && prev.draws[s.previousIndex].valid;
             if (accept) {
                 validity_[i + 1] = 1; ++stats_.matchedPreviousDraws;
-                if (s.isSkinned) ++stats_.skinnedMatches; else ++stats_.rigidMatches;
+                if (s.usesRelativeConstants) ++stats_.relativeConstantMatches; else ++stats_.directConstantMatches;
             } else ++stats_.unmatchedDraws;
         }
         return validity_;

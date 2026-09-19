@@ -198,6 +198,9 @@ public:
         colorFormat_=hdrColor?plume::RenderFormat::R16G16B16A16_FLOAT:plume::RenderFormat::R8G8B8A8_UNORM;
         return aa_.Init(device,hdrColor);
     }
+    void EnableGpuTiming(bool enabled) {aa_.EnableGpuTiming(enabled);}
+    const GpuPassTimingStats& ResolveTiming() const {return aa_.ResolveTiming();}
+    const GpuPassTimingStats& DisplayTiming() const {return aa_.DisplayTiming();}
     void Reset() {valid_=false;motionVectorValid_=false;motionView_={};for(auto& frame:frames_)frame.completed=false;}
     bool MotionVectorValid() const { return motionVectorValid_; }
     // External passes sampling our owned depth join THIS owner's submission serial.
@@ -258,7 +261,11 @@ public:
         in.motionVectorDebug=motionDebug;
         in.motionVectorValid=motionVectorValid_;
         in.width=in.historyWidth=width_;in.height=in.historyHeight=height_;in.currentCamera=&*current.camera;in.previousCamera=previous.camera?&*previous.camera:nullptr;
-        in.currentJitterX=jx;in.currentJitterY=jy;in.previousJitterX=previous.jx;in.previousJitterY=previous.jy;in.historyValid=reuse;in.rejectAllHistory=!allowHistory;
+        in.currentJitterX=jx;in.currentJitterY=jy;in.previousJitterX=reuse?previous.jx:0;in.previousJitterY=reuse?previous.jy:0;in.historyValid=reuse;
+        // An explicitly requested geometric frame must not silently become camera
+        // history when tracking/coverage/epoch validation failed. nullptr alone
+        // selects the established camera-only baseline.
+        in.rejectAllHistory=!allowHistory||(motion&&!motionVectorValid_);
         if(sparse_&&!sparseReleaseSerial_&&sparse_->Ready()&&taa_collection::WantSparse()) {
             taa_collection::SparseFrame f;f.frame=frame_;f.epoch=epoch_;f.width=width_;f.height=height_;
             f.current=current.camera;f.previous=previous.camera;
@@ -269,11 +276,11 @@ public:
         }
         if(!aa_.Resolve(commands,in)){Reset();return nullptr;}
         Transition(commands,history_[frame_%2],plume::RenderTextureLayout::SHADER_READ);
-        if(stableGrid) {current.completed=true;valid_=true;reused_=reuse&&allowHistory;return history_[frame_%2].texture.get();}
+        if(stableGrid) {current.completed=true;valid_=true;reused_=reuse&&!in.rejectAllHistory;return history_[frame_%2].texture.get();}
         Transition(commands,display_,plume::RenderTextureLayout::COLOR_WRITE);
         if(!aa_.ReconstructDisplay(commands,{history_[frame_%2].texture.get(),display_.texture.get(),width_,height_,jx,jy})){Reset();return nullptr;}
         Transition(commands,display_,plume::RenderTextureLayout::SHADER_READ);
-        current.completed=true;valid_=true;reused_=reuse&&allowHistory;return display_.texture.get();
+        current.completed=true;valid_=true;reused_=reuse&&!in.rejectAllHistory;return display_.texture.get();
     }
     bool Completed() const {return frames_[frame_%2].completed;}
     bool Reused() const {return reused_;}

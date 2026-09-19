@@ -1,4 +1,5 @@
 #pragma once
+#include "temporal_gpu_timing.h"
 #include "motion_vector.h"
 #include "motion_frame.h"
 #include "pipeline_cache.h"
@@ -73,6 +74,9 @@ class MotionReplayGPU {
     static constexpr size_t kMaxBatches = 16;
     std::string error_;
     uint32_t drawCount_ = 0, failedDraws_ = 0;
+    GpuPassTimer<128> drawTimer_;
+    GpuPassTimer<> maskTimer_;
+    uint64_t maskBatchAllocations_ = 0;
     static constexpr const char* kMaskShader = R"HLSL(
 Texture2D<float2> motionDepth : register(t0);
 Texture2D<uint> motionTag : register(t1);
@@ -168,6 +172,12 @@ public:
         maskPipeline_ = device->createGraphicsPipeline(d);
         initialized_ = bool(maskPipeline_); return initialized_;
     }
+    void EnableGpuTiming(bool enabled) {drawTimer_.Enable(enabled);maskTimer_.Enable(enabled);}
+    // Called before EVERY renderer submission, including mid-frame flush/abort.
+    void SealTimings(plume::RenderCommandList* commands) {drawTimer_.Seal(commands);}
+    const GpuPassTimingStats& DrawTiming() const {return drawTimer_.Stats();}
+    const GpuPassTimingStats& MaskTiming() const {return maskTimer_.Stats();}
+    uint64_t MaskBatchAllocations() const {return maskBatchAllocations_;}
     bool Ready() const { return initialized_; }
     bool UsableThisFrame() const { return initialized_ && !aborted_ && !finalized_; }
     const std::string& LastError() const { return error_; }
@@ -236,6 +246,7 @@ public:
         const plume::RenderBufferReference (&constants)[4], plume::RenderDescriptorSet* const* sets, uint32_t setCount,
         const plume::RenderViewport& viewport, const plume::RenderRect& scissor, bool indexed, uint32_t count, int32_t baseVertex) {
         if (!cleared_ || aborted_ || finalized_ || !pipeline || !commands) return false;
+        const bool timed = drawTimer_.Begin(device_, commands);
         commands->setFramebuffer(drawFramebuffer_.get()); commands->setViewports(&viewport, 1); commands->setScissors(&scissor, 1);
         commands->setGraphicsPipelineLayout(layout_.get()); commands->setPipeline(pipeline);
         if (vulkan_) {
@@ -245,7 +256,9 @@ public:
         for (uint32_t i = 0; i < setCount; ++i) commands->setGraphicsDescriptorSet(sets[i], i);
         if (indexed) commands->drawIndexedInstanced(count, 1, 0, baseVertex, 0);
         else commands->drawInstanced(count, 1, uint32_t(baseVertex), 0);
-        ++drawCount_; ++serial_; return true;
+        ++drawCount_; ++serial_;
+        if (timed) drawTimer_.End(commands, serial_);
+        return true;
     }
     MotionFrameView Finish(plume::RenderCommandList* commands, plume::RenderTexture* currentDepth,
         const std::vector<uint32_t>& validity) {
@@ -256,7 +269,7 @@ public:
         std::unique_ptr<MaskBatch> batch;
         if (!free_.empty()) { batch = std::move(free_.back()); free_.pop_back(); }
         else {
-            batch = std::make_unique<MaskBatch>();
+            batch = std::make_unique<MaskBatch>(); ++maskBatchAllocations_;
             batch->flags = device_->createBuffer(plume::RenderBufferDesc::UploadBuffer((DrawTemporalTracker::kMaxDraws + 1) * 4, plume::RenderBufferFlag::STORAGE));
             if (vulkan_) batch->constants = device_->createBuffer(plume::RenderBufferDesc::UploadBuffer(16, plume::RenderBufferFlag::CONSTANT));
             plume::RenderDescriptorSetBuilder sb; MaskSet(sb); batch->set = sb.create(device_);
@@ -277,6 +290,7 @@ public:
             std::memcpy(mapped, c, sizeof(c)); batch->constants->unmap();
             batch->set->setBuffer(4, batch->constants.get(), sizeof(c));
         }
+        const bool timed = maskTimer_.Begin(device_, commands);
         Transition(commands, velocity_, plume::RenderTextureLayout::SHADER_READ);
         Transition(commands, depths_, plume::RenderTextureLayout::SHADER_READ);
         Transition(commands, tags_, plume::RenderTextureLayout::SHADER_READ);
@@ -292,7 +306,9 @@ public:
         if (!vulkan_) commands->setGraphicsPushConstants(0, c);
         commands->setGraphicsDescriptorSet(batch->set.get(),0); commands->drawInstanced(3,1,0,0);
         Transition(commands, reactive_, plume::RenderTextureLayout::SHADER_READ);
-        batch->serial = ++serial_; pending_.push_back(std::move(batch));
+        batch->serial = ++serial_;
+        if (timed) maskTimer_.End(commands, serial_);
+        pending_.push_back(std::move(batch));
         return {velocity_.texture.get(), depths_.texture.get(), reactive_.texture.get(), frame_, epoch_, allocation_, width_, height_, true};
     }
     void ForgetDepth(const plume::RenderTexture* depth) {
@@ -307,6 +323,7 @@ public:
     size_t PendingCount() const { return pending_.size(); }
     size_t BatchCount() const { return pending_.size() + free_.size(); }
     void ReleaseCompletedThrough(uint64_t completed) {
+        drawTimer_.ReleaseCompletedThrough(completed);maskTimer_.ReleaseCompletedThrough(completed);
         for (auto it = pending_.begin(); it != pending_.end();) {
             if ((*it)->serial <= completed) {
                 if ((*it)->generation != targetGeneration_) (*it)->framebuffer.reset();

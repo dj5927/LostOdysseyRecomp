@@ -1,5 +1,6 @@
 #pragma once
 #include "temporal_math.h"
+#include "temporal_gpu_timing.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -70,6 +71,9 @@ class TemporalAA
     struct Impl;
     std::unique_ptr<Impl> impl;
 public:
+    void EnableGpuTiming(bool enabled);
+    const temporal::GpuPassTimingStats& ResolveTiming() const;
+    const temporal::GpuPassTimingStats& DisplayTiming() const;
     TemporalAA();
     ~TemporalAA();
     bool Init(plume::RenderDevice* device);
