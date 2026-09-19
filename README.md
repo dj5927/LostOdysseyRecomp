@@ -19,11 +19,11 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
-## v0.6.2 update
+## v0.6.2 release
 
-v0.6.2 packages experimental geometric motion-vector replay and the accepted main-path TAA policy. The normal TAA path uses 0.5 jitter scale, stationary motion snapping, stationary color clipping and multi-surface history with RGBA8 history at `31/33`; experimental FP16 history and moving bilinear fallback remain off. On Vulkan with an RTX 5080, the same Uhra 4K scene was accepted by the user at about 60 FPS. This is scene- and machine-limited evidence, not whole-game or cross-platform acceptance.
+Published release: [v0.6.2](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.2). The Windows ZIP and Linux AppImage include the shader set; this release has no separate shader package. v0.6.2 packages experimental geometric motion-vector replay and the accepted main-path TAA policy. The normal TAA path uses 0.5 jitter scale, stationary motion snapping, stationary color clipping and multi-surface history with RGBA8 history at `31/33`; experimental FP16 history and moving bilinear fallback remain off. On Vulkan with an RTX 5080, the same Uhra 4K scene was accepted by the user at about 60 FPS. This is scene- and machine-limited evidence, not whole-game or cross-platform acceptance.
 
-The candidate comparison measured 60.34/59.00 FPS against 54.61 FPS for a separate Release build and 54.57 FPS for the previous RelWithDebInfo main binary in hidden muted A-B-A-B captures without pacing. The 1080p-internal to 4K moving-camera limitation, broader scene coverage and D3D12 replay PSO follow-up remain open.
+The candidate comparison measured 60.34/59.00 FPS against 54.61 FPS for a separate Release build and 54.57 FPS for the previous RelWithDebInfo main binary in hidden muted A-B-A-B captures without pacing. The 1080p-internal to 4K moving-camera limitation, broader scene coverage, D3D12 replay PSO follow-up, Linux native GPU and Steam Deck validation remain open.
 
 ## v0.6.1 release
 

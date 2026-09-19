@@ -4,13 +4,13 @@
 
 `[ ]` outstanding · `[~]` in progress · `[x]` has bounded evidence. The [public maintainer Project](https://github.com/users/freefrank/projects/3) is the current work-item source of truth. This mirror keeps direction, open work and validation limits; implementation, player acceptance and release status are separate.
 
-v0.6.1 was published on 2026-09-18T17:49:18Z from `ebd2ef13969a28fcabf26a4eb2dafa9c09ca965d`. [Release CI 35374267882](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35374267882) passed the Windows/Linux release jobs and focused regressions. The release assets and validation limits are recorded in the [status record](STATUS.md).
+v0.6.2 was published on 2026-09-19T21:16:38Z from tag/source commit `7f99786f302b4ef3e5f672eacdba2b7a62972fda`. [Release CI 35467796768](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35467796768) succeeded on its second attempt for the Windows/Linux Release jobs. The release assets and validation limits are recorded in the [status record](STATUS.md).
 
 ## Delivery
 
-[v0.6.1](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.1) is the current published release. Its updater checks for updates before import on Windows and Linux; live update transactions, physical controller input and GUI acceptance remain open.
+[v0.6.2](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.2) is the current published release. Its Windows ZIP and Linux AppImage include the shader set; no separate shader package is published. Live update transactions, physical controller input, Linux native GPU, Steam Deck and GUI acceptance remain open.
 
-- [ ] **v0.6.2 release preparation:** the local patch candidate contains the accepted Uhra 4K Vulkan TAA policy and experimental geometric motion-vector replay. Source/build evidence and bounded RTX 5080 Uhra acceptance are recorded, but CI, release assets, public publication, broader scenes, 1080p-internal to 4K moving-camera coverage and D3D12 replay PSO acceptance remain pending.
+- [x] **v0.6.2 release:** the accepted Uhra 4K Vulkan TAA policy and experimental geometric motion-vector replay are published in the Windows/Linux packages. CI, package delivery and public sidecars passed; broader scenes, 1080p-internal to 4K moving-camera coverage, Linux native GPU, Steam Deck and D3D12 replay PSO acceptance remain open.
 
 [v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0) was published on 2026-09-18T15:21:34Z from `4b4b6c617172d43c7a73477881263e6e542d6cdf`. Release CI [`35359206991`](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991) passed the audit, Windows Release and Linux Release jobs. The public release contains Windows and Linux packages plus the standalone portable Vulkan shader pack and SHA-256 sidecars. The Windows ZIP, Linux AppImage and shader pack hashes are `7ebcad6c2660ea6bcce801df3e6eb0f9bb6faef87e5108898618c1144031d161`, `46c1c10e9dbaf0dc5db490aa3fd2f5b195eea8ccdbd7e35a0996f978292d3901` and `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`. Native Linux GPU, Steam Deck, AppImage update transactions and full-game playthrough remain open.
 

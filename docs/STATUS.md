@@ -1,6 +1,6 @@
 # Project status
 
-## Experimental geometric motion vectors (Unpublished / 未发布)
+## Experimental geometric motion vectors (v0.6.2 / v0.6.2 已纳入)
 
 Development progress on the experimental geometric motion replay pipeline:
 - Polygon-offset gating allows self-consistent constant depth bias while continuing to reject slope bias and non-finite values.
@@ -18,9 +18,9 @@ Development progress on the experimental geometric motion replay pipeline:
 - 验证：Windows 运行时构建通过；`motion_vector_test` 通过 40 项生命周期与 occurrence 检查；`motion_replay_gpu_test --compile-only` 通过 11 项 DXIL/SPIR-V 编译检查；Vulkan 自动化运行稳定。
 - 边界与用户反馈：用户已确认 MV 被正常消费（`consume=true`）；Bell 场景中的可见抖动依然存在，属于继续排查的 TAA 问题，未标记为已修复或已验收。D3D12 下 replay PSO 创建返回 `E_INVALIDARG 0x80070057`，仍为已记录的后续待办。
 
-## v0.6.2 release preparation / v0.6.2 发布准备
+## v0.6.2 published / v0.6.2 已发布
 
-The local v0.6.2 candidate applies the accepted Uhra TAA policy to the normal
+The v0.6.2 release applies the accepted Uhra TAA policy to the normal
 TAA path: 0.5 jitter scale, stationary motion snapping, stationary color
 clipping and multi-surface history, with RGBA8 history at `31/33`; FP16 history
 and moving bilinear fallback remain off. Geometric motion vectors are enabled
@@ -34,10 +34,26 @@ RelWithDebInfo main binary. MV audit steady tracked/matched/replay was 988 with
 failed 0; `LoMotionVectorTest` passed 71 checks and `LoVertexCacheTest` passed
 3,668,948 checks. These are local, scene-bounded results. The 1080p-internal
 to 4K moving-camera limitation, broader scene coverage and D3D12 replay PSO
-follow-up remain open. v0.6.2 is not yet published; CI, assets and public
-release verification remain pending.
+follow-up remain open. [v0.6.2](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.2) was published on
+2026-09-19T21:16:38Z from tag/source commit
+`7f99786f302b4ef3e5f672eacdba2b7a62972fda`. Release CI
+[35467796768](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35467796768)
+succeeded on its second attempt for Windows/Linux Release packaging. The final
+delivery has four public assets: Windows ZIP, Linux AppImage and their
+`.sha256` sidecars; both packages include the shader set and there is no
+separate shader package. The Windows manifest reports version/source version
+`0.6.2`, commit `7f99786` and `dirty=false`; package hashes match sidecars and
+public sidecars returned HTTP 200. The Windows ZIP SHA-256 is
+`99495f62315f44bfa1eb34ce294b8b08c9e173193e86482c2dfa4427b10963c7`; the Linux
+AppImage SHA-256 is
+`a4542b8eeee6b5ac27f4dc8e4e8f0ec184e1f0c7620e8846429a1455b3942ecd`.
+The first CI attempt failed after both platform compilations because the draft
+lacked shader input. The successful attempt downloaded a temporary v0.6.1
+shader ZIP from the draft and verified its runtime compatibility; that input
+was removed before publication. Later releases can fall back to the published
+v0.6.1 asset.
 
-当前 v0.6.2 候选已将 Uhra 验收过的 TAA 策略应用到正常 TAA 路径：0.5 抖动幅度、静止运动
+v0.6.2 已将 Uhra 验收过的 TAA 策略应用到正常 TAA 路径：0.5 抖动幅度、静止运动
 snap、静止颜色裁剪和多表面 history，RGBA8 history 权重为 `31/33`；FP16 history 和
 moving bilinear fallback 仍关闭。TAA 默认启用几何运动矢量，`LO_MV_ENABLE=0` 仍可作为
 对照开关。
@@ -47,7 +63,21 @@ RTX 5080 的 Vulkan、Uhra 4K 内部／输出同一钢架场景中，用户以�
 FPS，之前的 RelWithDebInfo 主程序为 54.57 FPS。MV audit 的 steady tracked/matched/replay
 为 988，failed 为 0；`LoMotionVectorTest` 通过 71 项，`LoVertexCacheTest` 通过 3,668,948
 项。这些是本机和限定场景结果。1080p internal 到 4K output 的移动相机限制、更广场景覆盖和
-D3D12 replay PSO 后续工作仍开放。v0.6.2 尚未发布，CI、资产和公开发布核验仍待完成。
+D3D12 replay PSO 后续工作仍开放。v0.6.2 已公开发布，Windows/Linux 包和各自
+`.sha256` sidecar 已完成公开交付核验，但 Linux 原生 GPU、Steam Deck 和更广游戏流程
+仍未实测。
+
+The main branch workflow was simplified to retain Release packaging, Release-input
+validation, online PPC source compilation and Issue triage. Seven redundant
+workflow files were removed, and four older workflow records were disabled. Later shader-pack
+input fallback uses the published v0.6.1 asset with runtime verification, and no
+prebuilt PPC library is committed. These workflow changes are source-history
+facts, separate from the bounded runtime acceptance above.
+
+主分支 workflow 已简化，仅保留 Release 打包、Release 输入校验、Actions 在线 PPC 源码
+编译和 Issue triage；七个冗余 workflow 文件已删除，另有四条历史 workflow 记录已停用。后续 shader
+输入回退使用已发布的 v0.6.1 资产并进行运行时核验，不提交 prebuilt PPC 库。这些 workflow
+改动属于源码历史事实，与上面的限定实机验收分开。
 
 ## v0.6.1 published / v0.6.1 已发布
 

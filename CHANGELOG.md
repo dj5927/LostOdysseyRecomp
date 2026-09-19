@@ -22,6 +22,8 @@ One record of completed changes, with unpublished work separated from verified r
 - 验证包括 MV audit steady tracked/matched/replay 为 988、failed 为 0，`LoMotionVectorTest` 71 项和 `LoVertexCacheTest` 3,668,948 项。用户在同一 Uhra 钢架场景前台观察，确认画质可接受、约 60 FPS。
 - 范围限定为已测试的 Uhra 场景、Vulkan 和本机 RTX 5080。1080p internal 到 4K output 的移动相机限制、更广场景覆盖和 D3D12 replay PSO 创建后续工作仍开放。
 
+Published at [GitHub Release v0.6.2](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.2) on 2026-09-19T21:16:38Z from tag/source commit `7f99786f302b4ef3e5f672eacdba2b7a62972fda`. Release CI [35467796768](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35467796768) succeeded on its second attempt for Windows/Linux Release packaging. The final public delivery has four assets: the Windows ZIP, Linux AppImage and their `.sha256` sidecars; both platform packages include the shader set, with no separate shader package. The Windows ZIP SHA-256 is `99495f62315f44bfa1eb34ce294b8b08c9e173193e86482c2dfa4427b10963c7`; the Linux AppImage SHA-256 is `a4542b8eeee6b5ac27f4dc8e4e8f0ec184e1f0c7620e8846429a1455b3942ecd`. The Windows manifest reports version/source version `0.6.2`, commit `7f99786`, and `dirty=false`. The package hashes match their sidecars and public sidecars returned HTTP 200. Linux native GPU, Steam Deck and broader gameplay remain unverified.
+
 ## v0.6.1 — 2026-09-18 / Published / 已发布
 
 ### English
