@@ -2,12 +2,7 @@ name: MV regression validation
 on:
   push:
     branches: [mv]
-    paths:
-      - '.github/workflows/mv-validation.yml'
-      - 'LostOdysseyRecomp/gpu/**'
-      - 'tools/tests/*motion*'
-      - 'tools/tests/*mv*'
-      - 'tools/mv/**'
+    paths: ['.github/workflows/mv-validation.yml', 'LostOdysseyRecomp/gpu/**', 'tools/tests/*motion*', 'tools/tests/*mv*', 'tools/mv/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,30 +12,33 @@ concurrency:
 jobs:
   reference:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
           persist-credentials: false
-      - name: Record revision and pinned public dependencies
+      - name: Install software Vulkan fixture environment
         run: |
-          mkdir -p out/mv-validation
-          git rev-parse HEAD > out/mv-validation/revision.txt
-          git submodule status --recursive >> out/mv-validation/revision.txt
-          git -C thirdparty/plume apply --reverse --check ../../tools/patches/plume-lostodyssey.patch >/dev/null 2>&1 || git -C thirdparty/plume apply ../../tools/patches/plume-lostodyssey.patch
-          tar --exclude=.git -cf out/mv-validation/dependencies.tar thirdparty/plume thirdparty/unordered_dense thirdparty/o1heap tools/XenonRecomp/XenonUtils tools/XenonRecomp/thirdparty tools/XenosRecomp/thirdparty/dxc-bin
-      - name: Build and run CPU reference (not GPU acceptance)
+          sudo apt-get update -qq
+          sudo apt-get install -y mesa-vulkan-drivers vulkan-tools
+          mkdir -p out/mv-validation/driver
+          dpkg-query -W mesa-vulkan-drivers libvulkan1 > out/mv-validation/driver/packages.txt
+          cp /usr/share/vulkan/icd.d/lvp_icd*.json out/mv-validation/driver/
+          cp /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so out/mv-validation/driver/
+          ldd /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so > out/mv-validation/driver/ldd.txt
+          for library in $(ldd /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so | awk '/=> \// {print $3}'); do cp -L "$library" out/mv-validation/driver/; done
+          vulkaninfo --summary > out/mv-validation/vulkan.txt 2>&1
+      - name: Build CPU reference
         run: |
           set -o pipefail
-          g++ -std=c++20 -O2 -Wall -Wextra -I LostOdysseyRecomp tools/tests/motion_vector_test.cpp -o out/mv-validation/motion-vector-test
-          out/mv-validation/motion-vector-test | tee out/mv-validation/reference.txt
+          g++ -std=c++20 -O2 -I LostOdysseyRecomp tools/tests/motion_vector_test.cpp -o out/mv-validation/test
+          out/mv-validation/test | tee out/mv-validation/reference.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mv-validation-${{ github.sha }}
+          name: mv-software-vulkan-${{ github.sha }}
           path: |
-            out/mv-validation/revision.txt
-            out/mv-validation/dependencies.tar
+            out/mv-validation/driver/
+            out/mv-validation/vulkan.txt
             out/mv-validation/reference.txt
           retention-days: 1
