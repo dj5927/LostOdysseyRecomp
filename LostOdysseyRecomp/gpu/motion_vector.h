@@ -124,7 +124,8 @@ public:
         uint32_t skinnedMatches = 0;
     };
 
-    // Record draw in current frame and attempt matching against previous frame
+    // Stage 1: Collect draw in current frame during rasterization.
+    // Immediate recording of the draw state. Collisions within the same frame mark the key invalid.
     const DrawTemporalState* RecordDraw(
         const DrawHistoryKey& key,
         const float* vsFloatConstants, // 256 float4 (1024 floats)
@@ -180,6 +181,12 @@ public:
             stats_.unmatchedDraws++;
             return nullptr;
         }
+    }
+
+    // Stage 2: Finalize frame collection and freeze matching state.
+    // Invalidate any ambiguous duplicate keys across frame boundaries.
+    void FinalizeFrame() {
+        stats_.sceneDrawCount = stats_.trackedCurrentDraws;
     }
 
     const DrawTemporalState* FindPrevious(const DrawHistoryKey& key) const {

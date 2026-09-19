@@ -1,5 +1,6 @@
 #pragma once
 #include "motion_vector.h"
+#include "motion_vector_gpu.h"
 #include "temporal_aa.h"
 #include "temporal_scene.h"
 
@@ -163,6 +164,7 @@ class HistoryOwner {
     plume::RenderDevice* device_=nullptr;
     TemporalAA aa_;
     std::shared_ptr<taa_collection::SparseDepthGPU> sparse_;
+    std::shared_ptr<MotionVectorGPU> mvGpu_;
     uint64_t sparseReleaseSerial_=0;
     std::array<Image,2> depth_,history_;
     Image source_,display_;
@@ -177,6 +179,7 @@ class HistoryOwner {
     bool diagnosticsEnabled_=false;
     plume::RenderFormat colorFormat_=plume::RenderFormat::R8G8B8A8_UNORM;
     HistoryReuseDiagnostic diagnostics_;
+    MotionVectorGPU motionVectorGpu_;
     static void Transition(plume::RenderCommandList* commands,Image& image,plume::RenderTextureLayout layout) {
         if(image.layout!=layout) {commands->barriers(plume::RenderBarrierStage::ALL,plume::RenderTextureBarrier(image.texture.get(),layout));image.layout=layout;}
     }
@@ -195,6 +198,7 @@ public:
     bool Init(plume::RenderDevice* device,std::shared_ptr<taa_collection::SparseDepthGPU> sparse={},bool hdrColor=false) {
         device_=device;sparse_=std::move(sparse);
         colorFormat_=hdrColor?plume::RenderFormat::R16G16B16A16_FLOAT:plume::RenderFormat::R8G8B8A8_UNORM;
+        motionVectorGpu_.Init(device);
         return aa_.Init(device,hdrColor);
     }
     void Reset() {valid_=false;motionVectorValid_=false;for(auto& frame:frames_)frame.completed=false;}
@@ -246,6 +250,33 @@ public:
         Transition(commands,source_,plume::RenderTextureLayout::SHADER_READ);
         Transition(commands,history_[frame_%2],plume::RenderTextureLayout::COLOR_WRITE);
         Transition(commands,history_[(frame_+1)%2],plume::RenderTextureLayout::SHADER_READ);
+
+        // Render GPU Motion Vector pass if previous camera is valid and reuse is permitted
+        if (motionVectorGpu_.Ready() && motionVector_.texture && previous.camera && reuse) {
+            Transition(commands, motionVector_, plume::RenderTextureLayout::COLOR_WRITE);
+            if (motionVectorGpu_.Render(
+                    commands,
+                    depth_[frame_ % 2].texture.get(),
+                    depth_[(frame_ + 1) % 2].texture.get(),
+                    motionVector_.texture.get(),
+                    width_,
+                    height_,
+                    previous.width,
+                    previous.height,
+                    *current.camera,
+                    *previous.camera,
+                    static_cast<float>(jx),
+                    static_cast<float>(jy),
+                    static_cast<float>(previous.jx),
+                    static_cast<float>(previous.jy))) {
+                motionVectorValid_ = true;
+            } else {
+                motionVectorValid_ = false;
+            }
+        } else {
+            motionVectorValid_ = false;
+        }
+
         if(motionVector_.texture) {
             Transition(commands,motionVector_,plume::RenderTextureLayout::SHADER_READ);
         }

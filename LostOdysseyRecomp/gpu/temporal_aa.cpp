@@ -97,16 +97,22 @@ float4 stablePixel(float4 position) {
  if(reactive){float mask=reactiveMask.Load(int3(p,0));if(!isfinite(mask)||mask>0)return rejected(center);}
  float d=currentDepth.Load(int3(p,0));if(!isfinite(d)||d<=0||d>1)return rejected(center);
  float2 raw=0,q=0;
+ bool hasMv=false;
  if(pad0&4) {
   float2 mv=motionVector.Load(int3(p,0)).xy;
   if(all(isfinite(mv))) {
-   q=position.xy+mv;
+   // mv is backward pixel displacement: previousRaster - currentRaster
+   // Stable color pixel is unjittered: position.xy - jitter.xy
+   // Therefore previous unjittered color q = position.xy + mv - jitter.xy
+   // And previous raw raster = q + jitter.zw = position.xy + mv + jitter.zw - jitter.xy
+   q=position.xy+mv-jitter.xy;
    raw=q+jitter.zw;
+   hasMv=true;
   }
  }
  float2 raster=position.xy+jitter.xy;
  float4 clip=mul(float4(raster,1-d,1),transform);
- if(all(raw==0)) {
+ if(!hasMv) {
   if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z))))return rejected(center);
   raw=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
   q=raw-jitter.zw;
@@ -160,13 +166,15 @@ float4 pixel(float4 position:SV_Position):SV_Target {
  if(!isfinite(d)||d<=0||d>1) return rejected(center);
  float4 clip=mul(float4(position.xy,1-d,1),transform);
  float2 q=0;
+ bool hasMv=false;
  if(pad0&4) {
   float2 mv=motionVector.Load(int3(p,0)).xy;
   if(all(isfinite(mv))) {
    q=position.xy+mv;
+   hasMv=true;
   }
  }
- if(all(q==0)) {
+ if(!hasMv) {
   if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z)))) return rejected(center);
   q=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
  }

@@ -87,6 +87,12 @@ int main()
         tracker.RecordDraw(keyA, vsConstantsNext.data(), boolConst.data(), loopConst.data(), false);
         Require(tracker.ActiveDrawCount() == 1, "Draw recorded in frame 2");
         Require(tracker.Stats().matchedPreviousDraws == 1, "Draw matched previous frame identity");
+
+        // Duplicate key within same frame: collision detection must invalidate both / reject ambiguous matches
+        DrawHistoryKey keyDup = keyA;
+        const DrawTemporalState* dupRes = tracker.RecordDraw(keyDup, vsConstantsNext.data(), boolConst.data(), loopConst.data(), false);
+        Require(dupRes == nullptr, "Collision in same frame rejects match");
+        Require(tracker.Stats().ambiguousRejectedMatches >= 1, "Collision registered as ambiguous rejected match");
     }
 
     // 2. Verify MotionVectorProducer CPU evaluation with static camera
