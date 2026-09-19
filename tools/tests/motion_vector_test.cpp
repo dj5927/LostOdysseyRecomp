@@ -167,6 +167,97 @@ int main()
         Require(grid[centerIdx].reactiveMask == 0.0f, "Valid displacement within threshold is not reactive");
     }
 
+    // 4. Verify M3: Rigid Object Motion vs Static Camera (Bell stand / rigid mesh replay)
+    // Bell stand (vsHash 0xb030ab4e17a20783, slot 4). Object moves in world space while camera is static.
+    {
+        DrawTemporalTracker tracker;
+        DrawHistoryKey bellKey{};
+        bellKey.vsHash = 0xb030ab4e17a20783ULL;
+        bellKey.indexBufferAddress = 0x81000000;
+        bellKey.firstIndex = 0;
+        bellKey.indexCount = 144;
+        bellKey.baseVertex = 0;
+        bellKey.primitiveType = 4;
+        bellKey.positionBufferAddress = 0x83000000;
+
+        std::array<uint32_t, 8> boolConst{};
+        std::array<uint32_t, 32> loopConst{};
+
+        // Frame 1: Bell object at origin (world pos = (0, 0, 10))
+        // World matrix in c0..c3 (row-major or column-major float4):
+        // c0=(1,0,0,0), c1=(0,1,0,0), c2=(0,0,1,10), c3=(0,0,0,1)
+        std::array<float, 1024> bellVSPrev{};
+        bellVSPrev[0] = 1.0f; bellVSPrev[5] = 1.0f; bellVSPrev[10] = 1.0f; bellVSPrev[11] = 10.0f; bellVSPrev[15] = 1.0f;
+        // VP matrix at slot 4 (c4..c7):
+        bellVSPrev[16] = 1.0f; bellVSPrev[21] = 2.0f; bellVSPrev[26] = 100.0f / 99.0f; bellVSPrev[27] = 1.0f;
+        bellVSPrev[30] = -100.0f / 99.0f;
+
+        tracker.BeginFrame(1);
+        tracker.RecordDraw(bellKey, bellVSPrev.data(), boolConst.data(), loopConst.data(), false);
+
+        // Frame 2: Static camera, but bell object moves +0.5 in world X (world pos = (0.5, 0, 10))
+        std::array<float, 1024> bellVSCur = bellVSPrev;
+        bellVSCur[3] = 0.5f; // translation X +0.5
+
+        tracker.BeginFrame(2);
+        const DrawTemporalState* prevMatched = tracker.RecordDraw(bellKey, bellVSCur.data(), boolConst.data(), loopConst.data(), false);
+        Require(prevMatched != nullptr, "Bell draw matched previous frame rigid state");
+        Require(tracker.Stats().matchedPreviousDraws == 1, "Matched rigid previous draw count incremented");
+
+        // Compute backward motion vector for vertex at (0, 0, 0) local:
+        // Previous world pos = (0, 0, 10), current world pos = (0.5, 0, 10).
+        // Backward world displacement = previous - current = (-0.5, 0, 0).
+        // Projected on static 1280x720 camera at z=10:
+        // dx = -0.5 * (1280 / 2) / 10 = -32.0 pixels.
+        float prevWorldX = prevMatched->vsConstants[3];
+        float curWorldX = bellVSCur[3];
+        float backwardDeltaX = prevWorldX - curWorldX;
+        Near(backwardDeltaX, -0.5f, "Rigid object backward world X displacement is -0.5");
+        float pixelMvX = backwardDeltaX * (1280.0f * 0.5f) / 10.0f;
+        Near(pixelMvX, -32.0f, "Rigid object backward pixel MV is -32.0 pixels");
+    }
+
+    // 5. Verify M3: Skinned Object Bone Transform Caching & Replay (Battle Skinned Mesh, slot 233)
+    // Skinned character (vsHash 0x0eb223d33f8e8e0cULL, slot 233, usesRelativeConstants = true)
+    {
+        DrawTemporalTracker tracker;
+        DrawHistoryKey skinKey{};
+        skinKey.vsHash = 0x0eb223d33f8e8e0cULL;
+        skinKey.indexBufferAddress = 0x84000000;
+        skinKey.firstIndex = 0;
+        skinKey.indexCount = 600;
+        skinKey.baseVertex = 0;
+        skinKey.primitiveType = 4;
+        skinKey.positionBufferAddress = 0x85000000;
+
+        std::array<uint32_t, 8> boolConst{};
+        std::array<uint32_t, 32> loopConst{};
+
+        // Frame 1: Bone matrix in relative constant register window c64..c67
+        std::array<float, 1024> skinVSPrev{};
+        skinVSPrev[64 * 4 + 0] = 1.0f; // bone 0 matrix
+        skinVSPrev[64 * 4 + 3] = 2.0f; // bone 0 translation X = 2.0
+
+        tracker.BeginFrame(1);
+        tracker.RecordDraw(skinKey, skinVSPrev.data(), boolConst.data(), loopConst.data(), true);
+
+        // Frame 2: Bone transforms rotated/translated (bone 0 translation X moves from 2.0 to 2.2)
+        std::array<float, 1024> skinVSCur = skinVSPrev;
+        skinVSCur[64 * 4 + 3] = 2.2f;
+
+        tracker.BeginFrame(2);
+        const DrawTemporalState* prevMatchedSkin = tracker.RecordDraw(skinKey, skinVSCur.data(), boolConst.data(), loopConst.data(), true);
+        Require(prevMatchedSkin != nullptr, "Skinned mesh draw matched previous frame state");
+        Require(prevMatchedSkin->isSkinned, "Skinned state preserved flag isSkinned");
+
+        // Verify that full 256 float4 constant window preserved bone matrix
+        Near(prevMatchedSkin->vsConstants[64 * 4 + 3], 2.0f, "Previous bone matrix translation preserved in 256 float4 buffer");
+        Near(skinVSCur[64 * 4 + 3], 2.2f, "Current bone matrix translation correctly updated");
+
+        float boneBackwardDeltaX = prevMatchedSkin->vsConstants[64 * 4 + 3] - skinVSCur[64 * 4 + 3];
+        Near(boneBackwardDeltaX, -0.2f, "Skinned bone backward displacement is -0.2", 1e-4f);
+    }
+
     std::printf("PASS: %d motion vector producer & draw tracker checks\n", checks);
     return 0;
 }

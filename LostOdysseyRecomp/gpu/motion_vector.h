@@ -90,6 +90,7 @@ struct DrawTemporalState {
     std::array<uint32_t, 8> boolConstants{};
     std::array<uint32_t, 32> loopConstants{};
     uint64_t lastObservedFrame = 0;
+    bool isSkinned = false;
     bool valid = false;
 };
 
@@ -147,6 +148,7 @@ public:
 
         currentEntry.key = key;
         currentEntry.lastObservedFrame = currentFrameIndex_;
+        currentEntry.isSkinned = isSkinned;
         currentEntry.valid = true;
 
         if (vsFloatConstants) {

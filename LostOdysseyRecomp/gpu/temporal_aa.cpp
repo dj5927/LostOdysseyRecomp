@@ -170,7 +170,9 @@ float4 pixel(float4 position:SV_Position):SV_Target {
  if(pad0&4) {
   float2 mv=motionVector.Load(int3(p,0)).xy;
   if(all(isfinite(mv))) {
-   q=position.xy+mv;
+   // mv is backward pixel displacement: previousRaw - currentRaw.
+   // Accounting for subpixel jitter:
+   q=position.xy+mv+jitter.zw-jitter.xy;
    hasMv=true;
   }
  }
@@ -179,19 +181,40 @@ float4 pixel(float4 position:SV_Position):SV_Target {
   q=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
  }
  float predicted=1-clip.z/clip.w;
+ // When valid motion vector is present on dynamic geometry (e.g. bell or character),
+ // camera-only clip projection depth does not match moving object previous depth.
+ // If hasMv is true, accept historyDepth tap if it agrees with either predicted depth
+ // or current depth d (to allow rigid/moving objects within continuity).
  if(!all(isfinite(q))||!isfinite(predicted)||predicted<=0||predicted>1||any(q<.5)||any(q>imageSize.zw-.5)) return rejected(center);
  int2 first=int2(floor(q-.5)),last=min(first+1,int2(imageSize.zw)-1);
  // Validate all footprint depths conservatively, including zero-weight edge taps.
- if(!depthAgrees(historyDepth.Load(int3(first,0)),predicted)
-  ||!depthAgrees(historyDepth.Load(int3(last.x,first.y,0)),predicted)
-  ||!depthAgrees(historyDepth.Load(int3(first.x,last.y,0)),predicted)
-  ||!depthAgrees(historyDepth.Load(int3(last,0)),predicted)) return rejected(center);
+ if(!hasMv) {
+  if(!depthAgrees(historyDepth.Load(int3(first,0)),predicted)
+   ||!depthAgrees(historyDepth.Load(int3(last.x,first.y,0)),predicted)
+   ||!depthAgrees(historyDepth.Load(int3(first.x,last.y,0)),predicted)
+   ||!depthAgrees(historyDepth.Load(int3(last,0)),predicted)) return rejected(center);
+ } else {
+  // Moving geometry: check against predicted or current depth
+  float hd0 = historyDepth.Load(int3(first,0));
+  float hd1 = historyDepth.Load(int3(last.x,first.y,0));
+  float hd2 = historyDepth.Load(int3(first.x,last.y,0));
+  float hd3 = historyDepth.Load(int3(last,0));
+  if((!depthAgrees(hd0,predicted)&&!depthAgrees(hd0,d))
+   ||(!depthAgrees(hd1,predicted)&&!depthAgrees(hd1,d))
+   ||(!depthAgrees(hd2,predicted)&&!depthAgrees(hd2,d))
+   ||(!depthAgrees(hd3,predicted)&&!depthAgrees(hd3,d))) return rejected(center);
+ }
  float2 fraction=frac(q-.5);
  float4 wx=cubicWeights(fraction.x),wy=cubicWeights(fraction.y);
  float3 history=0;
  [unroll]for(int cy=0;cy<4;++cy) [unroll]for(int cx=0;cx<4;++cx) {
   int2 tap=clamp(first+int2(cx-1,cy-1),int2(0,0),int2(imageSize.zw)-1);
-  if(!depthAgrees(historyDepth.Load(int3(tap,0)),predicted)) return rejected(center);
+  float tapD=historyDepth.Load(int3(tap,0));
+  if(!hasMv) {
+   if(!depthAgrees(tapD,predicted)) return rejected(center);
+  } else {
+   if(!depthAgrees(tapD,predicted)&&!depthAgrees(tapD,d)) return rejected(center);
+  }
   history+=historyColor.Load(int3(tap,0)).rgb*wx[cx]*wy[cy];
  }
  if(!all(isfinite(history))) return rejected(center);
