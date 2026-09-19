@@ -2,7 +2,13 @@ name: MV regression validation
 on:
   push:
     branches: [mv]
-    paths: ['.github/workflows/mv-validation.yml', 'LostOdysseyRecomp/gpu/**', 'tools/tests/*motion*', 'tools/tests/*mv*', 'tools/mv/**']
+    paths:
+      - '.github/workflows/mv-validation.yml'
+      - 'LostOdysseyRecomp/gpu/**'
+      - 'tools/tests/motion*'
+      - 'tools/tests/motion_replay/**'
+      - 'tools/tests/temporal*'
+      - 'docs/notes/motion-vector-implementation.md'
   workflow_dispatch:
 permissions:
   contents: read
@@ -10,45 +16,71 @@ concurrency:
   group: mv-validation-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  reference:
+  linux-vulkan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Export public source and pinned graphics dependencies
+      - name: Prepare pinned public dependencies
         run: |
           git submodule update --init --depth=1 thirdparty/plume tools/XenosRecomp thirdparty/unordered_dense
           git -C thirdparty/plume submodule update --init --recursive --depth=1
           git -C tools/XenosRecomp submodule update --init --depth=1 thirdparty/dxc-bin thirdparty/fmt
-          mkdir -p out/mv-validation
-          git rev-parse HEAD > out/mv-validation/source-revision.txt
-          tar --exclude='.git' --exclude='./out' -czf out/mv-validation/public-source.tar.gz .
-      - name: Install software Vulkan fixture environment
-        run: |
+          git -C thirdparty/plume apply ../../tools/patches/plume-lostodyssey.patch
           sudo apt-get update -qq
-          sudo apt-get install -y mesa-vulkan-drivers vulkan-tools
-          mkdir -p out/mv-validation/driver
-          dpkg-query -W mesa-vulkan-drivers libvulkan1 > out/mv-validation/driver/packages.txt
-          cp /usr/share/vulkan/icd.d/lvp_icd*.json out/mv-validation/driver/
-          cp /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so out/mv-validation/driver/
-          ldd /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so > out/mv-validation/driver/ldd.txt
-          for library in $(ldd /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so | awk '/=> \// {print $3}'); do cp -L "$library" out/mv-validation/driver/; done
-          vulkaninfo --summary > out/mv-validation/vulkan.txt 2>&1
-      - name: Build CPU reference
+          sudo apt-get install -y mesa-vulkan-drivers vulkan-tools vulkan-validationlayers libx11-dev ninja-build
+      - name: Compile production graphics modules and renderer boundary
+        run: |
+          cmake -S tools/tests/motion_replay -B out/mv-build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build out/mv-build --parallel 2
+      - name: Execute CPU, software Vulkan and legacy TAA tests
         run: |
           set -o pipefail
-          g++ -std=c++20 -O2 -I LostOdysseyRecomp tools/tests/motion_vector_test.cpp -o out/mv-validation/test
-          out/mv-validation/test | tee out/mv-validation/reference.txt
+          export LO_DXC_PATH="$PWD/tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so"
+          export VK_ICD_FILENAMES="$(find /usr/share/vulkan/icd.d -name 'lvp*.json' | head -n 1)"
+          export VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation
+          vulkaninfo --summary > out/mv-build/vulkan.txt 2>&1
+          ctest --test-dir out/mv-build -V --output-on-failure 2>&1 | tee out/mv-build/results.txt
+          if grep -E 'Validation Error|ERROR.*VUID-' out/mv-build/results.txt; then exit 1; fi
+          g++ -std=c++20 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -I LostOdysseyRecomp tools/tests/motion_vector_test.cpp -o out/mv-build/cpu-sanitized
+          out/mv-build/cpu-sanitized | tee out/mv-build/sanitizers.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mv-software-vulkan-${{ github.sha }}
+          name: mv-linux-validation-${{ github.sha }}
           path: |
-            out/mv-validation/driver/
-            out/mv-validation/vulkan.txt
-            out/mv-validation/reference.txt
-            out/mv-validation/public-source.tar.gz
-            out/mv-validation/source-revision.txt
-          retention-days: 1
+            out/mv-build/results.txt
+            out/mv-build/sanitizers.txt
+            out/mv-build/vulkan.txt
+            out/mv-build/Testing/Temporary/LastTest.log
+          retention-days: 7
+  windows-compile:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare pinned public dependencies
+        shell: bash
+        run: |
+          git submodule update --init --depth=1 thirdparty/plume tools/XenosRecomp thirdparty/unordered_dense
+          git -C thirdparty/plume submodule update --init --recursive --depth=1
+          git -C tools/XenosRecomp submodule update --init --depth=1 thirdparty/dxc-bin thirdparty/fmt
+          git -C thirdparty/plume apply ../../tools/patches/plume-lostodyssey.patch
+      - name: Build graphics modules and renderer boundary with MSVC
+        run: |
+          cmake -S tools/tests/motion_replay -B out/mv-build -A x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build out/mv-build --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: CPU and DXIL/SPIR-V validation (no hardware GPU claim)
+        shell: pwsh
+        run: |
+          $env:LO_DXC_PATH = "$pwd/tools/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxcompiler.dll"
+          & ./out/mv-build/Release/motion_vector_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./out/mv-build/Release/motion_replay_gpu_test.exe --compile-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
