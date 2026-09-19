@@ -8,6 +8,7 @@ Sources inspected in priority order:
    - Split parts: portable_vk.lospv.* (e.g. .00, .01)
 4. GitHub release asset:
    - Download LostOdysseyRecomp-shader-pack-vk12-*.zip from draft/published release
+   - Optionally use a pinned previous release as a build input
 5. Local candidate paths (for local development builds):
    - D:/Mihoyo/LostOdysseyRecomp-windows-x64/shaders/portable_vk.lospv
    - /mnt/d/Mihoyo/LostOdysseyRecomp-windows-x64/shaders/portable_vk.lospv
@@ -118,6 +119,8 @@ def main():
                         help="Path to LoShaderPackTool executable")
     parser.add_argument("--tag", type=str, default="",
                         help="Release tag to look up on GitHub (e.g. v0.5.20)")
+    parser.add_argument("--fallback-tag", type=str, default="",
+                        help="Pinned published release to use when the requested release has no shader asset")
     parser.add_argument("--required", action=argparse.BooleanOptionalAction, default=True,
                         help="Fail if unavailable; --no-required explicitly permits no bundled pack")
     parser.add_argument("--runtime-image", type=Path,
@@ -168,6 +171,9 @@ def main():
         tag = args.tag.strip() or os.environ.get("RELEASE_TAG", "")
         print(f"Attempting to download shader pack asset from GitHub release ({tag or 'latest'})...")
         acquired = try_download_release_asset(tag, target_pack)
+        if not acquired and args.fallback_tag and args.fallback_tag != tag:
+            print(f"Attempting pinned shader build input from {args.fallback_tag}...")
+            acquired = try_download_release_asset(args.fallback_tag, target_pack)
 
     # 5. Check local development locations
     if not acquired:

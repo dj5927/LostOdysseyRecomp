@@ -86,18 +86,6 @@ jobs:
           call tools\build_tools.bat || exit /b 1
           out\build\tools\xexdump.exe LostOdysseyRecompLib\private\disc1\default.xex LostOdysseyRecompLib\private\image_disc1.bin || exit /b 1
           python tools\ppc_codegen.py generate || exit /b 1
-      - name: Retrieve private shader pack
-        uses: actions/checkout@v4
-        continue-on-error: true
-        with:
-          repository: freefrank/LostOdysseyRecomp-build-inputs
-          # The shader input is immutable for this source release.
-          ref: 57f199199d7f06bc6a4c3531b5b307ae28d47bbb
-          path: out/shader-input
-          sparse-checkout: /shaders/
-          sparse-checkout-cone-mode: false
-          ssh-key: ${{ secrets.LO_BUILD_INPUT_KEY }}
-          persist-credentials: false
       - name: Build Release
         shell: cmd
         env:
@@ -108,7 +96,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
-          python tools/release/fetch_shader_pack.py --target-dir out/build/release/LostOdysseyRecomp/shaders --pack-tool out/build/release/LostOdysseyRecomp/LoShaderPackTool.exe --tag "$env:RELEASE_TAG"
+          python tools/release/fetch_shader_pack.py --target-dir out/build/release/LostOdysseyRecomp/shaders --pack-tool out/build/release/LostOdysseyRecomp/LoShaderPackTool.exe --tag "$env:RELEASE_TAG" --fallback-tag v0.6.1
       - name: Package runtime
         run: |
           if ($env:RELEASE_TAG) {
@@ -208,18 +196,6 @@ jobs:
           sparse-checkout-cone-mode: false
           ssh-key: ${{ secrets.LO_BUILD_INPUT_KEY }}
           persist-credentials: false
-      - name: Retrieve private shader pack
-        uses: actions/checkout@v4
-        continue-on-error: true
-        with:
-          repository: freefrank/LostOdysseyRecomp-build-inputs
-          # The shader input is immutable for this source release.
-          ref: 57f199199d7f06bc6a4c3531b5b307ae28d47bbb
-          path: out/shader-input
-          sparse-checkout: /shaders/
-          sparse-checkout-cone-mode: false
-          ssh-key: ${{ secrets.LO_BUILD_INPUT_KEY }}
-          persist-credentials: false
       - name: Verify private build input
         env:
           LO_BUILD_XEX_PATH: out/build-input/default.xex
@@ -257,7 +233,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python tools/release/fetch_shader_pack.py --target-dir out/build/linux/shaders --pack-tool out/build/linux/LostOdysseyRecomp/LoShaderPackTool --tag "$RELEASE_TAG"
+          python tools/release/fetch_shader_pack.py --target-dir out/build/linux/shaders --pack-tool out/build/linux/LostOdysseyRecomp/LoShaderPackTool --tag "$RELEASE_TAG" --fallback-tag v0.6.1
       - name: Package AppImage
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
