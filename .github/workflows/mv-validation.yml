@@ -1,0 +1,47 @@
+name: MV regression validation
+
+on:
+  push:
+    branches: [mv]
+    paths:
+      - '.github/workflows/mv-validation.yml'
+      - 'LostOdysseyRecomp/gpu/**'
+      - 'tools/tests/*motion*'
+      - 'tools/tests/*mv*'
+      - 'tools/mv/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mv-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record source revision
+        run: |
+          mkdir -p out/mv-validation
+          git rev-parse HEAD > out/mv-validation/revision.txt
+          git archive --format=tar -o out/mv-validation/source.tar HEAD
+      - name: Build and run CPU reference (not GPU acceptance)
+        run: |
+          set -o pipefail
+          g++ -std=c++20 -O2 -Wall -Wextra -I LostOdysseyRecomp tools/tests/motion_vector_test.cpp -o out/mv-validation/motion-vector-test
+          out/mv-validation/motion-vector-test | tee out/mv-validation/reference.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mv-validation-${{ github.sha }}
+          path: |
+            out/mv-validation/revision.txt
+            out/mv-validation/source.tar
+            out/mv-validation/reference.txt
+          retention-days: 3
