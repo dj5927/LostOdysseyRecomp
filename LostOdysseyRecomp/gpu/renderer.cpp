@@ -4349,8 +4349,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 {
                     temporal::DrawHistoryKey histKey{};
                     histKey.vsHash = key.vs;
-                    histKey.indexBufferAddress = useIndices ? uint32_t(Reg(REG_VGT_DMA_BASE)) : 0;
-                    histKey.firstIndex = useIndices ? uint32_t(Reg(REG_VGT_INDX_OFFSET)) : 0;
+                    histKey.indexBufferAddress = useIndices ? uint32_t(info.indexBase) : 0;
+                    histKey.firstIndex = 0;
                     histKey.indexCount = indexCount;
                     histKey.baseVertex = int32_t(baseVertex);
                     histKey.primitiveType = uint32_t(info.primitiveType);

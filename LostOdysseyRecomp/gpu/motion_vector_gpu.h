@@ -12,7 +12,7 @@
 #include <plume_render_interface_builders.h>
 #include "shader/dxc_compiler.h"
 
-namespace temporal {
+namespace gpu::temporal {
 
 // MotionVectorGPU compiles and executes a GPU fullscreen pass to evaluate backward
 // pixel displacement motion vectors (previous - current, in pixels) and stores them
@@ -38,11 +38,12 @@ class MotionVectorGPU {
     bool vulkan_ = false;
     bool ready_ = false;
 
-    struct CameraParameters {
-        float currentInvVP[16];
-        float previousVP[16];
-        float resolution[4]; // width, height, 1/width, 1/height
+    struct PassConstants {
+        float transform[16];
+        float previousScaleBias[4];
+        float resolution[4]; // width, height, prevWidth, prevHeight
         float jitter[4];     // curJx, curJy, prevJx, prevJy
+        float policy[4];     // depthTolerance, maxVelocity, unused, unused
     };
 
     static constexpr const char* kShaderSource = R"(
@@ -167,7 +168,13 @@ public:
         desc.cullMode = plume::RenderCullMode::NONE;
 
         pipeline_ = device_->createGraphicsPipeline(desc);
-        sampler_ = device_->createSampler(plume::RenderSamplerDesc::Point());
+        plume::RenderSamplerDesc sdesc{};
+        sdesc.minFilter = plume::RenderFilter::NEAREST;
+        sdesc.magFilter = plume::RenderFilter::NEAREST;
+        sdesc.addressU = plume::RenderTextureAddressMode::CLAMP;
+        sdesc.addressV = plume::RenderTextureAddressMode::CLAMP;
+        sdesc.addressW = plume::RenderTextureAddressMode::CLAMP;
+        sampler_ = device_->createSampler(sdesc);
 
         ready_ = (pipeline_ && sampler_);
         return ready_;
@@ -290,9 +297,9 @@ public:
     }
 };
 
-} // namespace temporal
+} // namespace gpu::temporal
 #else
-namespace temporal {
+namespace gpu::temporal {
 class MotionVectorGPU {
 public:
     bool Init(void*) { return false; }
@@ -300,5 +307,5 @@ public:
     void ReleaseCompleted() {}
     void ReleaseCompletedThrough(uint64_t) {}
 };
-} // namespace temporal
+} // namespace gpu::temporal
 #endif
