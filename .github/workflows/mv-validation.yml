@@ -39,6 +39,7 @@ jobs:
         run: |
           set -o pipefail
           export LO_DXC_PATH="$PWD/tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so"
+          export LD_LIBRARY_PATH="$PWD/tools/XenosRecomp/thirdparty/dxc-bin/lib/x64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           export VK_ICD_FILENAMES="$(find /usr/share/vulkan/icd.d -name 'lvp*.json' | head -n 1)"
           export VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation
           vulkaninfo --summary > out/mv-build/vulkan.txt 2>&1

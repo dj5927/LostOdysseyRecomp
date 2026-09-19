@@ -42,6 +42,7 @@ jobs:
           cmake -S tools/tests/motion_replay -B out/mv-build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build out/mv-build --parallel 2
           export LO_DXC_PATH="$PWD/tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so"
+          export LD_LIBRARY_PATH="$PWD/tools/XenosRecomp/thirdparty/dxc-bin/lib/x64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           export VK_ICD_FILENAMES="$(find /usr/share/vulkan/icd.d -name 'lvp*.json' | head -n 1)"
           export VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation
           ctest --test-dir out/mv-build -V --output-on-failure 2>&1 | tee out/mv-build/results.txt
