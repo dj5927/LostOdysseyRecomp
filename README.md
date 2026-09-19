@@ -19,6 +19,10 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## v0.6.3 release candidate
+
+v0.6.3 is the current release candidate and is pending publication. It restores bounded sampled comparison for large vertex-cache hits to reduce CPU comparison cost while keeping small vertex buffers and index-cache source validation exact. `LoVertexCacheTest` passed 3,668,957 focused checks; no release-binary performance or full-game result is claimed. It also includes the Issue #54 language-menu safety correction, Issue #53 file-I/O locking and bounded diagnostics, deterministic I/O lifetime regression coverage, and platform-native asynchronous F1 render-state archives. AppImage runtime and in-game/user acceptance remain pending. See the [candidate changelog](CHANGELOG.md#v063--2026-09-19--pending-publication--待发布).
+
 ## v0.6.2 release
 
 Published release: [v0.6.2](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.2). The Windows ZIP and Linux AppImage include the shader set; this release has no separate shader package. v0.6.2 packages experimental geometric motion-vector replay and the accepted main-path TAA policy. The normal TAA path uses 0.5 jitter scale, stationary motion snapping, stationary color clipping and multi-surface history with RGBA8 history at `31/33`; experimental FP16 history and moving bilinear fallback remain off. On Vulkan with an RTX 5080, the same Uhra 4K scene was accepted by the user at about 60 FPS. This is scene- and machine-limited evidence, not whole-game or cross-platform acceptance.

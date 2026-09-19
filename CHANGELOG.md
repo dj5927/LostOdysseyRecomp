@@ -8,21 +8,31 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
-- Revert large vertex-cache hits to bounded sampled content comparison to prioritize draw-time CPU cost. Small vertex buffers remain exact; large buffers compare the head and tail plus strided samples, while index-cache hits retain exact source-byte verification. The focused `LoVertexCacheTest` passed 3,668,957 checks, including sampled changes, small-buffer exactness and the selected large-vertex blind-spot policy. The synthetic blind spot is known; no known game bug has been caused by sampling, and no game or release-binary performance result is claimed yet. A reliable low-cost vertex invalidation mechanism remains backlog work.
-- Harden Issue #54 language-menu selection: invalid language-table counts and indices no longer read or rewrite a selection, and unavailable entries display as `—` instead of fabricating a language. The menu capacity follows the native parser limit (16 entries), while the existing USA/Europe `82481BE8` host-language mapping and independent text/voice handling remain unchanged. An opt-in, bounded `LO_TRACE_LANGUAGE=1` trace is available for future reports, including the menu apply/close boundary snapshot. The specific cause of the reported cutscene voice issue remains unconfirmed; no save was available and no real-game reproduction was performed. This fix is pending the next release.
-- Apply a defensive file-I/O locking fix for Issue #53: read, write and scatter paths keep the per-file mutex only while updating seek, transfer, position and size state, then publish completion results through the retained handle reference. The original Disc 2 hang was not reproduced, so its root cause remains unconfirmed; the fix is pending the next release.
+_No unreleased changes._
+
+### 简体中文
+
+_暂无未发布改动。_
+
+## v0.6.3 — 2026-09-19 / Pending publication / 待发布
+
+### English
+
+- Revert large vertex-cache hits to bounded sampled content comparison to prioritize draw-time CPU cost. Small vertex buffers remain exact; large buffers compare the head and tail plus strided samples, while index-cache hits retain exact source-byte verification. The focused `LoVertexCacheTest` passed 3,668,957 checks, including sampled changes, small-buffer exactness and the selected large-vertex blind-spot policy. The synthetic blind spot is known; no known game bug has been caused by sampling, and no game or release-binary performance result is claimed. A reliable low-cost vertex invalidation mechanism remains backlog work.
+- Harden Issue #54 language-menu selection: invalid language-table counts and indices no longer read or rewrite a selection, and unavailable entries display as `—` instead of fabricating a language. The menu capacity follows the native parser limit (16 entries), while the existing USA/Europe `82481BE8` host-language mapping and independent text/voice handling remain unchanged. An opt-in, bounded `LO_TRACE_LANGUAGE=1` trace is available for future reports, including the menu apply/close boundary snapshot. The specific cause of the reported cutscene voice issue remains unconfirmed; no save was available and no real-game reproduction was performed.
+- Apply a defensive file-I/O locking fix for Issue #53: read, write and scatter paths keep the per-file mutex only while updating seek, transfer, position and size state, then publish completion results through the retained handle reference. The original Disc 2 hang was not reproduced, so its root cause remains unconfirmed.
 - Add opt-in, bounded I/O diagnostics for future Issue #53 reports, including file-handle lifecycle, mutex wait/acquisition, transfer, completion publication and API-return stages, plus manual JSONL snapshots.
 - Add deterministic guest I/O lifetime, APC/event ordering, independent-file and duplicate-handle regression coverage, and reuse the multi-disc checks on Windows and Linux. These checks do not establish a story transition or player acceptance.
-- Use the platform archive format for asynchronous F1 render-state exports: Windows produces `.zip`, while Linux uses the system `tar` and `gzip` tools to produce `.tar.gz`. The archive is published before the matching raw capture folder is removed; an archive failure retains the raw folder. Focused WSL Manjaro g++ C++20 `-Wall -Wextra -Werror` checks pass for byte-identical 8 MiB/log extraction, asynchronous preparation, archive collisions, missing `tar`, unreadable sources, symlink-root rejection and shutdown joining. AppImage runtime and in-game/user acceptance remain pending.
+- Use the platform archive format for asynchronous F1 render-state exports: Windows produces `.zip`, while Linux uses the system `tar` and `gzip` tools to produce `.tar.gz`. Focused WSL Manjaro g++ C++20 `-Wall -Wextra -Werror` checks pass for byte-identical 8 MiB/log extraction, asynchronous preparation, archive collisions, missing `tar`, unreadable sources, symlink-root rejection and shutdown joining. AppImage runtime and in-game/user acceptance remain pending.
 
 ### 简体中文
 
 - 为优先降低绘制阶段 CPU 成本，将大顶点缓存命中恢复为有界 sampled-content 比较。小顶点缓冲仍逐字节精确比较；大缓冲比较头尾片段和跨区采样；index cache 命中继续保留完整源字节校验。定向 `LoVertexCacheTest` 通过 3,668,957 项检查，覆盖采样变化、小缓冲精确性和已选择的大顶点采样盲区策略。已知存在合成盲区；目前没有任何已知游戏 bug 由采样引起，也没有据此宣称实机或发布二进制性能结果。可靠且低成本的顶点失效机制仍列入 backlog。
-- 加固 Issue #54 的语言菜单选择：语言表数量或索引无效时不再读取或改写选择，无效条目显示为 `—`，避免伪造语言；菜单容量遵循原生解析器的 16 项限制。既有 USA/Europe `82481BE8` 宿主语言映射以及文字／配音独立处理保持不变。新增默认关闭且有界的 `LO_TRACE_LANGUAGE=1` 追踪，包含 menu apply/close 边界快照，供后续报告使用。具体过场配音问题的根因尚未确认；没有存档，本次未做实机复现。修正将在下个版本发布。
-- 为 Issue #53 应用防御性文件 I/O 锁范围修正：读取、写入和 scatter 路径只在更新 seek、传输、位置和大小状态时持有文件互斥锁，随后通过保留的句柄引用发布完成结果。原 Disc 2 卡住未能复现，根因仍未确认；修正将在下个版本发布。
+- 加固 Issue #54 的语言菜单选择：语言表数量或索引无效时不再读取或改写选择，无效条目显示为 `—`，避免伪造语言；菜单容量遵循原生解析器的 16 项限制。既有 USA/Europe `82481BE8` 宿主语言映射以及文字／配音独立处理保持不变。新增默认关闭且有界的 `LO_TRACE_LANGUAGE=1` 追踪，包含 menu apply/close 边界快照，供后续报告使用。具体过场配音问题的根因尚未确认；没有存档，本次未做实机复现。
+- 为 Issue #53 应用防御性文件 I/O 锁范围修正：读取、写入和 scatter 路径只在更新 seek、传输、位置和大小状态时持有文件互斥锁，随后通过保留的句柄引用发布完成结果。原 Disc 2 卡住未能复现，根因仍未确认。
 - 增加默认关闭且有界的 I/O 诊断，记录文件句柄生命周期、互斥锁等待／取得、传输、完成发布和 API 返回阶段，并支持手动导出 JSONL 快照。
 - 在 Windows 与 Linux 补充真实客户机 I/O 生命周期、APC／event 顺序、独立文件和复制句柄回归覆盖，并复用多盘测试。这些检查不代表已完成剧情换盘或玩家验收。
-- 为异步 F1 渲染状态导出使用平台归档格式：Windows 生成 `.zip`，Linux 使用系统 `tar` 和 `gzip` 生成 `.tar.gz`。归档会先发布，随后才删除对应的原始捕获目录；归档失败时保留原始目录。WSL Manjaro g++ C++20 `-Wall -Wextra -Werror` 定向检查已通过，覆盖 8 MiB／日志逐字节一致解包、异步 prepare、归档冲突、缺少 `tar`、源文件不可读、拒绝符号链接根目录和退出时 join。AppImage 运行时及游戏内／用户验收仍待完成。
+- 为异步 F1 渲染状态导出使用平台归档格式：Windows 生成 `.zip`，Linux 使用系统 `tar` 和 `gzip` 生成 `.tar.gz`。WSL Manjaro g++ C++20 `-Wall -Wextra -Werror` 定向检查已通过，覆盖 8 MiB／日志逐字节一致解包、异步 prepare、归档冲突、缺少 `tar`、源文件不可读、拒绝符号链接根目录和退出时 join。AppImage 运行时及游戏内／用户验收仍待完成。
 
 ## v0.6.2 — 2026-09-19
 

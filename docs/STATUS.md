@@ -1,5 +1,18 @@
 # Project status
 
+## v0.6.3 release candidate / v0.6.3 发布候选
+
+The v0.6.3 source candidate is in release preparation and has not been
+published. It promotes the current Unreleased changes: bounded sampled
+comparison for large vertex-cache hits, the Issue #54 language-menu safety
+correction, the Issue #53 file-I/O locking and bounded diagnostics, deterministic
+I/O lifetime regression coverage, and platform-native asynchronous F1 archive
+export. The focused vertex-cache fixture passed 3,668,957 checks; the other
+validation records are reused from their existing bounded evidence. No new
+game run, release-binary performance result or player acceptance is claimed.
+
+v0.6.3 源码候选正在准备发布，尚未公开发布。本候选提升当前 Unreleased 中的改动：大顶点缓存命中的有界采样比较、Issue #54 语言菜单安全修正、Issue #53 文件 I/O 锁范围修正与有界诊断、确定性的 I/O 生命周期回归覆盖，以及使用平台归档格式的异步 F1 归档导出。定向顶点缓存 fixture 通过 3,668,957 项检查；其余验证记录沿用已有的有界证据。本次未新增游戏运行、发布二进制性能结果或玩家验收结论。
+
 ## Issue #57 development vertex-cache sampling / Issue #57 开发中的顶点缓存采样策略
 
 The development source temporarily prioritizes vertex-cache CPU cost: small
