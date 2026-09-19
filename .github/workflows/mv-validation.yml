@@ -17,6 +17,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Export public source and pinned graphics dependencies
+        run: |
+          git submodule update --init --depth=1 thirdparty/plume tools/XenosRecomp thirdparty/unordered_dense
+          git -C thirdparty/plume submodule update --init --recursive --depth=1
+          mkdir -p out/mv-validation
+          git rev-parse HEAD > out/mv-validation/source-revision.txt
+          tar --exclude='.git' --exclude='./out' -czf out/mv-validation/public-source.tar.gz .
       - name: Install software Vulkan fixture environment
         run: |
           sudo apt-get update -qq
@@ -41,4 +48,6 @@ jobs:
             out/mv-validation/driver/
             out/mv-validation/vulkan.txt
             out/mv-validation/reference.txt
+            out/mv-validation/public-source.tar.gz
+            out/mv-validation/source-revision.txt
           retention-days: 1
