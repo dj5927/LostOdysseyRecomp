@@ -1,0 +1,15 @@
+diff --git a/LostOdysseyRecomp/gpu/temporal_gpu_timing.h b/LostOdysseyRecomp/gpu/temporal_gpu_timing.h
+--- a/LostOdysseyRecomp/gpu/temporal_gpu_timing.h
++++ b/LostOdysseyRecomp/gpu/temporal_gpu_timing.h
+@@ -53,6 +53,11 @@
+                 ++stats_.queryPoolAllocations; active_ = std::move(block);
+             }
+             active_->used = 0; active_->serial = 0;
++            // Plume does not end a render pass in resetQueryPool. Vulkan
++            // requires an outside-pass reset; every caller binds its draw
++            // framebuffer after Begin, including query-block rollover.
++            if (device->getCapabilities().shaderFormat == plume::RenderShaderFormat::SPIRV)
++                list->setFramebuffer(nullptr);
+             list->resetQueryPool(active_->pool.get(), 0, Pairs * 2);
+         }
+         list->writeTimestamp(active_->pool.get(), active_->used * 2);

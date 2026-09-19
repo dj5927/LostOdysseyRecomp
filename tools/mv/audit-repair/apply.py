@@ -7,7 +7,12 @@ payload = gzip.decompress(base64.b64decode(''.join((FOLDER / f'part-{i}.b64').re
 if hashlib.sha256(payload).hexdigest() != '92282984fd8adeda72d7dee99164b971bb64a57b056a558dd953a961257f0e2f':
     raise SystemExit('Audit payload checksum mismatch')
 data = json.loads(payload)
+followup = (FOLDER / 'query-boundary.patch').read_bytes()
+if hashlib.sha256(followup).hexdigest() != 'eb0626bb86fc0df1df42f0fdae119a960467f1f6006b0f9e6d9f68b83b36b55b':
+    raise SystemExit('Query-boundary patch checksum mismatch')
+data['patch'] += followup.decode('utf-8')
 manifest = data['manifest']
+manifest['LostOdysseyRecomp/gpu/temporal_gpu_timing.h']['after'] = '89564ffe7d2cb931577bac08b3905f80f9209d3f12567ba4bd65aefb068c90ea'
 def digest(path):
     p = ROOT / path
     return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
