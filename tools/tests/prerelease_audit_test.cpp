@@ -9,6 +9,7 @@
 #include <future>
 #include <iostream>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
 #include <vector>
 using namespace std::chrono_literals;
@@ -91,6 +92,33 @@ static void Handles() {
     std::thread closer([&]{table.Close(60);});closer.join();
     Check(destroyed==2,"concurrent close invalidated operation");hold.reset();
     Check(destroyed==3,"operation reference leaked");
+    // A duplicate handle's token can be reused while an earlier Acquire keeps
+    // its old object alive. The close result must identify the entry actually
+    // removed in the same table operation, not that earlier observation.
+    for (bool duplicateAndClose : {false, true}) {
+        auto old=std::make_shared<Object>(&destroyed);
+        auto token=std::make_shared<int>(70);
+        std::weak_ptr<int> oldToken=token;
+        table.Insert(70,old,std::move(token));old.reset();
+        auto observed=table.Acquire(70);
+        Check(table.Close(70) && oldToken.expired(),"closed duplicate token was not released");
+        auto replacement=std::make_shared<Object>(&destroyed);
+        table.Insert(70,replacement,std::make_shared<int>(70));
+        std::shared_ptr<Object> removed;
+        if (duplicateAndClose) {
+            Check(table.Duplicate(70,80,std::make_shared<int>(80),true,&removed),"reused-token close-source duplicate failed");
+            Check(!table.Acquire(70) && table.Acquire(80)==replacement,"close-source duplicate did not transfer the replacement");
+        } else {
+            Check(table.Close(70,&removed) && !table.Acquire(70),"reused-token close failed");
+        }
+        Check(removed==replacement && removed!=observed,"close attributed the reused token to the previously acquired object");
+        if (duplicateAndClose) Check(table.Close(80),"replacement duplicate close failed");
+        std::weak_ptr<Object> lifetime=removed;
+        replacement.reset();
+        Check(!lifetime.expired(),"reported removed object did not remain alive for diagnostics");
+        removed.reset();
+        Check(lifetime.expired(),"removed-object diagnostic reference leaked");
+    }
 }
 static void Retry() {
     xenos::retry::State state; const auto now=xenos::retry::State::Clock::now();
@@ -149,7 +177,13 @@ static void GeometryAndDisplay() {
     {DisplayCompletion completion(changes,ticket);newer=changes.Begin(1920,1080,0);}
     Check(changes.Query(newer)==DisplayChangeResult::Pending,"stale cleanup completed new request");
 }
-int main() try {
+int main(int argc, char** argv) try {
+    if (argc==2 && std::string_view(argv[1])=="--handles") {
+        Handles();
+        std::cout<<"PASS "<<checks<<" handle-table checks\n";
+        return 0;
+    }
+    Check(argc==1,"usage: LoPrereleaseAuditTest [--handles]");
     Waits();Handles();Retry();Workers();GeometryAndDisplay();
     std::cout<<"PASS "<<checks<<" prerelease production-helper checks\n";
 } catch(const std::exception& e){std::cerr<<"FAIL "<<e.what()<<'\n';return 1;}

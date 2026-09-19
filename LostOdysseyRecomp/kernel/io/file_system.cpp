@@ -1,6 +1,8 @@
 #include <stdafx.h>
 #include "file_system.h"
 #include "disc_set.h"
+#include "io_diagnostics.h"
+#include "file_system_test.h"
 #include <mutex>
 #include <cpu/guest_thread.h>
 #include <kernel/xam.h>
@@ -14,6 +16,34 @@
 
 static std::mutex g_lastOpenedMutex;
 static std::string g_lastOpenedFile;
+
+#ifdef LO_STORAGE_TESTING
+static std::atomic<file_system_test::Hook> g_ioTestHook{nullptr};
+void file_system_test::SetHook(Hook hook) { g_ioTestHook.store(hook); }
+#define IO_TEST_STAGE(stage, handle) do { if (auto hook = g_ioTestHook.load()) hook(file_system_test::Stage::stage, handle); } while (false)
+#else
+#define IO_TEST_STAGE(stage, handle) ((void)0)
+#endif
+
+static uint32_t IoGuestPcr() { return g_ppcContext ? g_ppcContext->r13.u32 : 0; }
+
+// Use the existing blocking mutex. Diagnostics never replace it with polling
+// and never take this mutex to read a snapshot.
+class FileIoLock
+{
+    io_diagnostics::Request& trace;
+    std::unique_lock<std::mutex> lock;
+public:
+    FileIoLock(std::mutex& mutex, io_diagnostics::Request& request, uint32_t testHandle = 0)
+        : trace(request), lock(mutex, std::defer_lock)
+    {
+        trace.LockWaiting();
+        if (testHandle) IO_TEST_STAGE(IoLockWaiting, testHandle);
+        lock.lock();
+        trace.LockAcquired();
+    }
+    ~FileIoLock() { trace.LockReleased(); }
+};
 
 // Semantics follow Xenia's kernel/xboxkrnl/xboxkrnl_io.cc (BSD-3).
 
@@ -139,6 +169,7 @@ struct FileHandle : KernelObject
 {
     // CRT stream locks protect individual calls, not seek + transfer pairs.
     std::mutex ioMutex;
+    io_diagnostics::Object diagnostic;
     std::filesystem::path path;
     FILE* file = nullptr;
     bool isDirectory = false;
@@ -156,11 +187,20 @@ struct FileHandle : KernelObject
     {
         if (file)
             fclose(file);
+        io_diagnostics::RecordEvent(io_diagnostics::Stage::Destroyed, "FileHandle", &diagnostic,
+            g_memory.MapVirtual(this), &path, IoGuestPcr(), &ioMutex, this);
     }
 
     kernel::wait::Event completion{true, true};
     kernel::wait::Target* WaitTarget() override { return &completion; }
 };
+
+void FileSystem::TraceHandleClose(uint32_t handleValue, const std::shared_ptr<KernelObject>& object, bool completed)
+{
+    if (auto handle = std::dynamic_pointer_cast<FileHandle>(object))
+        io_diagnostics::RecordEvent(completed ? io_diagnostics::Stage::CloseEnd : io_diagnostics::Stage::CloseBegin,
+            "CloseHandle", &handle->diagnostic, handleValue, &handle->path, IoGuestPcr(), &handle->ioMutex, handle.get());
+}
 
 void FileSystem::Init(const std::filesystem::path& gameRoot)
 {
@@ -181,16 +221,28 @@ void FileSystem::Init(const std::filesystem::path& gameRoot)
 
 bool FileSystem::SelectDisc(uint32_t discNumber)
 {
-    std::lock_guard lock(g_discMutex);
-    if (discNumber < 1 || discNumber > 4 || !g_discIdentity.edition) return false;
+    static io_diagnostics::Object diagnostic;
+    io_diagnostics::Request trace("SelectDisc", discNumber, UINT64_MAX, 0, IoGuestPcr());
+    trace.Acquired(diagnostic, &g_discMutex, g_gameRoot);
+    trace.SetStage(io_diagnostics::Stage::DiscSelectBegin);
+    FileIoLock lock(g_discMutex, trace);
+    trace.SetResult(21); // ERROR_NOT_READY until validation succeeds.
+    if (discNumber < 1 || discNumber > 4 || !g_discIdentity.edition)
+    {
+        trace.SetStage(io_diagnostics::Stage::DiscSelectEnd);
+        return false;
+    }
     const auto target = discNumber == g_discIdentity.disc ? g_gameRoot :
         g_gameRoot.parent_path() / ("disc" + std::to_string(discNumber));
     if (!DiscSet::Validate(target, {g_discIdentity.edition, discNumber}))
     {
         LOG_ERROR("disc {} unavailable or incomplete: {}; import this disc with InstallGame", discNumber, PathUtf8(target));
+        trace.SetStage(io_diagnostics::Stage::DiscSelectEnd);
         return false;
     }
     g_discRoot = target;
+    trace.SetResult(0);
+    trace.SetStage(io_diagnostics::Stage::DiscSelectEnd);
     LOG_INFO("automatically selected installed disc {}: {}", discNumber, PathUtf8(target));
     return true;
 }
@@ -453,6 +505,8 @@ static uint32_t OpenFileHandle(be<uint32_t>* FileHandleOut, uint32_t DesiredAcce
     }
 
     *FileHandleOut = GetKernelHandle(handle);
+    io_diagnostics::RecordEvent(io_diagnostics::Stage::Created, "OpenFile", &handle->diagnostic,
+        *FileHandleOut, &handle->path, IoGuestPcr(), &handle->ioMutex, handle.get());
     if (IoStatusBlock)
     {
         IoStatusBlock->Status = STATUS_SUCCESS;
@@ -488,29 +542,44 @@ uint32_t NtOpenFile(be<uint32_t>* FileHandle, uint32_t DesiredAccess, XOBJECT_AT
 uint32_t NtReadFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, void* Buffer, uint32_t Length, be<uint64_t>* ByteOffset)
 {
-    auto handle = GetKernelObject<FileHandle>(handleValue);
+    std::shared_ptr<FileHandle> handle;
+    io_diagnostics::Request trace("NtReadFile", handleValue, UINT64_MAX, Length, IoGuestPcr());
+    handle = GetKernelObject<FileHandle>(handleValue);
     if (!handle || !handle->file)
         return STATUS_INVALID_HANDLE;
 
-    std::lock_guard ioLock(handle->ioMutex);
-
-    uint64_t offset = handle->position;
-    if (ByteOffset)
+    if (io_diagnostics::Enabled() && ByteOffset) trace.SetRequestedOffset(uint64_t(*ByteOffset));
+    trace.Acquired(handle->diagnostic, &handle->ioMutex, handle->path, handle.get());
+    IO_TEST_STAGE(HandleAcquired, handleValue);
+    uint64_t offset;
+    size_t read;
+    uint32_t status;
     {
-        uint64_t v = *ByteOffset;
-        // FILE_USE_FILE_POINTER_POSITION == -2
-        if (v != 0xFFFFFFFFFFFFFFFEull)
-            offset = v;
+        FileIoLock ioLock(handle->ioMutex, trace, handleValue);
+        IO_TEST_STAGE(IoLockAcquired, handleValue);
+        offset = handle->position;
+        if (ByteOffset)
+        {
+            uint64_t v = *ByteOffset;
+            // FILE_USE_FILE_POINTER_POSITION == -2
+            if (v != 0xFFFFFFFFFFFFFFFEull)
+                offset = v;
+        }
+
+        trace.SetResolvedOffset(offset);
+        _fseeki64(handle->file, int64_t(offset), SEEK_SET);
+        read = fread(Buffer, 1, Length, handle->file);
+        handle->position = offset + read;
+        status = read == 0 && Length != 0 ? STATUS_END_OF_FILE : STATUS_SUCCESS;
+        trace.SetResult(status, uint32_t(read));
+        trace.SetStage(io_diagnostics::Stage::TransferDone);
+        IO_TEST_STAGE(TransferDone, handleValue);
     }
 
-    _fseeki64(handle->file, int64_t(offset), SEEK_SET);
-    size_t read = fread(Buffer, 1, Length, handle->file);
-    handle->position = offset + read;
+    // Keep the object alive through completion, without nesting the file lock
+    // with the logger, APC queue or event wait machinery. Results are local.
+    IO_TEST_STAGE(BeforeCompletion, handleValue);
     LOG_KERNEL("{} off={:#x} len={:#x} -> {:#x}{}", handle->path.filename().string(), offset, Length, read, Event ? " (event)" : "");
-
-    uint32_t status = STATUS_SUCCESS;
-    if (read == 0 && Length != 0)
-        status = STATUS_END_OF_FILE;
 
     if (IoStatusBlock)
     {
@@ -527,34 +596,48 @@ uint32_t NtReadFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, u
         extern void KernelSignalEventHandle(uint32_t handle);
         KernelSignalEventHandle(Event);
     }
+    trace.SetStage(io_diagnostics::Stage::CompletionPublished);
+    IO_TEST_STAGE(CompletionPublished, handleValue);
     return status;
 }
 
 uint32_t NtWriteFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, const void* Buffer, uint32_t Length, be<uint64_t>* ByteOffset)
 {
-    auto handle = GetKernelObject<FileHandle>(handleValue);
+    std::shared_ptr<FileHandle> handle;
+    io_diagnostics::Request trace("NtWriteFile", handleValue, UINT64_MAX, Length, IoGuestPcr());
+    handle = GetKernelObject<FileHandle>(handleValue);
     if (!handle || !handle->file || !handle->writable)
         return STATUS_INVALID_HANDLE;
 
-    std::lock_guard ioLock(handle->ioMutex);
-
-    uint64_t offset = handle->position;
-    if (ByteOffset)
+    if (io_diagnostics::Enabled() && ByteOffset) trace.SetRequestedOffset(uint64_t(*ByteOffset));
+    trace.Acquired(handle->diagnostic, &handle->ioMutex, handle->path, handle.get());
+    uint64_t offset;
+    size_t written;
+    uint32_t status;
     {
-        uint64_t v = *ByteOffset;
-        if (v == 0xFFFFFFFFFFFFFFFFull) offset = handle->size;
-        else if (v != 0xFFFFFFFFFFFFFFFEull)
-            offset = v;
+        FileIoLock ioLock(handle->ioMutex, trace);
+        offset = handle->position;
+        if (ByteOffset)
+        {
+            uint64_t v = *ByteOffset;
+            if (v == 0xFFFFFFFFFFFFFFFFull) offset = handle->size;
+            else if (v != 0xFFFFFFFFFFFFFFFEull)
+                offset = v;
+        }
+
+        trace.SetResolvedOffset(offset);
+        const bool seekOk = _fseeki64(handle->file, int64_t(offset), SEEK_SET) == 0;
+        written = seekOk ? fwrite(Buffer, 1, Length, handle->file) : 0;
+        const bool flushOk = fflush(handle->file) == 0;
+        status = seekOk && written == Length && flushOk ? STATUS_SUCCESS : 0xC0000185u;
+        handle->position = offset + written;
+        handle->size = std::max(handle->size, handle->position);
+        trace.SetResult(status, uint32_t(written));
+        trace.SetStage(io_diagnostics::Stage::TransferDone);
     }
 
-    const bool seekOk = _fseeki64(handle->file, int64_t(offset), SEEK_SET) == 0;
-    size_t written = seekOk ? fwrite(Buffer, 1, Length, handle->file) : 0;
-    const bool flushOk = fflush(handle->file) == 0;
-    const uint32_t status = seekOk && written == Length && flushOk ? STATUS_SUCCESS : 0xC0000185u;
-    handle->position = offset + written;
-    handle->size = std::max(handle->size, handle->position);
-
+    IO_TEST_STAGE(BeforeCompletion, handleValue);
     if (IoStatusBlock)
     {
         IoStatusBlock->Status = status;
@@ -567,30 +650,40 @@ uint32_t NtWriteFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, 
         extern void KernelSignalEventHandle(uint32_t handle);
         KernelSignalEventHandle(Event);
     }
+    trace.SetStage(io_diagnostics::Stage::CompletionPublished);
     return status;
 }
 
 uint32_t NtFlushBuffersFile(uint32_t handleValue, XIO_STATUS_BLOCK* IoStatusBlock)
 {
-    auto handle = GetKernelObject<FileHandle>(handleValue);
+    std::shared_ptr<FileHandle> handle;
+    io_diagnostics::Request trace("NtFlushBuffersFile", handleValue, UINT64_MAX, 0, IoGuestPcr());
+    handle = GetKernelObject<FileHandle>(handleValue);
     uint32_t status = STATUS_INVALID_HANDLE;
     if (handle && handle->file)
     {
-        std::lock_guard ioLock(handle->ioMutex);
+        trace.Acquired(handle->diagnostic, &handle->ioMutex, handle->path, handle.get());
+        FileIoLock ioLock(handle->ioMutex, trace);
         status = fflush(handle->file) == 0 ? STATUS_SUCCESS : 0xC0000185u;
+        trace.SetStage(io_diagnostics::Stage::TransferDone);
     }
     if (IoStatusBlock) { IoStatusBlock->Status = status; IoStatusBlock->Information = 0; }
+    trace.SetResult(status);
+    trace.SetStage(io_diagnostics::Stage::CompletionPublished);
     return status;
 }
 
 uint32_t NtQueryInformationFile(uint32_t handleValue, XIO_STATUS_BLOCK* IoStatusBlock, void* FileInformation,
     uint32_t Length, uint32_t FileInformationClass)
 {
-    auto handle = GetKernelObject<FileHandle>(handleValue);
+    std::shared_ptr<FileHandle> handle;
+    io_diagnostics::Request trace("NtQueryInformationFile", handleValue, UINT64_MAX, Length, IoGuestPcr());
+    handle = GetKernelObject<FileHandle>(handleValue);
     if (!handle)
         return STATUS_INVALID_HANDLE;
 
-    std::lock_guard ioLock(handle->ioMutex);
+    trace.Acquired(handle->diagnostic, &handle->ioMutex, handle->path, handle.get());
+    FileIoLock ioLock(handle->ioMutex, trace);
 
     uint32_t info = 0;
     uint32_t status = STATUS_SUCCESS;
@@ -668,11 +761,14 @@ uint32_t NtQueryInformationFile(uint32_t handleValue, XIO_STATUS_BLOCK* IoStatus
 uint32_t NtSetInformationFile(uint32_t handleValue, XIO_STATUS_BLOCK* IoStatusBlock, void* FileInformation,
     uint32_t Length, uint32_t FileInformationClass)
 {
-    auto handle = GetKernelObject<FileHandle>(handleValue);
+    std::shared_ptr<FileHandle> handle;
+    io_diagnostics::Request trace("NtSetInformationFile", handleValue, UINT64_MAX, Length, IoGuestPcr());
+    handle = GetKernelObject<FileHandle>(handleValue);
     if (!handle)
         return STATUS_INVALID_HANDLE;
 
-    std::lock_guard ioLock(handle->ioMutex);
+    trace.Acquired(handle->diagnostic, &handle->ioMutex, handle->path, handle.get());
+    FileIoLock ioLock(handle->ioMutex, trace);
 
     uint32_t status = STATUS_SUCCESS;
     switch (FileInformationClass)
@@ -766,11 +862,14 @@ uint32_t NtQueryVolumeInformationFile(uint32_t handleValue, XIO_STATUS_BLOCK* Io
 uint32_t NtQueryDirectoryFile(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, void* FileInformation, uint32_t Length, XANSI_STRING* FileName, uint32_t RestartScan)
 {
-    auto handle = GetKernelObject<FileHandle>(handleValue);
+    std::shared_ptr<FileHandle> handle;
+    io_diagnostics::Request trace("NtQueryDirectoryFile", handleValue, UINT64_MAX, Length, IoGuestPcr());
+    handle = GetKernelObject<FileHandle>(handleValue);
     if (!handle || !handle->isDirectory)
         return STATUS_INVALID_HANDLE;
 
-    std::lock_guard ioLock(handle->ioMutex);
+    trace.Acquired(handle->diagnostic, &handle->ioMutex, handle->path, handle.get());
+    FileIoLock ioLock(handle->ioMutex, trace);
     // Xbox FindNext passes no FileName: retain this handle's search expression.
     // A nonempty expression starts a new search, as in Xenia's XFile::QueryDirectory.
     if (std::string pattern = GuestAnsiString(FileName); !pattern.empty())
@@ -879,26 +978,35 @@ uint32_t NtDeviceIoControlFile(uint32_t handleValue, uint32_t Event, uint32_t Ap
 uint32_t NtReadFileScatter(uint32_t handleValue, uint32_t Event, uint32_t ApcRoutine, uint32_t ApcContext,
     XIO_STATUS_BLOCK* IoStatusBlock, be<uint64_t>* SegmentArray, uint32_t Length, be<uint64_t>* ByteOffset)
 {
-    auto handle = GetKernelObject<FileHandle>(handleValue);
+    std::shared_ptr<FileHandle> handle;
+    io_diagnostics::Request trace("NtReadFileScatter", handleValue, UINT64_MAX, Length, IoGuestPcr());
+    handle = GetKernelObject<FileHandle>(handleValue);
     if (!handle || !handle->file)
         return STATUS_INVALID_HANDLE;
 
-    std::lock_guard ioLock(handle->ioMutex);
-
-    uint64_t offset = ByteOffset ? uint64_t(*ByteOffset) : handle->position;
-    _fseeki64(handle->file, int64_t(offset), SEEK_SET);
+    if (io_diagnostics::Enabled() && ByteOffset) trace.SetRequestedOffset(uint64_t(*ByteOffset));
+    trace.Acquired(handle->diagnostic, &handle->ioMutex, handle->path, handle.get());
     uint32_t total = 0;
-    for (uint32_t remaining = Length, i = 0; remaining > 0; i++)
     {
-        uint32_t chunk = std::min<uint32_t>(remaining, 0x1000);
-        uint32_t guestPtr = uint32_t(uint64_t(SegmentArray[i]));
-        size_t read = fread(g_memory.Translate(guestPtr), 1, chunk, handle->file);
-        total += uint32_t(read);
-        remaining -= chunk;
-        if (read < chunk)
-            break;
+        FileIoLock ioLock(handle->ioMutex, trace);
+        const uint64_t offset = ByteOffset ? uint64_t(*ByteOffset) : handle->position;
+        trace.SetResolvedOffset(offset);
+        _fseeki64(handle->file, int64_t(offset), SEEK_SET);
+        for (uint32_t remaining = Length, i = 0; remaining > 0; i++)
+        {
+            uint32_t chunk = std::min<uint32_t>(remaining, 0x1000);
+            uint32_t guestPtr = uint32_t(uint64_t(SegmentArray[i]));
+            size_t read = fread(g_memory.Translate(guestPtr), 1, chunk, handle->file);
+            total += uint32_t(read);
+            remaining -= chunk;
+            if (read < chunk)
+                break;
+        }
+        handle->position = offset + total;
+        trace.SetResult(STATUS_SUCCESS, total);
+        trace.SetStage(io_diagnostics::Stage::TransferDone);
     }
-    handle->position = offset + total;
+    IO_TEST_STAGE(BeforeCompletion, handleValue);
     if (IoStatusBlock) { IoStatusBlock->Status = STATUS_SUCCESS; IoStatusBlock->Information = total; }
     QueueIoApc(ApcRoutine, ApcContext, IoStatusBlock, STATUS_SUCCESS);
     if (Event != 0)
@@ -906,6 +1014,7 @@ uint32_t NtReadFileScatter(uint32_t handleValue, uint32_t Event, uint32_t ApcRou
         extern void KernelSignalEventHandle(uint32_t handle);
         KernelSignalEventHandle(Event);
     }
+    trace.SetStage(io_diagnostics::Stage::CompletionPublished);
     return STATUS_SUCCESS;
 }
 

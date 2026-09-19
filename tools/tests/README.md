@@ -1,5 +1,13 @@
 # Test suites
 
+## Issue #53 I/O lifetime and diagnostics regression
+
+`LoStorageTest io-lifetime <output>` exercises real guest read/write/scatter, close and duplicate imports, APC/event publication ordering, independent-file progress and positioned reads. Run `python -B tools/tests/io_lifetime_test.py <LoStorageTest-executable> --out <new-directory>` for the lifetime, invalid-handle and diagnostics selectors. Use `--mode io-lifetime`, `--mode io-invalid-handle` or `--mode io-diagnostics` to select one. The runner enables `LO_IO_DIAGNOSTICS=1` for the diagnostics selector, applies a 30-second process timeout, and attempts a debugger stack capture before terminating a timed-out child. Direct `LoStorageTest io-diagnostics <output>` invocation requires that environment variable to be set before startup.
+
+Windows and Linux runs passed the lifetime, diagnostics, invalid-handle and standalone audit `--handles` selectors with exit code 0; the 8000-read check reported zero mismatches. The regression set checks that read, write and scatter operations release `ioMutex` before completion-side work, that close can complete without invalidating the retained operation, and that each request publishes its buffer and IOSB before notification. These checks do not reproduce the Issue #53 gameplay hang or establish a story transition.
+
+For runtime investigation, start with `LO_IO_DIAGNOSTICS=1`, then manually call the exported `LoDumpIoDiagnostics("/path/to/snapshot.jsonl")` from a debugger. Active requests and history are bounded to 256 and 2048 records. Snapshots do not acquire the file I/O mutex or dereference recorded object addresses; skipped/overwritten records are counted. Owner observations are clues tied to object instances and timestamps, not proof of a deadlock. See the [investigation report](../../docs/notes/ISSUE_53_DISC2_HANG_FIX_REPORT.md) for the validation boundary.
+
 ## Render batch policy and descriptor cache
 
 ## v0.5.9 Vulkan selectors

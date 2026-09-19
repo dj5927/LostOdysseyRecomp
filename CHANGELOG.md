@@ -4,6 +4,20 @@ One record of completed changes, with unpublished work separated from verified r
 
 本文统一记录已完成改动，并区分未发布内容与已确认发布版本；日期采用 UTC 发布日期。后续计划见[路线图](docs/ROADMAP.zh-CN.md)，不作为已发布功能记录。
 
+## Unreleased / 未发布
+
+### English
+
+- Apply a defensive file-I/O locking fix for Issue #53: read, write and scatter paths keep the per-file mutex only while updating seek, transfer, position and size state, then publish completion results through the retained handle reference. The original Disc 2 hang was not reproduced, so its root cause remains unconfirmed; the fix is pending the next release.
+- Add opt-in, bounded I/O diagnostics for future Issue #53 reports, including file-handle lifecycle, mutex wait/acquisition, transfer, completion publication and API-return stages, plus manual JSONL snapshots.
+- Add deterministic guest I/O lifetime, APC/event ordering, independent-file and duplicate-handle regression coverage, and reuse the multi-disc checks on Windows and Linux. These checks do not establish a story transition or player acceptance.
+
+### 简体中文
+
+- 为 Issue #53 应用防御性文件 I/O 锁范围修正：读取、写入和 scatter 路径只在更新 seek、传输、位置和大小状态时持有文件互斥锁，随后通过保留的句柄引用发布完成结果。原 Disc 2 卡住未能复现，根因仍未确认；修正将在下个版本发布。
+- 增加默认关闭且有界的 I/O 诊断，记录文件句柄生命周期、互斥锁等待／取得、传输、完成发布和 API 返回阶段，并支持手动导出 JSONL 快照。
+- 在 Windows 与 Linux 补充真实客户机 I/O 生命周期、APC／event 顺序、独立文件和复制句柄回归覆盖，并复用多盘测试。这些检查不代表已完成剧情换盘或玩家验收。
+
 ## v0.6.2 — 2026-09-19
 
 ### English

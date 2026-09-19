@@ -92,6 +92,8 @@ def main():
                     completed.add(source)
             elif name == "storage":
                 run([sys.executable, "-B", ROOT / "tools/tests/disc_set_test.py", binaries[name]], cwd=scratch)
+                run([sys.executable, "-B", ROOT / "tools/tests/io_lifetime_test.py", binaries[name],
+                     "--out", scratch / "io-lifetime"], cwd=scratch)
                 for variant in ("ascii", "unicode"):
                     for mode in ("write", "read", "overwrite", "read-overwritten"):
                         run([binaries[name], mode, scratch / variant,

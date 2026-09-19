@@ -345,11 +345,16 @@ list(FILTER LO_STORAGE_TEST_SOURCES EXCLUDE REGEX "/main\\.cpp$")
 add_executable(LoStorageTest EXCLUDE_FROM_ALL ${LO_STORAGE_TEST_SOURCES} ${LO_IMPORT_STUBS}
     ${CMAKE_SOURCE_DIR}/tools/tests/storage_test.cpp)
 target_include_directories(LoStorageTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp,INCLUDE_DIRECTORIES>)
-target_compile_definitions(LoStorageTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp,COMPILE_DEFINITIONS>)
+target_compile_definitions(LoStorageTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp,COMPILE_DEFINITIONS> LO_STORAGE_TESTING)
 target_compile_options(LoStorageTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp,COMPILE_OPTIONS>)
 target_compile_features(LoStorageTest PRIVATE cxx_std_20)
 target_precompile_headers(LoStorageTest REUSE_FROM LostOdysseyRecomp)
 target_link_libraries(LoStorageTest PRIVATE $<TARGET_PROPERTY:LostOdysseyRecomp,LINK_LIBRARIES>)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Keep the manual diagnostic entry point callable even in stripped packages.
+    target_link_options(LostOdysseyRecomp PRIVATE "-Wl,--export-dynamic-symbol=LoDumpIoDiagnostics")
+    target_link_options(LoStorageTest PRIVATE "-Wl,--export-dynamic-symbol=LoDumpIoDiagnostics")
+endif()
 
 # Actual generated function-table and script-handler regression for issue #5.
 add_executable(LoGuestDispatchTest EXCLUDE_FROM_ALL ${LO_STORAGE_TEST_SOURCES} ${LO_IMPORT_STUBS}

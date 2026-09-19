@@ -2,7 +2,7 @@
 
 先读[当前状态](../STATUS.md)和[路线图](../ROADMAP.zh-CN.md)。[旧交接](handoff.md)和日期化实验保留当时证据，不自动代表当前功能支持。部分过期 GPU、内核和交接记录已移到[归档](../archive/README.md)。
 
-当前进度：[v0.5.20 发布状态](../STATUS.md) · [图形后端路线图](../ROADMAP.zh-CN.md#v050-pc-graphics) · [Linux／Steam Deck 评估](linux-port-evaluation-2026-09-13.md)。历史汇总：[2026-09-05成果与交接](../WORK_REPORT_2026-09-05.md)。
+当前进度：[v0.6.2 发布状态](../STATUS.md) · [图形后端路线图](../ROADMAP.zh-CN.md#v050-pc-graphics) · [Linux／Steam Deck 评估](linux-port-evaluation-2026-09-13.md)。历史汇总：[2026-09-05成果与交接](../WORK_REPORT_2026-09-05.md)。Issue #53 当前记录：[Disc 2 加载调查与防御性修正](ISSUE_53_DISC2_HANG_FIX_REPORT.md)。
 
 ## 现有文档
 

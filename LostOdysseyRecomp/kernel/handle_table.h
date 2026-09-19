@@ -36,13 +36,17 @@ public:
         const auto it = objects.find(address);
         return it == objects.end() ? nullptr : it->second.lock();
     }
-    bool Close(uint32_t handle) {
+    bool Close(uint32_t handle, std::shared_ptr<Object>* closedObject = nullptr) {
         typename decltype(handles)::node_type removed;
         { std::lock_guard lock(mutex); removed = handles.extract(handle); }
+        // Report the object from this removal, not an earlier Acquire that may
+        // refer to a recycled handle token. Release output references outside the lock.
+        if (closedObject) *closedObject = removed.empty() ? nullptr : removed.mapped().object;
         return !removed.empty();
     }
     // The source remains alive even if another thread closes it after Acquire.
-    bool Duplicate(uint32_t source, uint32_t destination, std::shared_ptr<void> token, bool closeSource) {
+    bool Duplicate(uint32_t source, uint32_t destination, std::shared_ptr<void> token, bool closeSource,
+        std::shared_ptr<Object>* closedObject = nullptr) {
         typename decltype(handles)::node_type removed;
         {
             std::lock_guard lock(mutex);
@@ -52,6 +56,7 @@ public:
             handles.emplace(destination, Entry{std::move(token), std::move(object)});
             if (closeSource) removed = handles.extract(source);
         }
+        if (closedObject) *closedObject = removed.empty() ? nullptr : removed.mapped().object;
         return true;
     }
     void ReferenceObject(uint32_t address, const std::shared_ptr<Object>& object) {
