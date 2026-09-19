@@ -1,3 +1,5 @@
+> Superseded / 未通过完整验收：本报告的M2/M3/M4完成措辞超出了当时实现。原通道只做相机重投影，Bell/skinning只做CPU常量差值。后续真实实现与验证边界见 `motion-vector-implementation.md`，不能引用本报告作为全游戏MV完成证明。
+
 # Motion Vector Implementation Milestone Report (M0 - M4)
 
 ## 1. 代码基线与提交历史

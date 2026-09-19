@@ -1,6 +1,6 @@
 #pragma once
 #include "motion_vector.h"
-#include "motion_vector_gpu.h"
+#include "motion_frame.h"
 #include "temporal_aa.h"
 #include "temporal_scene.h"
 
@@ -164,11 +164,10 @@ class HistoryOwner {
     plume::RenderDevice* device_=nullptr;
     TemporalAA aa_;
     std::shared_ptr<taa_collection::SparseDepthGPU> sparse_;
-    std::shared_ptr<MotionVectorGPU> mvGpu_;
     uint64_t sparseReleaseSerial_=0;
     std::array<Image,2> depth_,history_;
     Image source_,display_;
-    Image motionVector_;
+    MotionFrameView motionView_{};
     struct RetiredImage { uint64_t serial; std::unique_ptr<plume::RenderTexture> texture; };
     std::vector<RetiredImage> retired_;
     std::array<Frame,2> frames_;
@@ -179,7 +178,6 @@ class HistoryOwner {
     bool diagnosticsEnabled_=false;
     plume::RenderFormat colorFormat_=plume::RenderFormat::R8G8B8A8_UNORM;
     HistoryReuseDiagnostic diagnostics_;
-    MotionVectorGPU motionVectorGpu_;
     static void Transition(plume::RenderCommandList* commands,Image& image,plume::RenderTextureLayout layout) {
         if(image.layout!=layout) {commands->barriers(plume::RenderBarrierStage::ALL,plume::RenderTextureBarrier(image.texture.get(),layout));image.layout=layout;}
     }
@@ -198,19 +196,19 @@ public:
     bool Init(plume::RenderDevice* device,std::shared_ptr<taa_collection::SparseDepthGPU> sparse={},bool hdrColor=false) {
         device_=device;sparse_=std::move(sparse);
         colorFormat_=hdrColor?plume::RenderFormat::R16G16B16A16_FLOAT:plume::RenderFormat::R8G8B8A8_UNORM;
-        motionVectorGpu_.Init(device);
         return aa_.Init(device,hdrColor);
     }
-    void Reset() {valid_=false;motionVectorValid_=false;for(auto& frame:frames_)frame.completed=false;}
-    void SetMotionVectorValid(bool valid) { motionVectorValid_ = valid; }
+    void Reset() {valid_=false;motionVectorValid_=false;motionView_={};for(auto& frame:frames_)frame.completed=false;}
     bool MotionVectorValid() const { return motionVectorValid_; }
+    // External passes sampling our owned depth join THIS owner's submission serial.
+    void RecordExternalRead() { aa_.RecordExternalUse(); }
     // Frame identity is supplied by renderer, never CPU presented-swap count.
     void BeginFrame(uint64_t frame,uint64_t epoch,bool diagnostics=false) {
         diagnosticsEnabled_=diagnostics;
         if(frame_==frame&&epoch_==epoch)return;
         if(frame_+1!=frame||epoch_!=epoch)Reset();
         frame_=frame;epoch_=epoch;frames_[frame%2]=Frame{};reused_=false;
-        diagnostics_={};
+        diagnostics_={};motionView_={};motionVectorValid_=false;
     }
     bool CaptureDepth(plume::RenderCommandList* commands,plume::RenderTexture* source,const SceneObservation& scene) {
         const auto& d=scene.Depth();auto& current=frames_[frame_%2];
@@ -223,7 +221,6 @@ public:
             for(auto& image:history_)ok=Allocate(image,colorFormat_)&&ok;
             ok=Allocate(source_,colorFormat_)&&ok;
             ok=Allocate(display_,colorFormat_)&&ok;
-            ok=Allocate(motionVector_,plume::RenderFormat::R16G16_FLOAT)&&ok;
             if(!ok){width_=height_=0;return false;}
         }
         Matrix vp{};for(unsigned i=0;i<16;++i)vp[i]=std::bit_cast<float>(scene.Anchor().vpBits[i]);
@@ -237,7 +234,7 @@ public:
     }
     // Caller supplies full scene color in the instance color format and COPY_SOURCE. Output is SHADER_READ.
     // allowHistory is an explicit experiment assertion, NOT inferred scene/MV safety.
-    plume::RenderTexture* ResolveColor(plume::RenderCommandList* commands,plume::RenderTexture* source,const SceneObservation& scene,double jx,double jy,bool allowHistory,bool stableGrid=false,bool colorReactive=false) {
+    plume::RenderTexture* ResolveColor(plume::RenderCommandList* commands,plume::RenderTexture* source,const SceneObservation& scene,double jx,double jy,bool allowHistory,bool stableGrid=false,bool colorReactive=false,const MotionFrameView* motion=nullptr,bool motionDebug=false) {
         auto& current=frames_[frame_%2];auto& previous=frames_[(frame_+1)%2];
         if(!commands||!source||!scene.Ready()||scene.Frame()!=frame_||!current.camera||current.completed||current.depthOrdinal!=scene.Depth().ordinal||scene.Color().width!=width_||scene.Color().height!=height_) {Reset();return nullptr;}
         current.jx=jx;current.jy=jy;current.colorOrdinal=scene.Color().ordinal;current.stableGrid=stableGrid;
@@ -251,37 +248,14 @@ public:
         Transition(commands,history_[frame_%2],plume::RenderTextureLayout::COLOR_WRITE);
         Transition(commands,history_[(frame_+1)%2],plume::RenderTextureLayout::SHADER_READ);
 
-        // Render GPU Motion Vector pass if previous camera is valid and reuse is permitted
-        if (motionVectorGpu_.Ready() && motionVector_.texture && previous.camera && reuse) {
-            Transition(commands, motionVector_, plume::RenderTextureLayout::COLOR_WRITE);
-            if (motionVectorGpu_.Render(
-                    commands,
-                    depth_[frame_ % 2].texture.get(),
-                    depth_[(frame_ + 1) % 2].texture.get(),
-                    motionVector_.texture.get(),
-                    width_,
-                    height_,
-                    width_,
-                    height_,
-                    *current.camera,
-                    *previous.camera,
-                    static_cast<float>(jx),
-                    static_cast<float>(jy),
-                    static_cast<float>(previous.jx),
-                    static_cast<float>(previous.jy))) {
-                motionVectorValid_ = true;
-            } else {
-                motionVectorValid_ = false;
-            }
-        } else {
-            motionVectorValid_ = false;
-        }
-
-        if(motionVector_.texture) {
-            Transition(commands,motionVector_,plume::RenderTextureLayout::SHADER_READ);
-        }
+        motionView_={};
+        motionVectorValid_=motion&&motion->ready&&motion->frame==frame_&&motion->epoch==epoch_&&
+            motion->depthAllocation==current.allocation&&motion->width==width_&&motion->height==height_&&
+            motion->velocity&&motion->depths&&motion->reactive;
+        if(motionVectorValid_)motionView_=*motion;
         TemporalAAInputs in;in.rejectOutOfNeighborhoodHistory=colorReactive;in.stableGrid=stableGrid;in.currentColor=source_.texture.get();in.currentDepth=depth_[frame_%2].texture.get();in.historyColor=history_[(frame_+1)%2].texture.get();in.historyDepth=depth_[(frame_+1)%2].texture.get();in.output=history_[frame_%2].texture.get();
-        in.motionVector=motionVector_.texture.get();
+        in.motionVector=motionView_.velocity;in.motionDepths=motionView_.depths;in.reactiveMask=motionView_.reactive;
+        in.motionVectorDebug=motionDebug;
         in.motionVectorValid=motionVectorValid_;
         in.width=in.historyWidth=width_;in.height=in.historyHeight=height_;in.currentCamera=&*current.camera;in.previousCamera=previous.camera?&*previous.camera:nullptr;
         in.currentJitterX=jx;in.currentJitterY=jy;in.previousJitterX=previous.jx;in.previousJitterY=previous.jy;in.historyValid=reuse;in.rejectAllHistory=!allowHistory;
@@ -306,7 +280,7 @@ public:
     const HistoryReuseDiagnostic& Diagnostics() const {return diagnostics_;}
     // Borrowed diagnostic view, SHADER_READ; restore that layout after a readback.
     plume::RenderTexture* CurrentDepth() const {return depth_[frame_%2].texture.get();}
-    plume::RenderTexture* CurrentMotionVector() const {return motionVector_.texture.get();}
+    plume::RenderTexture* CurrentMotionVector() const {return motionVectorValid_?motionView_.velocity:nullptr;}
     void ReleaseCompleted() {if(sparse_)sparse_->ReleaseCompleted();sparseReleaseSerial_=0;aa_.ReleaseCompleted();retired_.clear();}
     uint64_t RecordedSerial() const {return aa_.RecordedSerial();}
     void ReleaseCompletedThrough(uint64_t serial) {

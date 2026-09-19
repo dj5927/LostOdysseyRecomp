@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include <limits>
+#include <cstring>
 #ifdef LO_GPU_PLUME
 #include <plume_render_interface.h>
 #include <plume_render_interface_builders.h>
@@ -36,7 +37,7 @@ struct Constants
 static_assert(sizeof(Constants)==144);
 void DefineSet(RenderDescriptorSetBuilder& set, bool vulkan)
 {
-    set.begin(); for(uint32_t i=0;i<6;++i) set.addTexture(i); set.addSampler(vulkan?6:0); if(vulkan) set.addConstantBuffer(7); set.end();
+    set.begin(); for(uint32_t i=0;i<7;++i) set.addTexture(i); set.addSampler(vulkan?7:0); if(vulkan) set.addConstantBuffer(8); set.end();
 }
 temporal::Matrix Multiply(const temporal::Matrix& a,const temporal::Matrix& b)
 {
@@ -55,12 +56,13 @@ Texture2D<float4> historyColor:register(t2);
 Texture2D<float> historyDepth:register(t3);
 Texture2D<float> reactiveMask:register(t4);
 Texture2D<float2> motionVector:register(t5);
+Texture2D<float2> motionDepths:register(t6);
 #ifdef __spirv__
-[[vk::binding(6,0)]]
+[[vk::binding(7,0)]]
 #endif
 SamplerState linearClamp:register(s0);
 #ifdef __spirv__
-[[vk::binding(7,0)]]
+[[vk::binding(8,0)]]
 #endif
 cbuffer Parameters:register(b0) {
  row_major float4x4 transform;
@@ -96,27 +98,11 @@ float4 stablePixel(float4 position) {
  if(!active)return rejected(center);
  if(reactive){float mask=reactiveMask.Load(int3(p,0));if(!isfinite(mask)||mask>0)return rejected(center);}
  float d=currentDepth.Load(int3(p,0));if(!isfinite(d)||d<=0||d>1)return rejected(center);
- float2 raw=0,q=0;
- bool hasMv=false;
- if(pad0&4) {
-  float2 mv=motionVector.Load(int3(p,0)).xy;
-  if(all(isfinite(mv))) {
-   // mv is backward pixel displacement: previousRaster - currentRaster
-   // Stable color pixel is unjittered: position.xy - jitter.xy
-   // Therefore previous unjittered color q = position.xy + mv - jitter.xy
-   // And previous raw raster = q + jitter.zw = position.xy + mv + jitter.zw - jitter.xy
-   q=position.xy+mv-jitter.xy;
-   raw=q+jitter.zw;
-   hasMv=true;
-  }
- }
  float2 raster=position.xy+jitter.xy;
  float4 clip=mul(float4(raster,1-d,1),transform);
- if(!hasMv) {
-  if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z))))return rejected(center);
-  raw=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
-  q=raw-jitter.zw;
- }
+ if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z))))return rejected(center);
+ float2 raw=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
+ float2 q=raw-jitter.zw;
  if(!all(isfinite(raw))||any(raw<.5)||any(raw>imageSize.zw-.5)||any(q<.5)||any(q>imageSize.zw-.5))return rejected(center);
  // Fixed radius-one support, paired NEAR/FAR endpoints, not a set-intersection
  // test. A silhouette pixel represents coverage of two surfaces. Requiring every
@@ -157,7 +143,40 @@ float4 stablePixel(float4 position) {
  if(!all(isfinite(history)))return rejected(center);
  return accumulate(center,history,lo,hi);
 }
+float4 motionPixel(float4 position) {
+ int2 p=int2(position.xy);float4 center=currentColor.Load(int3(p,0));
+ if(!active)return rejected(center);
+ float mask=reactiveMask.Load(int3(p,0));
+ if(!isfinite(mask)||mask>0)return (pad1&4)?float4(1,0,1,1):rejected(center);
+ float2 mv=motionVector.Load(int3(p,0)),md=motionDepths.Load(int3(p,0));
+ float d=currentDepth.Load(int3(p,0));
+ if(!all(isfinite(mv))||!all(isfinite(md))||!depthAgrees(d,md.x)||md.y<=0||md.y>1)return rejected(center);
+ if(pad1&4)return float4(.5+clamp(mv/32,-.5,.5),0,1);
+ bool stable=(pad0&1)!=0;
+ // MV is unjittered. Convert to the history color/depth grids once.
+ float2 q=position.xy+mv+(stable?float2(0,0):jitter.zw-jitter.xy);
+ float2 raw=q+(stable?jitter.zw:float2(0,0));
+ if(any(q<.5)||any(q>imageSize.zw-.5)||any(raw<.5)||any(raw>imageSize.zw-.5))return rejected(center);
+ int2 first=int2(floor(q-.5));float2 f=frac(q-.5);
+ float4 wx=cubicWeights(f.x),wy=cubicWeights(f.y);float3 history=0;
+ [unroll]for(int y=0;y<4;++y)[unroll]for(int x=0;x<4;++x) {
+  float weight=wx[x]*wy[y];if(weight==0)continue;
+  int2 tap=clamp(first+int2(x-1,y-1),int2(0,0),int2(imageSize.zw)-1);
+  int2 dtap=stable?int2(floor(float2(tap)+.5+jitter.zw)):tap;
+  dtap=clamp(dtap,int2(0,0),int2(imageSize.zw)-1);
+  if(!depthAgrees(historyDepth.Load(int3(dtap,0)),md.y))return rejected(center);
+  history+=historyColor.Load(int3(tap,0)).rgb*weight;
+ }
+ if(!all(isfinite(history)))return rejected(center);
+ float3 lo=center.rgb,hi=center.rgb;
+ [unroll]for(int y=-1;y<=1;++y)[unroll]for(int x=-1;x<=1;++x) {
+  int2 t=clamp(p+int2(x,y),int2(0,0),int2(imageSize.xy)-1);
+  float3 c=currentColor.Load(int3(t,0)).rgb;lo=min(lo,c);hi=max(hi,c);
+ }
+ return accumulate(center,history,lo,hi);
+}
 float4 pixel(float4 position:SV_Position):SV_Target {
+ if(pad0&4)return motionPixel(position);
  if(pad0&1)return stablePixel(position);
  int2 p=int2(position.xy);float4 center=currentColor.Load(int3(p,0));
  if(!active) return rejected(center);
@@ -165,56 +184,22 @@ float4 pixel(float4 position:SV_Position):SV_Target {
  float d=currentDepth.Load(int3(p,0));
  if(!isfinite(d)||d<=0||d>1) return rejected(center);
  float4 clip=mul(float4(position.xy,1-d,1),transform);
- float2 q=0;
- bool hasMv=false;
- if(pad0&4) {
-  float2 mv=motionVector.Load(int3(p,0)).xy;
-  if(all(isfinite(mv))) {
-   // mv is backward pixel displacement: previousRaw - currentRaw.
-   // Accounting for subpixel jitter:
-   q=position.xy+mv+jitter.zw-jitter.xy;
-   hasMv=true;
-  }
- }
- if(!hasMv) {
-  if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z)))) return rejected(center);
-  q=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
- }
+ if(!all(isfinite(clip))||clip.w<=1e-6*max(1,max(max(abs(clip.x),abs(clip.y)),abs(clip.z))))return rejected(center);
+ float2 q=(clip.xy/clip.w)*previousScaleBias.xy+previousScaleBias.zw;
  float predicted=1-clip.z/clip.w;
- // When valid motion vector is present on dynamic geometry (e.g. bell or character),
- // camera-only clip projection depth does not match moving object previous depth.
- // If hasMv is true, accept historyDepth tap if it agrees with either predicted depth
- // or current depth d (to allow rigid/moving objects within continuity).
- if(!all(isfinite(q))||!isfinite(predicted)||predicted<=0||predicted>1||any(q<.5)||any(q>imageSize.zw-.5)) return rejected(center);
+ if(!all(isfinite(q))||!isfinite(predicted)||predicted<=0||predicted>1||any(q<.5)||any(q>imageSize.zw-.5))return rejected(center);
  int2 first=int2(floor(q-.5)),last=min(first+1,int2(imageSize.zw)-1);
- // Validate all footprint depths conservatively, including zero-weight edge taps.
- if(!hasMv) {
-  if(!depthAgrees(historyDepth.Load(int3(first,0)),predicted)
-   ||!depthAgrees(historyDepth.Load(int3(last.x,first.y,0)),predicted)
-   ||!depthAgrees(historyDepth.Load(int3(first.x,last.y,0)),predicted)
-   ||!depthAgrees(historyDepth.Load(int3(last,0)),predicted)) return rejected(center);
- } else {
-  // Moving geometry: check against predicted or current depth
-  float hd0 = historyDepth.Load(int3(first,0));
-  float hd1 = historyDepth.Load(int3(last.x,first.y,0));
-  float hd2 = historyDepth.Load(int3(first.x,last.y,0));
-  float hd3 = historyDepth.Load(int3(last,0));
-  if((!depthAgrees(hd0,predicted)&&!depthAgrees(hd0,d))
-   ||(!depthAgrees(hd1,predicted)&&!depthAgrees(hd1,d))
-   ||(!depthAgrees(hd2,predicted)&&!depthAgrees(hd2,d))
-   ||(!depthAgrees(hd3,predicted)&&!depthAgrees(hd3,d))) return rejected(center);
- }
+ if(!depthAgrees(historyDepth.Load(int3(first,0)),predicted)
+  ||!depthAgrees(historyDepth.Load(int3(last.x,first.y,0)),predicted)
+  ||!depthAgrees(historyDepth.Load(int3(first.x,last.y,0)),predicted)
+  ||!depthAgrees(historyDepth.Load(int3(last,0)),predicted))return rejected(center);
  float2 fraction=frac(q-.5);
  float4 wx=cubicWeights(fraction.x),wy=cubicWeights(fraction.y);
  float3 history=0;
  [unroll]for(int cy=0;cy<4;++cy) [unroll]for(int cx=0;cx<4;++cx) {
   int2 tap=clamp(first+int2(cx-1,cy-1),int2(0,0),int2(imageSize.zw)-1);
   float tapD=historyDepth.Load(int3(tap,0));
-  if(!hasMv) {
-   if(!depthAgrees(tapD,predicted)) return rejected(center);
-  } else {
-   if(!depthAgrees(tapD,predicted)&&!depthAgrees(tapD,d)) return rejected(center);
-  }
+  if(!depthAgrees(tapD,predicted))return rejected(center);
   history+=historyColor.Load(int3(tap,0)).rgb*wx[cx]*wy[cy];
  }
  if(!all(isfinite(history))) return rejected(center);
@@ -284,7 +269,7 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
     auto fail=[&](const char* error){p.error=error;return false;};
     if(!commands||!p.pipeline||!in.currentColor||!in.output||!in.width||!in.height||in.width>16384||in.height>16384)
         return fail("Invalid command list, initialization, color/output, or extent");
-    for(auto texture:{in.currentColor,in.currentDepth,in.historyColor,in.historyDepth,in.reactiveMask})
+    for(auto texture:{in.currentColor,in.currentDepth,in.historyColor,in.historyDepth,in.reactiveMask,in.motionVector,in.motionDepths})
         if(texture && texture==in.output)return fail("Output must not alias an input");
     if(!std::isfinite(in.historyWeight)||in.historyWeight<0||in.historyWeight>.95f
        ||!std::isfinite(in.depthAbsoluteThreshold)||in.depthAbsoluteThreshold<0||in.depthAbsoluteThreshold>1
@@ -292,7 +277,7 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
         return fail("Invalid temporal weight/depth policy");
     Constants c;c.size[0]=float(in.width);c.size[1]=float(in.height);
     c.pad0=in.stableGrid?1u:0u;
-    c.pad1=(in.rejectOutOfNeighborhoodHistory?1u:0u)|(in.diagnosticAcceptance?2u:0u);
+    c.pad1=(in.rejectOutOfNeighborhoodHistory?1u:0u)|(in.diagnosticAcceptance?2u:0u)|(in.motionVectorDebug?4u:0u);
     if(in.stableGrid)for(double j:{in.currentJitterX,in.currentJitterY,in.previousJitterX,in.previousJitterY})
         if(!std::isfinite(j)||std::abs(j)>=.5)return fail("Stable coverage mode requires jitter strictly within half a raster pixel");
     c.jitter[0]=float(in.currentJitterX);c.jitter[1]=float(in.currentJitterY);c.jitter[2]=float(in.previousJitterX);c.jitter[3]=float(in.previousJitterY);
@@ -317,7 +302,7 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
         c.previousScaleBias[3]=float(previous.height*.5*(1-previous.halfPixelNdcY)+in.previousJitterY);
         c.size[2]=float(in.historyWidth);c.size[3]=float(in.historyHeight);c.active=1;c.reactive=in.reactiveMask?1u:0u;
         // Enable motion vector sampling in shader if caller provides motionVector texture AND marks it valid
-        if (in.motionVector && in.motionVectorValid) {
+        if (in.motionVector && in.motionDepths && in.reactiveMask && in.motionVectorValid) {
             c.pad0 |= 4u;
         }
     }
@@ -325,14 +310,14 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
     const RenderTexture* attachments[]={in.output};pending.framebuffer=p.device->createFramebuffer(RenderFramebufferDesc(attachments,1));
     if(!pending.set||!pending.framebuffer)return fail("Temporal descriptor/framebuffer allocation failed");
     // Inactive shader returns before accessing fallback descriptors.
-    std::array<RenderTexture*,6> inputs={in.currentColor,active?in.currentDepth:in.currentColor,active?in.historyColor:in.currentColor,active?in.historyDepth:in.currentColor,active&&in.reactiveMask?in.reactiveMask:in.currentColor,active&&in.motionVector?in.motionVector:in.currentColor};
-    for(uint32_t i=0;i<6;++i)pending.set->setTexture(i,inputs[i],RenderTextureLayout::SHADER_READ);
-    pending.set->setSampler(6,p.sampler.get());
+    std::array<RenderTexture*,7> inputs={in.currentColor,active?in.currentDepth:in.currentColor,active?in.historyColor:in.currentColor,active?in.historyDepth:in.currentColor,active&&in.reactiveMask?in.reactiveMask:in.currentColor,active&&in.motionVector?in.motionVector:in.currentColor,active&&in.motionDepths?in.motionDepths:in.currentColor};
+    for(uint32_t i=0;i<7;++i)pending.set->setTexture(i,inputs[i],RenderTextureLayout::SHADER_READ);
+    pending.set->setSampler(7,p.sampler.get());
     if(p.vulkan) {
         pending.constants=p.device->createBuffer(RenderBufferDesc::UploadBuffer(sizeof(Constants),RenderBufferFlag::CONSTANT));
         if(!pending.constants){p.error="Temporal constants allocation failed";return false;}
         auto* mapped=pending.constants->map();memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
-        pending.set->setBuffer(7,pending.constants.get(),sizeof(c));
+        pending.set->setBuffer(8,pending.constants.get(),sizeof(c));
     }
 
     pending.serial=p.recordedSerial+1;p.pending.push_back(std::move(pending));++p.recordedSerial;auto& resources=p.pending.back();
@@ -357,13 +342,13 @@ bool TemporalAA::ReconstructDisplay(RenderCommandList* commands,const TemporalDi
     Impl::Pending pending;RenderDescriptorSetBuilder set;DefineSet(set,p.vulkan);pending.set=set.create(p.device);
     const RenderTexture* attachments[]={in.output};pending.framebuffer=p.device->createFramebuffer(RenderFramebufferDesc(attachments,1));
     if(!pending.set||!pending.framebuffer){p.error="Display descriptor/framebuffer allocation failed";return false;}
-    for(uint32_t i=0;i<6;++i)pending.set->setTexture(i,in.jitteredColor,RenderTextureLayout::SHADER_READ);
-    pending.set->setSampler(6,p.sampler.get());
+    for(uint32_t i=0;i<7;++i)pending.set->setTexture(i,in.jitteredColor,RenderTextureLayout::SHADER_READ);
+    pending.set->setSampler(7,p.sampler.get());
     if(p.vulkan) {
         pending.constants=p.device->createBuffer(RenderBufferDesc::UploadBuffer(sizeof(Constants),RenderBufferFlag::CONSTANT));
         if(!pending.constants){p.error="Temporal constants allocation failed";return false;}
         auto* mapped=pending.constants->map();memcpy(mapped,&c,sizeof(c));pending.constants->unmap();
-        pending.set->setBuffer(7,pending.constants.get(),sizeof(c));
+        pending.set->setBuffer(8,pending.constants.get(),sizeof(c));
     }
     pending.serial=p.recordedSerial+1;p.pending.push_back(std::move(pending));++p.recordedSerial;auto& resources=p.pending.back();
     commands->setFramebuffer(resources.framebuffer.get());RenderViewport viewport(0,0,float(in.width),float(in.height));RenderRect scissor(0,0,in.width,in.height);

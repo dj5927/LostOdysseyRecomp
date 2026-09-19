@@ -1,0 +1,45 @@
+cmake_minimum_required(VERSION 3.24)
+project(lo_motion_replay_tests LANGUAGES CXX C)
+set(CMAKE_CXX_STANDARD 20)
+get_filename_component(ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+set(PLUME_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(PLUME_SDL_VULKAN_ENABLED OFF CACHE BOOL "" FORCE)
+add_subdirectory("${ROOT}/thirdparty/plume" plume)
+add_subdirectory("${ROOT}/tools/XenosRecomp/thirdparty/fmt" fmt EXCLUDE_FROM_ALL)
+add_library(mv_runtime STATIC
+ "${ROOT}/LostOdysseyRecomp/gpu/shader/xenos_translator.cpp"
+ "${ROOT}/LostOdysseyRecomp/gpu/shader/dxc_compiler.cpp"
+ "${ROOT}/LostOdysseyRecomp/gpu/temporal_aa.cpp")
+target_include_directories(mv_runtime PUBLIC "${ROOT}/LostOdysseyRecomp"
+ "${ROOT}/tools/XenosRecomp/thirdparty/dxc-bin/inc"
+ "${ROOT}/tools/XenosRecomp/XenosRecomp")
+target_compile_definitions(mv_runtime PUBLIC LO_GPU_PLUME NOMINMAX)
+target_link_libraries(mv_runtime PUBLIC plume fmt::fmt ${CMAKE_DL_LIBS})
+if(WIN32)
+ target_link_libraries(mv_runtime PUBLIC d3d12 dxgi)
+endif()
+add_executable(motion_replay_gpu_test "${ROOT}/tools/tests/motion_replay_gpu_test.cpp")
+target_link_libraries(motion_replay_gpu_test PRIVATE mv_runtime)
+add_executable(motion_vector_test "${ROOT}/tools/tests/motion_vector_test.cpp")
+target_include_directories(motion_vector_test PRIVATE "${ROOT}/LostOdysseyRecomp")
+enable_testing()
+add_test(NAME motion_cpu COMMAND motion_vector_test)
+add_test(NAME motion_gpu COMMAND motion_replay_gpu_test)
+if(UNIX AND NOT APPLE)
+ find_package(X11 REQUIRED)
+ target_link_libraries(mv_runtime PUBLIC X11::X11)
+endif()
+add_executable(temporal_aa_regression "${ROOT}/tools/tests/temporal_aa_test.cpp" platform_stub.cpp)
+target_link_libraries(temporal_aa_regression PRIVATE mv_runtime)
+add_test(NAME temporal_aa_legacy COMMAND temporal_aa_regression --vulkan)
+# Compile the actual renderer translation unit against actual graphics interfaces.
+# Only unused generated guest-ABI names in its PCH are replaced; no game linking
+# or execution is claimed by this boundary check.
+add_library(motion_renderer_compile OBJECT "${ROOT}/LostOdysseyRecomp/gpu/renderer.cpp")
+target_include_directories(motion_renderer_compile BEFORE PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/compile_boundary")
+target_include_directories(motion_renderer_compile PRIVATE "${ROOT}/thirdparty/unordered_dense/include")
+target_compile_definitions(motion_renderer_compile PRIVATE LO_SOURCE_VERSION="mv-fixture")
+target_link_libraries(motion_renderer_compile PRIVATE mv_runtime)
+if(NOT MSVC)
+ target_compile_options(motion_renderer_compile PRIVATE -O0 -g0)
+endif()

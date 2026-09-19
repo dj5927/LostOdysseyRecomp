@@ -23,6 +23,8 @@
 #include "temporal_scene.h"
 #include "temporal_jitter.h"
 #include "temporal_history.h"
+#include "motion_options.h"
+#include "motion_replay_gpu.h"
 #include "presentation.h"
 #include <settings/config.h>
 #include "shader/xenos_translator.h"
@@ -341,7 +343,7 @@ namespace gpu::renderer
                 // a distinct output while commands in the slot remain in flight.
                 std::vector<std::unique_ptr<HostTexture>> bloomPrefilterTextures;
                 size_t bloomPrefilterUsed = 0;
-                uint64_t temporalSerial = 0, hdrTemporalSerial = 0;
+                uint64_t temporalSerial = 0, hdrTemporalSerial = 0, motionSerial = 0;
                 bool submitted = false;
             };
             GpuSlot gpuSlots[kGpuSlots];
@@ -378,8 +380,10 @@ namespace gpu::renderer
             geometry_prepare::VertexCache vertexCache;
             geometry_prepare::IndexCache indexCache;
             uint64_t indexCacheHits = 0, indexCacheMisses = 0;
+            std::array<uint64_t, kGpuSlots> motionArenaGeneration{};
             void ResetSlotArena(uint32_t i)
             {
+                ++motionArenaGeneration[i];
                 gpuSlots[i].arenaOffset = 0;
                 for (auto it = vertexCache.begin(); it != vertexCache.end(); )
                 {
@@ -455,6 +459,28 @@ namespace gpu::renderer
             temporal::SceneObservation temporalScene;
             std::shared_ptr<taa_collection::SparseDepthGPU> sparseCollector;
             temporal::DrawTemporalTracker drawTemporalTracker;
+            const temporal::MotionOptions motionOptions = temporal::MotionOptions::Environment();
+            std::unique_ptr<temporal::MotionReplayGPU> motionReplay;
+            bool motionInitFailed = false;
+            temporal::MotionFrameView motionView;
+            uint64_t motionFinalizedFrame = ~0ull;
+            void FinishMotion(temporal::HistoryOwner* history) {
+                if (!motionOptions.enabled || !history || motionFinalizedFrame == frame) return;
+                motionFinalizedFrame = frame;
+                const auto& flags = drawTemporalTracker.FinalizeFrame();
+                if (motionReplay && !drawTemporalTracker.Failed()) {
+                    motionView = motionReplay->Finish(commandList, history->CurrentDepth(), flags);
+                    if (motionView.ready) history->RecordExternalRead();
+                }
+                if (motionOptions.log && (frame % 120 == 0)) {
+                    const auto& st = drawTemporalTracker.Stats();
+                    LOG_INFO("mv: frame={} tracked={} matched={} ambiguous={} overflow={} replay={} failed={} ready={} consume={} pending={}",
+                        frame, st.trackedCurrentDraws, st.matchedPreviousDraws, st.ambiguousRejectedMatches,
+                        st.overflowDraws, motionReplay ? motionReplay->DrawCount() : 0,
+                        motionReplay ? motionReplay->FailedDraws() : 0, motionView.ready,
+                        motionOptions.consume && motionView.ready, motionReplay ? motionReplay->PendingCount() : 0);
+                }
+            }
             std::unique_ptr<temporal::HistoryOwner> temporalHistory;
             // Opt-in candidate, controlled through the local diagnostic file.
             // Separate owner: HDR is accumulated before bloom and tone mapping.
@@ -1528,6 +1554,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     else gpuTiming.AddUnavailableBatch();
                 } else if (render_timing::Enabled()) gpuTiming.AddUnavailableBatch();
                 s.drawProbe.ReadCompleted();
+                if (motionReplay) {
+                    for (const auto& texture : s.retiredTextures) motionReplay->ForgetDepth(texture->texture.get());
+                    motionReplay->ReleaseCompletedThrough(s.motionSerial);
+                }
                 for (const auto& texture : s.retiredTextures)
                     for (auto fb = framebuffers.begin(); fb != framebuffers.end();)
                         if (fb->first.first == texture->texture.get() || fb->first.second == texture->texture.get())
@@ -1600,6 +1630,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const RenderCommandList* lists[] = { commandList };
                 Gpu().temporalSerial = temporalHistory ? temporalHistory->RecordedSerial() : 0;
                 Gpu().hdrTemporalSerial = hdrTemporalHistory ? hdrTemporalHistory->RecordedSerial() : 0;
+                Gpu().motionSerial = motionReplay ? motionReplay->RecordedSerial() : 0;
                 queue->executeCommandLists(lists, 1, nullptr, 0, nullptr, 0, fence);
                 Gpu().submitted = true;
                 gpuSlot = (gpuSlot + 1) % kGpuSlots;
@@ -2994,6 +3025,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 
             std::unique_ptr<RenderPipeline> CreatePipeline(const PipelineKey& key, Shader* vs, Shader* ps, bool trace)
             {
+                return device->createGraphicsPipeline(DescribePipeline(key, vs, ps, trace));
+            }
+            RenderGraphicsPipelineDesc DescribePipeline(const PipelineKey& key, Shader* vs, Shader* ps, bool trace)
+            {
                 const auto rtFormat = static_cast<RenderFormat>(key.rtFormat);
                 const auto depthFormat = static_cast<RenderFormat>(key.depthFormat);
 
@@ -3082,7 +3117,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 default: desc.primitiveTopology = RenderPrimitiveTopology::TRIANGLE_LIST; break;
                 }
 
-                return device->createGraphicsPipeline(desc);
+                return desc;
             }
 
             // ---- vertex buffers ------------------------------------------------------------
@@ -3490,7 +3525,18 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     temporalHistory->BeginFrame(frame,temporalEpoch,
                         taa_collection::DiagnosticsActive() || (diagnosticStart&&frame>=diagnosticFrame&&temporalFramesLogged<256) || (withTrace&&resolveTraceRemaining));
                     if (hdrTemporalHistory) hdrTemporalHistory->BeginFrame(frame, temporalEpoch, resolveTraceRemaining != 0);
-                    drawTemporalTracker.BeginFrame(frame);
+                    if (motionOptions.enabled) {
+                        drawTemporalTracker.BeginFrame(frame, temporalEpoch);
+                        if (motionView.frame != frame || motionView.epoch != temporalEpoch) motionView = {};
+                        if (motionOptions.replay && !motionReplay && !motionInitFailed) {
+                            motionReplay = std::make_unique<temporal::MotionReplayGPU>();
+                            if (!motionReplay->Init(device, setBuilders, vulkan ? 5 : 4)) {
+                                LOG_ERROR("mv: initialization failed; original TAA retained: {}", motionReplay->LastError());
+                                motionReplay.reset(); motionInitFailed = true;
+                            }
+                        }
+                        if (motionReplay) motionReplay->BeginFrame(frame, temporalEpoch);
+                    }
                 }
                 taaInit.AddTo(tTaa);
                 std::optional<temporal::SceneResolve> temporalSceneCopy;
@@ -3592,6 +3638,19 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     if (bindingTransform.slot >= 0 && bindingTransform.slot <= 252)
                         std::copy_n(vsConstants + bindingTransform.slot * 4, 16, bindingTransform.guestVP.begin());
                 }
+                // Motion follows the proven main scene allocation. The same shader
+                // hash in a shadow/offscreen view never authorizes replay.
+                const bool motionScene = motionOptions.enabled && (!motionOptions.replay || motionReplay) && temporalExperiment && jitterAnchor && temporalViewport && depth &&
+                    depth->allocationSerial == jitterAnchor->depthAllocation && rasterViewport.x == 0 && rasterViewport.y == 0 &&
+                    rasterViewport.width == jitterAnchor->viewport.width && rasterViewport.height == jitterAnchor->viewport.height;
+                const bool motionDepthWrite = motionScene && (depthControl & 6) == 6;
+                const bool motionSupported = motionDepthWrite && !drawTemporalTracker.Failed() && temporalSlot >= 0 && !vs->info.textureSlotMask &&
+                    !vs->info.usesPointSize && vs->info.errors.empty() && (!ps || (!ps->info.writesDepth && ps->info.errors.empty())) &&
+                    !(key.depthControl & 1) && key.prim != 8 && key.depthBias == 0 && key.slopeBias == 0 && layerDepthOffset == 0;
+                std::array<uint32_t, 1024> motionOriginalVS;
+                if (motionSupported) std::memcpy(motionOriginalVS.data(), vsConstants, sizeof(vsConstants));
+                uint64_t motionGeometry = 0xcbf29ce484222325ull;
+                bool motionStreamsValid = true;
                 const bool diagnosticMaterialBypass = taaDiagnosticMaterials == 0 &&
                     (key.vs == 0x3c86f4a89d220ee8ull || key.vs == 0xf3b9f20b3d3a62d5ull || key.vs == 0xe7b38eb08c70e5e1ull);
                 const auto drawJitter = temporal::ApplyDrawJitter(key.vs, key.ps, frame,
@@ -3712,12 +3771,22 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     else if ((offset = GetVertexBuffer(address, sizeDwords, d1 & 3)) == UINT64_MAX) skip = "upload failed";
                     if (skip)
                     {
+                        if (motionSupported) motionStreamsValid = false;
                         drops.vfetchSkips++;
                         if (vfTrace)
                             vfTraceLine += fmt::format(" vf{}=SKIP({} d0={:#x} d1={:#x})", slot, skip, d0, d1);
                         continue;
                     }
                     shared.vfetchOffset[slot] = uint32_t(offset);
+                    if (motionSupported) {
+                        // Every stream, not the first fetch. Arena uploads are immutable;
+                        // an overwrite/re-upload or recycled arena invalidates history.
+                        motionGeometry = temporal::MotionHashWord(motionGeometry, slot);
+                        motionGeometry = temporal::MotionHashWord(motionGeometry, d0);
+                        motionGeometry = temporal::MotionHashWord(motionGeometry, d1);
+                        motionGeometry = temporal::MotionHashWord(motionGeometry, offset);
+                        motionGeometry = temporal::MotionHashWord(motionGeometry, motionArenaGeneration[offset / gpu::render_arena::kSlotArenaSize]);
+                    }
                     if (vfTrace)
                         vfTraceLine += fmt::format(" vf{}=arena+{:#x}({:#x},{}dw,e{})", slot, offset, address, sizeDwords, d1 & 3);
                 }
@@ -3877,9 +3946,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                     if (hdrScene.ObserveColor(hdrSource)) {
                                         Transition(*tex, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
                                         const auto jitter = temporal::FrameJitter(frame, tex->width, tex->height);
+                                        FinishMotion(hdrTemporalHistory.get());
                                         hdrTemporalOutput = hdrTemporalHistory->ResolveColor(commandList, tex->texture.get(), hdrScene,
                                             temporalJitter ? jitter.pixelX : 0, temporalJitter ? jitter.pixelY : 0,
-                                            temporalAllowHistory, true, true);
+                                            temporalAllowHistory, true, true, motionOptions.consume ? &motionView : nullptr, motionOptions.debug);
+                                        if (motionOptions.consume && motionView.ready && motionReplay) motionReplay->RecordConsumerUse();
                                         Transition(*tex, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
                                         if (hdrTemporalOutput) {
                                             hdrTemporalSource = hdrSource;
@@ -3935,7 +4006,10 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                 Transition(*tex,RenderTextureLayout::COPY_SOURCE,RenderBarrierStage::COPY);
                                 const auto sample = temporal::FrameJitter(frame, rasterViewport.width, rasterViewport.height);
                                 const double jx = temporalJitter ? sample.pixelX : 0, jy = temporalJitter ? sample.pixelY : 0;
-                                temporalDisplay=temporalHistory->ResolveColor(commandList,tex->texture.get(),temporalScene,jx,jy,temporalAllowHistory && !hdrTonemapApplied,temporalStableGrid,sceneAAMode==3);
+                                FinishMotion(temporalHistory.get());
+                                temporalDisplay=temporalHistory->ResolveColor(commandList,tex->texture.get(),temporalScene,jx,jy,temporalAllowHistory && !hdrTonemapApplied,temporalStableGrid,sceneAAMode==3,
+                                    motionOptions.consume ? &motionView : nullptr, motionOptions.debug);
+                                if (motionOptions.consume && motionView.ready && motionReplay) motionReplay->RecordConsumerUse();
                                 Transition(*tex,RenderTextureLayout::SHADER_READ,RenderBarrierStage::GRAPHICS);
                                 if(temporalDisplay) {
                                     temporalDisplayFromHistory = true;
@@ -4343,36 +4417,54 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
                 drawsThisFrame++;
 
-                // Track draw temporal state for motion vector generation & correspondence
-                const int posSlot = temporal::PositionVPSlot(key.vs);
-                if (posSlot >= 0)
-                {
-                    temporal::DrawHistoryKey histKey{};
-                    histKey.vsHash = key.vs;
-                    histKey.indexBufferAddress = useIndices ? uint32_t(info.indexBase) : 0;
-                    histKey.firstIndex = 0;
-                    histKey.indexCount = indexCount;
-                    histKey.baseVertex = int32_t(baseVertex);
-                    histKey.primitiveType = uint32_t(info.primitiveType);
-                    for (uint32_t slot = 0; slot < kVertexFetchSlots; ++slot)
-                    {
-                        if ((vs->info.vertexFetchSlotMask[slot >> 6] >> (slot & 63)) & 1)
-                        {
-                            histKey.positionBufferAddress = Reg(REG_FETCH_CONSTANTS + slot * 2) & ~3u;
-                            break;
+                if (motionDepthWrite) {
+                    if (drawTemporalTracker.Finalized()) {
+                        // Do not change a motion field after its pre-UI consumer.
+                        drawTemporalTracker.Invalidate();
+                    } else if (!motionSupported || !motionStreamsValid) {
+                        // Unknown visibility writers require a conservative whole-frame
+                        // fallback; camera reprojection is not valid object motion.
+                        drawTemporalTracker.Invalidate();
+                        if (motionReplay) motionReplay->AbortFrame();
+                    } else {
+                        temporal::DrawHistoryKey mk{};
+                        mk.vsHash = key.vs; mk.psHash = key.ps; mk.sceneAllocation = depth->allocationSerial;
+                        mk.indexBufferAddress = useIndices ? info.indexBase : 0;
+                        mk.indexCount = indexCount; mk.baseVertex = baseVertex; mk.primitiveType = info.primitiveType;
+                        for (uint32_t index : indices) motionGeometry = temporal::MotionHashWord(motionGeometry, index);
+                        mk.geometrySignature = motionGeometry;
+                        auto match = drawTemporalTracker.Collect(mk, motionOriginalVS.data(), &shared, vs->info.usesRelativeConstants);
+                        if (motionReplay && motionReplay->UsableThisFrame()) {
+                            const auto w = uint32_t(rasterViewport.width), h = uint32_t(rasterViewport.height);
+                            auto* mp = motionReplay->PreparePipeline(key, DescribePipeline(key, vs, ps, false),
+                                vsWords, vsCount, ps ? psWords : nullptr, ps ? psCount : 0);
+                            const uint64_t aligned = (Gpu().uploadOffset + 255) & ~uint64_t(255);
+                            // Never trigger a mid-draw Flush: it would invalidate bound
+                            // index/texture state and the original constant references.
+                            if (!mp || aligned + sizeof(temporal::MotionReplayConstants) > kUploadRingSize ||
+                                !motionReplay->BeginScene(commandList, depth->allocationSerial, depth->texture.get(), w, h)) {
+                                motionReplay->AbortFrame();
+                            } else {
+                                const auto c = temporal::MakeMotionReplayConstants(match, w, h,
+                                    drawJitter.applied ? float(drawJitter.sample.pixelX) : 0,
+                                    drawJitter.applied ? float(drawJitter.sample.pixelY) : 0);
+                                const uint64_t mvOffset = Upload(&c, sizeof(c));
+                                const RenderBufferReference cb[4] = {{uploadRing, vsOffset}, {uploadRing, sharedOffset},
+                                    {uploadRing, psOffset}, {uploadRing, mvOffset}};
+                                RenderDescriptorSet* sets[] = {set0, set1, set2, set3, staticSamplerSet.get()};
+                                if (!motionReplay->Draw(commandList, mp, cb, sets, vulkan ? 5 : 4,
+                                    rasterViewport, scissor, useIndices, indexCount, baseVertex)) motionReplay->AbortFrame();
+                            }
+                            // Restore the guest binding contract for downstream diagnostics.
+                            commandList->setFramebuffer(framebuffer); commandList->setViewports(&rasterViewport, 1);
+                            commandList->setScissors(&scissor, 1); commandList->setGraphicsPipelineLayout(pipelineLayout.get());
+                            commandList->setPipeline(pipeline);
+                            if (vulkan) commandList->setGraphicsPushConstants(0, constantAddresses);
+                            else { SetConstantBuffer(vsOffset,0); SetConstantBuffer(sharedOffset,1); SetConstantBuffer(psOffset,2); }
+                            commandList->setGraphicsDescriptorSet(set0,0); commandList->setGraphicsDescriptorSet(set1,1);
+                            commandList->setGraphicsDescriptorSet(set2,2); commandList->setGraphicsDescriptorSet(set3,3);
+                            if (vulkan) commandList->setGraphicsDescriptorSet(staticSamplerSet.get(),4);
                         }
-                    }
-
-                    // Only record if explicit environment flag is enabled during development to prevent CPU overhead
-                    static const bool enableDrawTracking = getenv("LO_ENABLE_MV_DRAW_TRACKING") && strcmp(getenv("LO_ENABLE_MV_DRAW_TRACKING"), "1") == 0;
-                    if (enableDrawTracking)
-                    {
-                        const float* vsFloatPtr = reinterpret_cast<const float*>(vsConstants);
-                        const uint32_t* boolPtr = reinterpret_cast<const uint32_t*>(shared.bools);
-                        const uint32_t* loopPtr = reinterpret_cast<const uint32_t*>(shared.loops);
-                        const bool isSkinned = vs->info.usesRelativeConstants;
-
-                        drawTemporalTracker.RecordDraw(histKey, vsFloatPtr, boolPtr, loopPtr, isSkinned);
                     }
                 }
                 // Offline vertex replay: capture one frame of relative-addressed

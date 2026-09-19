@@ -21,7 +21,8 @@ struct TemporalAAInputs
     // Optional explicit motion vector: RG16_FLOAT (vx, vy in render pixels).
     plume::RenderTexture *currentColor=nullptr, *currentDepth=nullptr;
     plume::RenderTexture *historyColor=nullptr, *historyDepth=nullptr;
-    plume::RenderTexture *motionVector=nullptr;
+    plume::RenderTexture *motionVector=nullptr, *motionDepths=nullptr;
+    bool motionVectorDebug=false;
     bool motionVectorValid=false;
     // stableGrid=false: current jittered raster grid, paired with currentDepth.
     // stableGrid=true: stable display color; retain raw currentDepth separately.
