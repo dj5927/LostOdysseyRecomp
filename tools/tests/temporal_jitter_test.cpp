@@ -864,6 +864,10 @@ int main(int argc,char** argv)
             const auto sample = FrameJitter(frame, extent.width, extent.height);
             Check(sample.phase == frame+1 && sample.pixelX >= -.5 && sample.pixelX < .5 &&
                 sample.pixelY >= -.5 && sample.pixelY < .5, "all phases remain subpixel at every internal size");
+            const auto half = FrameJitter(frame, extent.width, extent.height, .5);
+            Check(half.phase == sample.phase && half.pixelX == sample.pixelX*.5 &&
+                half.pixelY == sample.pixelY*.5 && half.ndcX == sample.ndcX*.5f &&
+                half.ndcY == sample.ndcY*.5f, "jitter scale keeps phase and scales raster and NDC offsets");
             const auto cycle = FrameJitter(frame+32, extent.width, extent.height);
             Check(sample.ndcX == cycle.ndcX && sample.ndcY == cycle.ndcY, "32-phase period stable");
             const auto before = MatrixAt(bank(4), 4), after = MatrixAt(base, 4);

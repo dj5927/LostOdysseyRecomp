@@ -1,6 +1,7 @@
 param(
     [string]$RunDir = 'D:\Mihoyo\LostOdysseyRecomp-windows-x64',
     [ValidateRange(1, 65535)][int]$Port = 8769,
+    [ValidatePattern('^[^\\/:*?"<>|]+\.exe$')][string]$ExeName = 'LostOdysseyRecomp-debug.exe',
     [switch]$NoAutoContinue
 )
 $ErrorActionPreference = 'Stop'
@@ -30,7 +31,7 @@ if ($listening) {
     return
 }
 $resolvedRunDir = (Resolve-Path -LiteralPath $RunDir).Path
-$gamePath = Join-Path $resolvedRunDir 'LostOdysseyRecomp-debug.exe'
+$gamePath = Join-Path $resolvedRunDir $ExeName
 if (-not (Test-Path -LiteralPath $gamePath -PathType Leaf)) {
     throw "Debug game executable not found: $gamePath"
 }
@@ -47,7 +48,7 @@ $serverArgs = @(
     ('"{0}"' -f $serverScript),
     '--run-dir', ('"{0}"' -f $resolvedRunDir),
     '--control-dir', ('"{0}"' -f $controlDir),
-    '--port', "$Port", '--launch', '--exe', 'LostOdysseyRecomp-debug.exe'
+    '--port', "$Port", '--launch', '--exe', $ExeName
 )
 if (-not $NoAutoContinue) { $serverArgs += '--native-continue' }
 $server = Start-Process -FilePath $pythonCommand.Source -ArgumentList $serverArgs -WindowStyle Hidden -PassThru `

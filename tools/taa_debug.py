@@ -15,13 +15,13 @@ from urllib.parse import urlsplit, parse_qs
 import zlib
 
 DEFAULTS = dict(aa=3, jitter=1, history=1, bloom=-1, hdr=0, materials=1,
-    stationary=1, coverage=1, history_weight=.85, stationary_weight=31/33,
+    stationary=1, coverage=1, jitter_scale=1, gpu_timing=0, history_weight=.85, stationary_weight=31/33,
     motion_min=.002, motion_max=.125, depth_absolute=.00001,
-    depth_relative=.01, acceptance=0, mv_debug=0, mv_consume=1, snap_stationary=0, stationary_color_clip=0)
+    depth_relative=.01, acceptance=0, mv_debug=0, mv_consume=1, snap_stationary=0, stationary_color_clip=0, history_fp16=0, stationary_multi_surface=0, moving_bilinear_fallback=0)
 ENUMS = dict(aa=(-1,0,1,2,3), jitter=(-1,0,1), bloom=(-1,0,1),
     acceptance=(0,1,2), **{k:(0,1) for k in ('history','hdr','materials',
-    'stationary','coverage','mv_debug','mv_consume','snap_stationary','stationary_color_clip')})
-RANGES = dict(history_weight=(0,.95), stationary_weight=(0,.95),
+    'stationary','coverage','mv_debug','mv_consume','snap_stationary','stationary_color_clip','history_fp16','stationary_multi_surface','moving_bilinear_fallback','gpu_timing')})
+RANGES = dict(jitter_scale=(0,1), history_weight=(0,.95), stationary_weight=(0,.995),
     motion_min=(0,16), motion_max=(0,16), depth_absolute=(0,1), depth_relative=(0,1))
 TARGETS = {name:0xffff0001+i for i,name in enumerate(
     ('source','output','depth','mv','motion_depths','reactive'))}
@@ -84,6 +84,10 @@ def trace_pixel(path,x,y):
         0xffff0005:('motion_depths_float2','<2f',8),0xffff0006:('reactive_uint8','B',1)}
     if address not in layouts: raise ValueError('此 trace 地址没有已知像素协议')
     kind,format_string,bpp=layouts[address]
+    if address in (0xffff0001,0xffff0002):
+        color_formats={20:('rgba8','4B',4),10:('rgba16_float','<4e',8)}
+        if int(fmt) not in color_formats: raise ValueError('source/output trace 颜色格式不受支持')
+        kind,format_string,bpp=color_formats[int(fmt)]
     data=path.read_bytes()
     if width<=0 or height<=0 or len(data)!=width*height*bpp: raise ValueError('trace 长度与像素协议不一致或尚未写完')
     if not (0<=x<width and 0<=y<height): raise ValueError('像素坐标越界')

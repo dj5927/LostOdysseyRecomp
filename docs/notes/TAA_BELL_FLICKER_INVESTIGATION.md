@@ -3,6 +3,10 @@
 Status: investigation open. The exact-stationary MV plus stationary color-clip
 candidate received user confirmation of a clear stability improvement, but
 residual shimmer remains and the Bell Vulkan 4K issue is not resolved.
+The validated baseline was committed and pushed to `origin/mv` as
+`ae7df0fb051980a32410423284199c7cebd9dfc3`; this is not a formal release.
+The independent `history_fp16` experiment passed technical checks but has not
+been accepted as a visual fix.
 Ledger: all 18 `taa-position` cases remain `needs_review` / `not_implemented` /
 `not_validated` / `not_accepted`. This note binds no historical review to new evidence.
 
@@ -114,6 +118,77 @@ The user has now visually reviewed the exact-stationary MV plus stationary
 color-clip candidate and reports that it is clearly steadier, while residual
 shimmer remains. This confirms partial visual improvement for the observed Bell
 scene but does not establish a complete fix or close the investigation.
+
+### History FP16 precision candidate
+
+The independent `history_fp16` switch has now passed 50 precision-only GPU
+checks covering RGBA8 source plus FP16 history updates, final SDR/alpha,
+HistoryOwner round trips and reset behavior, and formats `127/129`. The FP16
+parser, Python half-trace, stationary-range and HTML syntax checks also passed;
+the runtime build is recorded in `build-history-precision-runtime.log`.
+Same-executable 32-frame values were RGBA8 `31/33`: upper/video/ground
+`0.5168837/0.5271268/0.3196223`; FP16 `31/33`:
+`0.5533177/0.5797869/0.3611376`; FP16 is therefore not claimed as a fix or
+recommended default. FP16 `63/65` measured `0.4818415/0.4930559/0.2660568`,
+and `127/129` measured `0.4366672/0.4451076/0.2160987`; RGBA8 `127/129`
+measured `0.3996239/0.4103040/0.1550984`. Higher stationary weights are
+diagnostic only and may produce motion trailing.
+
+The latest user observation of the higher-weight candidate was only a slight,
+hard-to-distinguish improvement by eye. No obvious trailing was observed, but
+the user reported lower frame rate, so this candidate is not accepted. The
+working controls have been restored to the baseline RGBA8 history with weight
+`31/33`.
+
+### Uhra Main Street follow-up
+
+The user identified the upper steel frame on Uhra Main Street as the active
+flicker region. In the older same-scene baseline, eight-frame source/output
+means changed from `7.760` to `0.356` for the steel ROI, `2.779` to `0.034` for
+the wall, and `2.004` to `0.013` for the ground, showing effective history
+composition and a localized residual. A prior multi-layer outline candidate
+made the scene feel slightly calmer but reduced 60 FPS to roughly 55–58; it
+was disabled and 60 FPS returned. PresentMon from the same short sample showed
+TAA-on GPU/CPU busy `7.098/16.877 ms` versus AA-off `5.018/16.514 ms`, about
+`2.08 ms` GPU and `0.36 ms` CPU overhead; this is not a broad performance
+claim.
+
+The new debug candidate adds `jitter_scale`, `stationary_multi_surface` and
+`gpu_timing`, with stage timing reported in state. The current running build
+records cumulative `total_ms`, while the running candidate
+reports `last_ms`. With Uhra user02 loaded, `jitter_scale=.5` largely removed
+horizontal shimmer; `.35` did not improve it further and was restored to `.5`.
+With `stationary_multi_surface=1`, the user found diagonal edges steadier,
+with no obvious motion trailing and roughly 60 FPS. Short PresentMon samples
+for `.5`/multi-v2 were CPU busy `16.8234/16.816 ms`, GPU busy
+`7.0976/7.0372 ms`, and present intervals `16.9901/16.9816 ms`; these
+differences are within sample noise. The running state is AA3, jitter1,
+jitter_scale `.5`, multi-surface1, snap1, colorclip1, FP16 off and weight
+`31/33`. Over 314 frames, replay draws averaged about 732.6 per frame, with
+replay `1.356 ms`, TAA `0.447 ms` and mask `0.128 ms`; gpu timing is now off.
+This is local debug-candidate visual acceptance for Uhra only, not a default,
+whole-map, cross-platform or release fix. FP16 remains opt-in and unaccepted.
+
+### Dated current Uhra acceptance — 2026-09-19
+
+The accepted local debug candidate uses internal 3840x2160 with 4K output,
+`jitter_scale=.5`, `stationary_multi_surface=1`, `snap_stationary=1`,
+`stationary_color_clip=1`, `history_fp16=0`, and
+`moving_bilinear_fallback=0`; history and MV inputs were valid. On
+`debug-moving-bilinear-opt.exe` (SHA-256
+`00FC2575AD0D515EBC7A68CB2F26110981B271024974E4C870078A2F54E3E3A0`), the
+user said “这一版已经不错了。可以接受” and observed about 60 FPS. This is
+local Uhra debug acceptance only; slight shimmer remains and it does not cover
+global, default, cross-platform or release behavior.
+
+At 1080p internal to 4K output, the steel models still shimmer severely.
+`.25` improved static content but worsened moving-camera shimmer, so `.5` was
+restored. The steel ROI temporal byte delta changed from `10.15` to `0.483`.
+Moving diagnostics showed third-layer rejection `5.44%` for steel versus
+`.075%` for the wall; experimental `moving_bilinear_fallback=1` reduced steel
+rejection to `.69%` without obvious perceptual benefit at about 60 FPS and
+remains disabled. An earlier fallback improved appearance but reduced 60 FPS to
+55–58 and remains unaccepted. No specific material shader is identified.
 
 ### Preliminary real Bell candidate result
 

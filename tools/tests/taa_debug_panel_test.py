@@ -54,7 +54,8 @@ class ProtocolTest(unittest.TestCase):
             ('ffff0005','<2f',[1.,float('inf')],'motion_depths_float2'),
             ('ffff0006','B',[255],'reactive_uint8')]
         for address,fmt,values,kind in cases:
-            name=f'trace_f42_a{address}_n1_1x1_fmt99.bin'
+            format_id=20 if address in ('ffff0001','ffff0002') else 99
+            name=f'trace_f42_a{address}_n1_1x1_fmt{format_id}.bin'
             (self.root/name).write_bytes(panel.struct.pack(fmt,*values))
             result=json.loads(self.request('/api/pixel?file='+name))
             self.assertEqual((result['frame'],result['width'],result['height'],result['type']),(42,1,1,kind))
@@ -89,6 +90,47 @@ class ProtocolTest(unittest.TestCase):
         self.request('/api/controls',{'stationary_color_clip':1.0})
         self.assertIn('stationary_color_clip=1\n',(self.root/'control.txt').read_text())
         with self.assertRaises(HTTPError):self.request('/api/controls',{'stationary_color_clip':2})
+    def test_stationary_multi_surface_parameter(self):
+        self.assertEqual(self.app.controls['stationary_multi_surface'],0)
+        self.request('/api/controls',{'stationary_multi_surface':1.0})
+        self.assertIn('stationary_multi_surface=1\n',(self.root/'control.txt').read_text())
+        with self.assertRaises(HTTPError):self.request('/api/controls',{'stationary_multi_surface':2})
+    def test_moving_bilinear_fallback_parameter(self):
+        self.assertEqual(self.app.controls['moving_bilinear_fallback'],0)
+        self.request('/api/controls',{'moving_bilinear_fallback':1.0})
+        self.assertIn('moving_bilinear_fallback=1\n',(self.root/'control.txt').read_text())
+        with self.assertRaises(HTTPError):self.request('/api/controls',{'moving_bilinear_fallback':2})
+    def test_jitter_scale_and_gpu_timing_controls(self):
+        self.request('/api/controls',{'jitter_scale':.5,'gpu_timing':1})
+        control=(self.root/'control.txt').read_text()
+        self.assertIn('jitter_scale=0.5\n',control)
+        self.assertIn('gpu_timing=1\n',control)
+        for changes in ({'jitter_scale':1.1},{'gpu_timing':2}):
+            with self.assertRaises(HTTPError):self.request('/api/controls',changes)
+        self.assertEqual((self.root/'control.txt').read_text(),control)
+    def test_stationary_weight_diagnostic_range(self):
+        self.request('/api/controls',{'stationary_weight':.995})
+        original=(self.root/'control.txt').read_text()
+        for changes in ({'stationary_weight':.996},{'history_weight':.996}):
+            with self.assertRaises(HTTPError):self.request('/api/controls',changes)
+        self.assertEqual((self.root/'control.txt').read_text(),original)
+    def test_history_fp16_parameter_and_color_trace(self):
+        self.assertEqual(self.app.controls['history_fp16'],0)
+        self.request('/api/controls',{'history_fp16':1.0})
+        self.assertIn('history_fp16=1\n',(self.root/'control.txt').read_text())
+        with self.assertRaises(HTTPError):self.request('/api/controls',{'history_fp16':2})
+        for address in ('ffff0001','ffff0002'):
+            for fmt,packing,values,kind in [(20,'4B',[1,2,3,255],'rgba8'),(10,'<4e',[.125,.5,2.,float('inf')],'rgba16_float')]:
+                name=f'trace_f44_a{address}_n1_1x1_fmt{fmt}.bin'
+                (self.root/name).write_bytes(panel.struct.pack(packing,*values))
+                result=json.loads(self.request('/api/pixel?file='+name))
+                self.assertEqual(result['type'],kind)
+                self.assertEqual(result['values'],[v if panel.math.isfinite(v) else None for v in values])
+                (self.root/name).write_bytes(b'\0'*(4 if fmt==10 else 8))
+                with self.assertRaises(HTTPError):self.request('/api/pixel?file='+name)
+            unsupported=f'trace_f44_a{address}_n1_1x1_fmt11.bin'
+            (self.root/unsupported).write_bytes(b'\0'*8)
+            with self.assertRaises(HTTPError):self.request('/api/pixel?file='+unsupported)
     def test_ppm_crop_pixel_and_file_boundary(self):
         (self.root/'shot_1.ppm').write_bytes(b'P6\n2 1\n255\n'+bytes([10,20,30,40,50,60]))
         pixel=json.loads(self.request('/api/pixel?file=shot_1.ppm&x=1&y=0'))

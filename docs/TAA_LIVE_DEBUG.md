@@ -50,11 +50,47 @@ accepted and green color rejected. Experimental stationary-MV snapping defaults
 off. Parameters do not require a rebuild; shader algorithm or coverage changes
 still require a new build and corresponding validation.
 
+The independent `history_fp16` switch defaults to `0`. When enabled, the
+history/display surfaces may use runtime FP16 formats (`format 20` and
+`format 10`); source remains RGBA8, the HDR-off insertion point is unchanged,
+and final output remains SDR. State and trace protocols expose these formats.
+
+The first precision validation is now complete: 50 precision-only GPU checks,
+the FP16 parser and Python half-trace checks, stationary-range checks and HTML
+syntax checks passed. The runtime build is recorded in
+`build-history-precision-runtime.log`; the executable SHA-256 is
+`E267E0FA35BAAFC6BE8D9E3E35963FFDEEFD9BE77FCEADADC7D5D20638AB7B35`.
+Same-executable 32-frame screenshots showed FP16 at weight `31/33` slightly
+worse than the RGBA8 baseline, so FP16 is not claimed as a fix or default
+recommendation. Higher stationary weights are a separate diagnostic and may
+introduce motion trailing.
+
 The current diagnostic controls also expose `stationary_color_clip`, which
 defaults to `0`; the observation run used stationary snapping `1`,
 `motion_min=.002` and color clipping `1`. Orange diagnostic pixels mean that a
 color outlier was accepted after clipping. This path requires the strict
 stationary and depth guards described in the investigation note.
+
+The panel also exposes `jitter_scale` in the range `0..1`, a `gpu_timing`
+switch with per-stage timing in state, and a Uhra ROI preset. Timing fields
+distinguish `last_ms` for the currently running candidate from cumulative
+`total_ms` exposed by the current timing build. These controls are
+diagnostic and do not imply a default rendering change.
+
+The current locally accepted Uhra candidate uses internal 3840x2160 with 4K
+output, `jitter_scale=.5`, `stationary_multi_surface=1`, `snap_stationary=1`,
+`stationary_color_clip=1`, `history_fp16=0` and
+`moving_bilinear_fallback=0`. The user accepted this debug candidate at about
+60 FPS, with slight shimmer remaining. This is scene-specific local evidence,
+not global default or release acceptance.
+
+`stationary_multi_surface=1` is an additional opt-in Uhra candidate. The
+current local runtime uses `jitter_scale=.5`, multi-surface1, snap1,
+colorclip1, FP16 off and stationary weight `31/33`; `gpu_timing` is currently
+off. The current executable is selected with `-ExeName` when needed and has
+SHA-256 `00FC2575AD0D515EBC7A68CB2F26110981B271024974E4C870078A2F54E3E3A0`.
+This candidate has local Uhra visual acceptance only; it is not a default or
+whole-game fix.
 
 Current bounded evidence includes 826 Vulkan GPU/translation checks in
 `out/bell-resume/gpu-live-test.log`; live parser and trace checks are separate.
@@ -74,6 +110,9 @@ current exact-stationary/color-clip candidate is clearly steadier, while
 residual shimmer remains. Same-session tuning results are
 recorded in `out/bell-resume/live-tuning/color-off|color-on/result.json`; they
 are image-stability deltas, not performance measurements.
+The higher-weight observation was only slightly and ambiguously steadier by eye;
+the user reported lower frame rate without obvious trailing. It was not accepted,
+and the active controls were restored to the RGBA8 `31/33` baseline.
 
 ## 中文说明
 
@@ -95,8 +134,23 @@ powershell -ExecutionPolicy Bypass -File .\tools\start_taa_debug.ps1
 当前诊断还提供 `stationary_color_clip`，默认值为 `0`；本次观察使用了静止快照
 `1`、`motion_min=.002` 和颜色裁剪 `1`。橙色诊断像素表示颜色越界经裁剪后接受。
 
-参数调节无需编译；shader 算法或 coverage 改动仍需重新构建和验证。当前证据包括
-需先将已构建的 `LostOdysseyRecomp-debug.exe` 复制到运行目录；脚本不会自动构建。
+当前 Uhra 本地接受候选使用 internal 3840x2160、4K output、`jitter_scale=.5`、
+`stationary_multi_surface=1`、`snap_stationary=1`、`stationary_color_clip=1`、
+`history_fp16=0`、`moving_bilinear_fallback=0`。用户接受该 debug 候选约 60 FPS，
+但仍有轻微抖动；这是场景限定证据，不是全局默认或正式发布验收。
+
+面板还提供 `jitter_scale`（`0..1`）、`gpu_timing` 开关、state 中的分阶段计时和
+Uhra ROI 预置。当前运行构建同时提供最新的 `last_ms` 和累计的 `total_ms`；
+`gpu_timing=0` 时这些值不再更新。这些开关仅用于诊断，不代表默认渲染行为改变。
+
+`stationary_multi_surface=1` 是额外的 Uhra opt-in 候选。当前运行使用
+`jitter_scale=.5`、multi-surface1、snap1、colorclip1、FP16 off、静止权重 `31/33`，
+并已关闭 `gpu_timing`。需要时可用 `-ExeName` 选择具体候选 exe；当前 exe SHA-256
+为 `00FC2575AD0D515EBC7A68CB2F26110981B271024974E4C870078A2F54E3E3A0`。这只是
+Uhra 本地画面验收，不是默认或全游戏修复。
+
+参数调节无需编译；shader 算法或 coverage 改动仍需重新构建和验证。需先将已构建
+的 `LostOdysseyRecomp-debug.exe` 复制到运行目录；脚本不会自动构建。
 默认目录为 `D:\Mihoyo\LostOdysseyRecomp-windows-x64`，可用 `-RunDir` 修改。
 当前证据包括 `out/bell-resume/gpu-live-test.log` 中 826 项 Vulkan GPU/translation
 检查；live parser 和 trace 检查独立统计。live `applied_serial` 响应、
@@ -107,3 +161,14 @@ powershell -ExecutionPolicy Bypass -File .\tools\start_taa_debug.ps1
 更稳定，但仍有残余闪烁。
 同 session 调参结果位于 `out/bell-resume/live-tuning/color-off|color-on/result.json`，
 表示画面稳定性 delta，不是性能数据。
+更高静止权重的观察结果只是轻微且肉眼难辨的稳定，用户反馈帧率降低但未明显
+看到拖影，因此未通过验收；当前控制已恢复为 RGBA8 `31/33` 基线。
+独立的 `history_fp16` 开关默认值为 `0`；开启后 history/display 可使用 runtime 的
+FP16 格式（`format 20` 和 `format 10`），source 保持 RGBA8，HDR 关闭插入点不变，
+最终输出仍为 SDR。state 和 trace 支持这些格式；该开关的 runtime/GPU 验证仍待完成。
+首轮精度验证已完成：50 项 precision-only GPU 检查、FP16 parser/Python half-trace、
+静止范围和 HTML syntax 检查通过。runtime 构建记录在
+`build-history-precision-runtime.log`，exe SHA-256 为
+`E267E0FA35BAAFC6BE8D9E3E35963FFDEEFD9BE77FCEADADC7D5D20638AB7B35`。同一 exe 的
+32 帧截图显示 FP16 在权重 `31/33` 下略差于 RGBA8 基线，因此不宣称 FP16 修复，
+也不作为默认推荐；更高静止权重属于独立诊断，可能引入运动拖影。

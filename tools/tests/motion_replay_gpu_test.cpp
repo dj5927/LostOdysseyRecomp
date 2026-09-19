@@ -275,7 +275,7 @@ public:
         in.stationaryMotionMin=.002f;in.stationaryMotionMax=16.01f;Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects excessive motion maximum");
         in.stationaryMotionMax=.125f;in.stationaryMotionMin=-.001f;Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects negative motion minimum");
         in.stationaryMotionMin=.002f;in.stationaryHistoryWeight=std::numeric_limits<float>::quiet_NaN();Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects nonfinite weight");
-        in.stationaryHistoryWeight=.951f;Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects excessive weight");
+        in.stationaryHistoryWeight=.9951f;Require(!taa.Resolve(cmd.get(),in),"stationary policy rejects excessive weight");
         in.stationaryHistoryWeight=31.f/33.f;in.stationaryCoverage=true;
         in.motionVector=view.velocity;in.stableGrid=false;in.stabilizeStationaryGeometry=false;original=resolve();
         in.stabilizeStationaryGeometry=true;Require(resolve()==original,"raw grid retains original accumulation policy");
@@ -402,6 +402,45 @@ public:
             }
             uploadInputs();Require(resolve()==0xff000000u,"stationary support rejects unsafe fixture "+std::to_string(mode));
         }
+        inputs(.25,-.25);uploadInputs();in.stableGrid=true;in.stationaryMultiSurface=true;
+        Require(resolve()==0xff0000ffu,"multi-layer option retains two-surface support");
+        motion[neighbor]=0x1400u;uploadInputs();
+        Require(resolve()==0xff0000ffu,"multi-layer option retains tiny-motion two-surface support");
+        inputs(.25,-.25);const unsigned third=32*W+31;
+        depths[third]=oldDepths[third]=std::bit_cast<uint32_t>(.375f);
+        replayDepths[third]=0x36003600u;uploadInputs();
+        in.stableGrid=true;in.stationaryMultiSurface=false;
+        Require(resolve()==0xff000000u,"two-surface fallback rejects a third depth layer by default");
+        in.stationaryMultiSurface=true;
+        Require(resolve()==0xff0000ffu,"matched stationary three-layer support accepts history");
+        const unsigned fourth=31*W+31;
+        depths[fourth]=oldDepths[fourth]=std::bit_cast<uint32_t>(.4f);
+        replayDepths[fourth]=0x36663666u;uploadInputs();
+        Require(resolve()==0xff000000u,"four-layer support stays outside bounded fallback");
+        depths[fourth]=oldDepths[fourth]=std::bit_cast<uint32_t>(.25f);
+        replayDepths[fourth]=0x34003400u;
+        oldDepths[third]=std::bit_cast<uint32_t>(.4f);uploadInputs();
+        Require(resolve()==0xff000000u,"unmatched previous middle layer rejects history");
+        inputs(.25,-.25);depths[third]=oldDepths[third]=std::bit_cast<uint32_t>(.375f);
+        replayDepths[third]=0x36003600u;reactive[third]=std::bit_cast<uint32_t>(1.f);uploadInputs();
+        Require(resolve()==0xff000000u,"reactive neighbor blocks multi-layer fallback");
+        reactive[third]=0;motion[third]=0x211fu;uploadInputs();
+        Require(resolve()==0xff000000u,"moving neighbor blocks multi-layer fallback");
+        in.stationaryMultiSurface=false;
+        // Moving steel can include a third depth only in the cubic outer ring.
+        // A two-by-two bilinear footprint with the moving surface remains valid.
+        inputs(0,0);oldDepths[third]=std::bit_cast<uint32_t>(.375f);
+        oldDepths[center+2]=std::bit_cast<uint32_t>(.25f);
+        motion[center]=0x3400u;uploadInputs(); // 0.25-pixel geometric movement
+        in.diagnosticAcceptance=in.diagnosticRejectionReasons=true;
+        Require(resolve()==0xffff00ffu,"moving cubic footprint rejects an outer third layer by default");
+        in.movingBilinearFallback=true;
+        Require(resolve()==0xff0000ffu,"moving bilinear core accepts the original surface");
+        oldDepths[neighbor]=std::bit_cast<uint32_t>(.25f);
+        oldDepths[neighbor+W]=std::bit_cast<uint32_t>(.375f);
+        motion[center]=0x34003400u;uploadInputs(); // both core axes contribute
+        Require(resolve()==0xffff00ffu,"moving bilinear core rejects a contributing third depth");
+        in.movingBilinearFallback=false;in.diagnosticAcceptance=in.diagnosticRejectionReasons=false;
         in.stableGrid=true;in.diagnosticAcceptance=false;
         auto cycle=[&](bool enabled){
             in.stabilizeStationaryGeometry=enabled;Fill(prev.get(),std::vector<uint32_t>(W*H,0x7b808080u),RenderFormat::R8G8B8A8_UNORM);
@@ -419,6 +458,87 @@ public:
         printf("Two-surface 32-phase consumer at equal 31/33 weight: original peak/mean %.3f/%.3f, coverage %.3f/%.3f\n",baseline[0],baseline[1],coverage[0],coverage[1]);
         Require(coverage[0]<baseline[0]*.35f,"two-surface support reduces ownership flicker independently of weight");
         Near(coverage[1],baseline[1],"two-surface support preserves cycle coverage mean",6.f);
+    }
+    void HistoryPrecision() {
+        gpu::TemporalAA taa;Require(taa.Init(device.get()),"history precision consumer initialization");
+        auto make=[&](RenderFormat fmt){return device->createTexture(RenderTextureDesc::Texture2D(W,H,1,fmt,RenderTextureFlag::RENDER_TARGET));};
+        auto source=make(RenderFormat::R8G8B8A8_UNORM),sdr=make(RenderFormat::R8G8B8A8_UNORM);
+        auto z=make(RenderFormat::R32_FLOAT);
+        Fill(z.get(),std::vector<uint32_t>(W*H,std::bit_cast<uint32_t>(.5f)),RenderFormat::R32_FLOAT);
+        Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};auto camera=Camera::Create(identity,{0,0,W,H});
+        const unsigned center=32*W+32;
+        auto pixels=[&](unsigned c){std::vector<uint32_t> v(W*H,0x7b000000u+c*0x010101u);v[center-1]=0x7b202020u;v[center+1]=0x7bc0c0c0u;return v;};
+        float finalHalf=0;unsigned finalByte=0;
+        for(bool half:{false,true}) {
+            const auto format=half?RenderFormat::R16G16B16A16_FLOAT:RenderFormat::R8G8B8A8_UNORM;
+            auto prev=make(format),out=make(format);
+            gpu::TemporalAAInputs in;in.currentColor=source.get();in.currentDepth=z.get();in.historyDepth=z.get();
+            in.width=in.historyWidth=W;in.height=in.historyHeight=H;in.currentCamera=in.previousCamera=&*camera;
+            in.stableGrid=true;in.historyWeight=.9f;in.rejectAllHistory=false;
+            in.outputStorage=half?gpu::TemporalColorStorage::Rgba16Float:gpu::TemporalColorStorage::Rgba8;
+            for(unsigned frame=0;frame<=32;++frame) {
+                Fill(source.get(),pixels(frame?131:128),RenderFormat::R8G8B8A8_UNORM);
+                in.historyValid=frame!=0;in.historyColor=prev.get();in.output=out.get();
+                cmd->begin();cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(out.get(),RenderTextureLayout::COLOR_WRITE));
+                if(!taa.Resolve(cmd.get(),in))throw std::runtime_error(taa.LastError());Submit();taa.ReleaseCompleted();std::swap(prev,out);
+            }
+            auto data=Read(prev.get(),format,half?8:4);
+            if(half) {
+                uint16_t rgba[4];std::memcpy(rgba,data.data()+center*8,8);finalHalf=Half(rgba[0])*255;
+                Require(finalHalf>129.5f&&finalHalf<=131.1f,"FP16 history accumulates repeated sub-byte updates toward current color");
+                Near(Half(rgba[3])*255,123,"FP16 history keeps current alpha",.1f);
+                gpu::TemporalDisplayInputs display{prev.get(),sdr.get(),W,H,0,0};display.outputStorage=gpu::TemporalColorStorage::Rgba8;
+                cmd->begin();cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(sdr.get(),RenderTextureLayout::COLOR_WRITE));
+                if(!taa.ReconstructDisplay(cmd.get(),display))throw std::runtime_error(taa.LastError());Submit();taa.ReleaseCompleted();
+                auto shown=Read(sdr.get(),RenderFormat::R8G8B8A8_UNORM,4);
+                Near(shown[center*4],finalHalf,"FP16 history converts to SDR display",1.f);
+                Require(shown[center*4+3]==123,"FP16 to SDR display retains alpha");
+                auto velocity=make(RenderFormat::R16G16_FLOAT),motionDepth=make(RenderFormat::R16G16_FLOAT),reactive=make(RenderFormat::R32_FLOAT);
+                Fill(velocity.get(),std::vector<uint32_t>(W*H,0),RenderFormat::R16G16_FLOAT);
+                Fill(motionDepth.get(),std::vector<uint32_t>(W*H,0x38003800u),RenderFormat::R16G16_FLOAT);
+                Fill(reactive.get(),std::vector<uint32_t>(W*H,0),RenderFormat::R32_FLOAT);
+                Fill(source.get(),pixels(192),RenderFormat::R8G8B8A8_UNORM);
+                in.motionVector=velocity.get();in.motionDepths=motionDepth.get();in.reactiveMask=reactive.get();in.motionVectorValid=true;
+                in.stabilizeStationaryGeometry=true;in.stationaryHistoryWeight=127.f/129.f;in.historyColor=prev.get();in.output=out.get();
+                cmd->begin();cmd->barriers(RenderBarrierStage::GRAPHICS,RenderTextureBarrier(out.get(),RenderTextureLayout::COLOR_WRITE));
+                if(!taa.Resolve(cmd.get(),in))throw std::runtime_error(taa.LastError());Submit();taa.ReleaseCompleted();
+                auto high=Read(out.get(),format,8);uint16_t value;std::memcpy(&value,high.data()+center*8,2);
+                const float expected=finalHalf+(192-finalHalf)*(1-127.f/129.f);
+                Near(Half(value)*255,expected,"FP16 accepts high stationary weight and retains a measurable update",.15f);
+                Require(Half(value)*255>finalHalf+.5f,"high stationary weight does not disable accumulation");
+            } else {finalByte=data[center*4];Require(finalByte==128,"RGBA8 control stalls on repeated 0.3-code initial updates");}
+        }
+        Require(finalHalf>float(finalByte)+1.5f,"precision alone avoids RGBA8 history quantization plateau");
+        HistoryOwner owner;Require(owner.Init(device.get()),"live history precision owner initialization");
+        LiveOptions live;live.acceptance=0;live.mv_debug=0;live.stationary=0;
+        auto owned=[&](uint64_t number,int fp16) {
+            live.history_fp16=fp16;
+            Fill(color.get(),pixels(128),RenderFormat::R8G8B8A8_UNORM);
+            Fill(sceneDepth.get(),std::vector<uint32_t>(W*H,std::bit_cast<uint32_t>(.5f)),RenderFormat::R32_FLOAT);
+            SceneObservation scene;scene.Reset(number);SceneAnchor anchor;anchor.depthAllocation=7;anchor.viewport={0,0,W,H};
+            for(unsigned i=0;i<16;++i)anchor.vpBits[i]=std::bit_cast<uint32_t>(float(identity[i]));
+            scene.ObserveCamera(anchor);scene.ObserveDepth(7,{number,number*2+1,0x1000,24,W,H,true});
+            owner.BeginFrame(number,42);cmd->begin();
+            cmd->barriers(RenderBarrierStage::COPY,RenderTextureBarrier(sceneDepth.get(),RenderTextureLayout::COPY_SOURCE));
+            Require(owner.CaptureDepth(cmd.get(),sceneDepth.get(),scene),"live precision captures owner depth");
+            scene.ObserveColor({number,number*2+2,0x2000,6,W,H,true});
+            cmd->barriers(RenderBarrierStage::COPY,RenderTextureBarrier(color.get(),RenderTextureLayout::COPY_SOURCE));
+            auto* result=owner.ResolveColor(cmd.get(),color.get(),scene,0,0,true,true,false,nullptr,false,&live);
+            Require(result!=nullptr,"live precision resolves actual owner resources");
+            const auto serial=owner.RecordedSerial();Submit();owner.ReleaseCompletedThrough(serial);
+            Require(owner.SourceFormat()==RenderFormat::R8G8B8A8_UNORM,"live precision keeps SDR source RGBA8");
+            const auto expected=fp16?RenderFormat::R16G16B16A16_FLOAT:RenderFormat::R8G8B8A8_UNORM;
+            Require(owner.HistoryFormat()==expected&&owner.OutputFormat()==expected,"live switch selects history and output storage");
+            auto data=Read(result,expected,fp16?8:4);
+            if(fp16){uint16_t c;std::memcpy(&c,data.data()+center*8,2);Near(Half(c)*255,128,"owner FP16 result initialized from current SDR source",.1f);}
+            else Require(data[center*4]==128,"owner RGBA8 result initialized from current source");
+        };
+        owned(1,0);Require(!owner.Reused(),"initial owner frame cannot reuse history");
+        owned(2,0);Require(owner.Reused(),"unchanged RGBA8 owner reuses history");
+        owned(3,1);Require(!owner.Reused(),"RGBA8 to FP16 switch invalidates previous-format history");
+        owned(4,1);Require(owner.Reused(),"unchanged FP16 owner resumes history");
+        owned(5,0);Require(!owner.Reused(),"FP16 to RGBA8 switch invalidates previous-format history");
+        owned(6,0);Require(owner.Reused(),"unchanged RGBA8 owner resumes after switch back");
     }
     void HistorySafety(MotionFrameView validView) {
         const Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
@@ -488,6 +608,8 @@ public:
 int main(int argc, char** argv) {
  try {
     Require(xenos::DxcAvailable(),"pinned DXC available");
+    if(argc>1&&std::string(argv[1])=="--history-precision-only"){Fixture f;f.HistoryPrecision();printf("PASS: %u history precision GPU checks\n",checks);return 0;}
+    if(argc>1&&std::string(argv[1])=="--stationary-multi-only"){Fixture f;f.StationarySilhouette();printf("PASS: %u stationary coverage GPU checks\n",checks);return 0;}
     for(auto format:{xenos::ShaderBinaryFormat::Dxil,xenos::ShaderBinaryFormat::Spirv}) {
         const auto source=xenos::motion_replay::Pixel(nullptr);
         const auto c=xenos::CompileHlsl(source,"main","ps_6_0",format);

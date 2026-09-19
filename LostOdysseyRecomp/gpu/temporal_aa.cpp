@@ -17,12 +17,29 @@ struct TemporalAA::Impl
     std::string error;
     std::unique_ptr<RenderPipelineLayout> layout;
     std::unique_ptr<RenderShader> vs, ps, displayPs;
-    std::unique_ptr<RenderPipeline> pipeline, displayPipeline;
+    std::array<std::unique_ptr<RenderPipeline>,2> pipeline,displayPipeline;
+    bool defaultFp16=false;
     std::unique_ptr<RenderSampler> sampler;
     struct Pending { uint64_t serial=0; std::unique_ptr<RenderBuffer> constants; std::unique_ptr<RenderDescriptorSet> set; std::unique_ptr<RenderFramebuffer> framebuffer; };
     std::vector<Pending> pending;
     uint64_t recordedSerial=0;
     temporal::GpuPassTimer<> resolveTimer, displayTimer;
+    RenderPipeline* Pipeline(bool display,TemporalColorStorage storage) {
+        if(storage!=TemporalColorStorage::Default&&storage!=TemporalColorStorage::Rgba8&&storage!=TemporalColorStorage::Rgba16Float) {
+            error="Invalid temporal output storage";return nullptr;
+        }
+        if(!device||!layout||!vs||!ps||!displayPs) {error="Temporal component is not initialized";return nullptr;}
+        const bool fp16=storage==TemporalColorStorage::Default?defaultFp16:storage==TemporalColorStorage::Rgba16Float;
+        auto& result=(display?displayPipeline:pipeline)[fp16?1:0];
+        if(!result) {
+            RenderGraphicsPipelineDesc desc;desc.pipelineLayout=layout.get();desc.vertexShader=vs.get();desc.pixelShader=display?displayPs.get():ps.get();
+            desc.renderTargetCount=1;desc.renderTargetFormat[0]=fp16?RenderFormat::R16G16B16A16_FLOAT:RenderFormat::R8G8B8A8_UNORM;
+            desc.renderTargetBlend[0]=RenderBlendDesc::Copy();desc.cullMode=RenderCullMode::NONE;
+            result=device->createGraphicsPipeline(desc);
+            if(!result)error="Temporal pipeline creation failed";
+        }
+        return result.get();
+    }
 };
 namespace
 {
@@ -174,6 +191,41 @@ bool stationaryCoverageSupport(int2 p,float2 centerDepths,float footprintDepth) 
  }
  return true;
 }
+bool stationaryMultiSurfaceSupport(int2 p,float2 centerDepths,float footprintDepth) {
+ if(any(imageSize.xy!=imageSize.zw)||!depthAgrees(centerDepths.x,centerDepths.y))return false;
+ float currentSupport[9],previousSupport[9];float cmin=1,cmax=0,pmin=1,pmax=0;
+ bool allZero=true;
+ [unroll]for(int y=-1;y<=1;++y)[unroll]for(int x=-1;x<=1;++x) {
+  int2 t=clamp(p+int2(x,y),int2(0,0),int2(imageSize.xy)-1);
+  int2 pt=clamp(int2(floor(float2(t)+.5+jitter.zw)),int2(0,0),int2(imageSize.zw)-1);
+  float mask=reactiveMask.Load(int3(t,0));float2 mv=motionVector.Load(int3(t,0)),md=motionDepths.Load(int3(t,0));
+  float cd=currentDepth.Load(int3(t,0)),pd=historyDepth.Load(int3(pt,0));
+  if(!isfinite(mask)||mask!=0||!all(isfinite(mv))||length(mv)>stationaryPolicy.y||!all(isfinite(md))
+    ||!depthAgrees(cd,md.x)||!depthAgrees(md.y,md.x)||!isfinite(pd)||pd<=0||pd>1)return false;
+  currentSupport[(y+1)*3+x+1]=cd;previousSupport[(y+1)*3+x+1]=pd;
+  cmin=min(cmin,cd);cmax=max(cmax,cd);pmin=min(pmin,pd);pmax=max(pmax,pd);
+  allZero=allZero&&all(mv==0);
+ }
+ if(depthAgrees(cmin,cmax)||!depthAgrees(cmin,pmin)||!depthAgrees(cmax,pmax))return false;
+ // A radius-one silhouette may contain a third surface. Compare the near/far
+ // endpoints and at most one middle cluster on each side; every tap must fit.
+ // This bounds the fallback to two short loops instead of 81 cross comparisons.
+ float cmid=0,pmid=0;bool cthird=false,pthird=false;
+ [loop]for(int i=0;i<9;++i) {
+  float cd=currentSupport[i],pd=previousSupport[i];
+  if(!depthAgrees(cd,cmin)&&!depthAgrees(cd,cmax)) {
+   if(!cthird){cmid=cd;cthird=true;}else if(!depthAgrees(cd,cmid))return false;
+  }
+  if(!depthAgrees(pd,pmin)&&!depthAgrees(pd,pmax)) {
+   if(!pthird){pmid=pd;pthird=true;}else if(!depthAgrees(pd,pmid))return false;
+  }
+ }
+ if(cthird!=pthird||(cthird&&(!allZero||!depthAgrees(cmid,pmid))))return false;
+ if(!depthAgrees(centerDepths.y,cmin)&&!depthAgrees(centerDepths.y,cmax)
+    &&(!cthird||!depthAgrees(centerDepths.y,cmid)))return false;
+ return depthAgrees(footprintDepth,pmin)||depthAgrees(footprintDepth,pmax)
+   ||(pthird&&depthAgrees(footprintDepth,pmid));
+}
 float4 motionRejected(float4 center,float3 reason) {
  return ((pad1&2) && (pad1&16))?float4(reason,1):rejected(center);
 }
@@ -196,7 +248,10 @@ float4 motionPixel(float4 position) {
  if(any(q<.5)||any(q>imageSize.zw-.5)||any(raw<.5)||any(raw>imageSize.zw-.5))return motionRejected(center,float3(0,1,1));
   int2 first=int2(floor(q-.5));float2 f=frac(q-.5);
   float4 wx=cubicWeights(f.x),wy=cubicWeights(f.y);float3 history=0;
-  float secondaryDepth=0;bool primaryDepthFound=false,secondaryDepthFound=false;
+  float secondaryDepth=0;bool primaryDepthFound=false,secondaryDepthFound=false,thirdDepthFound=false;
+  float coreSecondary=0;bool corePrimary=false,coreSecondaryFound=false,coreThird=false;
+  float3 bilinearHistory=0;
+  const bool movingFallback=(pad1&256) && length(mv)>stationaryPolicy.y;
   [unroll]for(int y=0;y<4;++y)[unroll]for(int x=0;x<4;++x) {
    float weight=wx[x]*wy[y];if(weight==0)continue;
    int2 tap=clamp(first+int2(x-1,y-1),int2(0,0),int2(imageSize.zw)-1);
@@ -205,12 +260,31 @@ float4 motionPixel(float4 position) {
    float tapDepth=historyDepth.Load(int3(dtap,0));
    if(depthAgrees(tapDepth,md.y))primaryDepthFound=true;
    else if(!secondaryDepthFound){if(!isfinite(tapDepth)||tapDepth<=0||tapDepth>1)return motionRejected(center,float3(0,1,1));secondaryDepth=tapDepth;secondaryDepthFound=true;}
-   else if(!depthAgrees(tapDepth,secondaryDepth))return motionRejected(center,float3(1,0,1));
-   history+=historyColor.Load(int3(tap,0)).rgb*weight;
+   else if(!depthAgrees(tapDepth,secondaryDepth)) {
+    if(!movingFallback)return motionRejected(center,float3(1,0,1));
+    thirdDepthFound=true;
+   }
+   float3 tapColor=historyColor.Load(int3(tap,0)).rgb;
+   history+=tapColor*weight;
+   if(movingFallback && x>=1 && x<=2 && y>=1 && y<=2) {
+    if(depthAgrees(tapDepth,md.y))corePrimary=true;
+    else if(!coreSecondaryFound){coreSecondary=tapDepth;coreSecondaryFound=true;}
+    else if(!depthAgrees(tapDepth,coreSecondary))coreThird=true;
+    bilinearHistory+=tapColor*(x==1?1-f.x:f.x)*(y==1?1-f.y:f.y);
+   }
+  }
+  if(thirdDepthFound) {
+   // Reuse the middle four samples already fetched by the cubic footprint.
+   // A third layer in its outer ring cannot enter the smaller bilinear core.
+   if(coreThird)return motionRejected(center,float3(1,0,1));
+   if(!corePrimary)return motionRejected(center,float3(0,0,0));
+   history=bilinearHistory;
   }
   [branch]if(!primaryDepthFound) {
    if(!stable || !(pad1&8) || stationaryPolicy.w==0 || length(mv)>stationaryPolicy.y)return motionRejected(center,float3(0,0,0));
-   if(!stationaryCoverageSupport(p,md,secondaryDepth))return motionRejected(center,float3(0,0,0));
+   if(((pad1&128)?!stationaryMultiSurfaceSupport(p,md,secondaryDepth)
+                 :!stationaryCoverageSupport(p,md,secondaryDepth)))
+    return motionRejected(center,float3(0,0,0));
   }
  if(!all(isfinite(history)))return motionRejected(center,float3(0,1,1));
  float3 lo=center.rgb,hi=center.rgb;
@@ -295,7 +369,7 @@ bool TemporalAA::Init(RenderDevice* device)
 bool TemporalAA::Init(RenderDevice* device,bool hdrColor)
 {
     if(!device || impl->device) { impl->error="Init requires a non-null device and a fresh component";return false; }
-    auto& p=*impl;p.device=device;
+    auto& p=*impl;p.device=device;p.defaultFp16=hdrColor;
     p.vulkan=device->getCapabilities().shaderFormat==RenderShaderFormat::SPIRV;
     const auto binaryFormat=p.vulkan?xenos::ShaderBinaryFormat::Spirv:xenos::ShaderBinaryFormat::Dxil;
     const auto renderFormat=p.vulkan?RenderShaderFormat::SPIRV:RenderShaderFormat::DXIL;
@@ -311,32 +385,28 @@ bool TemporalAA::Init(RenderDevice* device,bool hdrColor)
     RenderSamplerDesc sampler;sampler.addressU=sampler.addressV=sampler.addressW=RenderTextureAddressMode::CLAMP;
     p.sampler=device->createSampler(sampler);
     if(!p.vs||!p.ps||!p.displayPs||!p.layout||!p.sampler) {p.error="Temporal shader/layout/sampler creation failed";return false;}
-    RenderGraphicsPipelineDesc desc;desc.pipelineLayout=p.layout.get();desc.vertexShader=p.vs.get();desc.pixelShader=p.ps.get();
-    desc.renderTargetCount=1;desc.renderTargetFormat[0]=hdrColor?RenderFormat::R16G16B16A16_FLOAT:RenderFormat::R8G8B8A8_UNORM;desc.renderTargetBlend[0]=RenderBlendDesc::Copy();desc.cullMode=RenderCullMode::NONE;
-    p.pipeline=device->createGraphicsPipeline(desc);
-    desc.pixelShader=p.displayPs.get();p.displayPipeline=device->createGraphicsPipeline(desc);
-    if(!p.pipeline||!p.displayPipeline)p.error="Temporal pipeline creation failed";
-    return bool(p.pipeline)&&bool(p.displayPipeline);
+    return p.Pipeline(false,TemporalColorStorage::Default)&&p.Pipeline(true,TemporalColorStorage::Default);
 }
 bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
 {
     auto& p=*impl;p.error.clear();
     auto fail=[&](const char* error){p.error=error;return false;};
-    if(!commands||!p.pipeline||!in.currentColor||!in.output||!in.width||!in.height||in.width>16384||in.height>16384)
+    if(!commands||!in.currentColor||!in.output||!in.width||!in.height||in.width>16384||in.height>16384)
         return fail("Invalid command list, initialization, color/output, or extent");
+    auto* pipeline=p.Pipeline(false,in.outputStorage);if(!pipeline)return false;
     for(auto texture:{in.currentColor,in.currentDepth,in.historyColor,in.historyDepth,in.reactiveMask,in.motionVector,in.motionDepths})
         if(texture && texture==in.output)return fail("Output must not alias an input");
     if(!std::isfinite(in.historyWeight)||in.historyWeight<0||in.historyWeight>.95f
        ||!std::isfinite(in.depthAbsoluteThreshold)||in.depthAbsoluteThreshold<0||in.depthAbsoluteThreshold>1
        ||!std::isfinite(in.depthRelativeThreshold)||in.depthRelativeThreshold<0||in.depthRelativeThreshold>1)
         return fail("Invalid temporal weight/depth policy");
-    if(!std::isfinite(in.stationaryHistoryWeight)||in.stationaryHistoryWeight<0||in.stationaryHistoryWeight>.95f
+    if(!std::isfinite(in.stationaryHistoryWeight)||in.stationaryHistoryWeight<0||in.stationaryHistoryWeight>.995f
        ||!std::isfinite(in.stationaryMotionMin)||in.stationaryMotionMin<0
        ||!std::isfinite(in.stationaryMotionMax)||in.stationaryMotionMax<=in.stationaryMotionMin||in.stationaryMotionMax>16)
         return fail("Invalid stationary temporal policy");
     Constants c;c.size[0]=float(in.width);c.size[1]=float(in.height);
     c.pad0=in.stableGrid?1u:0u;
-    c.pad1=(in.rejectOutOfNeighborhoodHistory?1u:0u)|(in.diagnosticAcceptance?2u:0u)|(in.motionVectorDebug?4u:0u)|(in.stabilizeStationaryGeometry?8u:0u)|(in.diagnosticRejectionReasons?16u:0u)|(in.snapStationaryMotion?32u:0u)|(in.stationaryColorClip?64u:0u);
+    c.pad1=(in.rejectOutOfNeighborhoodHistory?1u:0u)|(in.diagnosticAcceptance?2u:0u)|(in.motionVectorDebug?4u:0u)|(in.stabilizeStationaryGeometry?8u:0u)|(in.diagnosticRejectionReasons?16u:0u)|(in.snapStationaryMotion?32u:0u)|(in.stationaryColorClip?64u:0u)|(in.stationaryMultiSurface?128u:0u)|(in.movingBilinearFallback?256u:0u);
     if(in.stableGrid)for(double j:{in.currentJitterX,in.currentJitterY,in.previousJitterX,in.previousJitterY})
         if(!std::isfinite(j)||std::abs(j)>=.5)return fail("Stable coverage mode requires jitter strictly within half a raster pixel");
     c.jitter[0]=float(in.currentJitterX);c.jitter[1]=float(in.currentJitterY);c.jitter[2]=float(in.previousJitterX);c.jitter[3]=float(in.previousJitterY);
@@ -385,7 +455,7 @@ bool TemporalAA::Resolve(RenderCommandList* commands,const TemporalAAInputs& in)
     const bool timed=p.resolveTimer.Begin(p.device,commands);
     commands->setFramebuffer(resources.framebuffer.get());RenderViewport viewport(0,0,float(in.width),float(in.height));RenderRect scissor(0,0,in.width,in.height);
     commands->setViewports(&viewport,1);commands->setScissors(&scissor,1);
-    commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(p.pipeline.get());
+    commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(pipeline);
     if(!p.vulkan) commands->setGraphicsPushConstants(0,&c);commands->setGraphicsDescriptorSet(resources.set.get(),0);commands->drawInstanced(3,1,0,0);
     if(timed)p.resolveTimer.End(commands,p.recordedSerial);
     return true;
@@ -397,10 +467,11 @@ namespace gpu {
 bool TemporalAA::ReconstructDisplay(RenderCommandList* commands,const TemporalDisplayInputs& in)
 {
     auto& p=*impl;p.error.clear();
-    if(!commands||!p.displayPipeline||!in.jitteredColor||!in.output||in.jitteredColor==in.output
+    if(!commands||!in.jitteredColor||!in.output||in.jitteredColor==in.output
        ||!in.width||!in.height||in.width>16384||in.height>16384
        ||!std::isfinite(in.jitterX)||!std::isfinite(in.jitterY)||std::abs(in.jitterX)>16||std::abs(in.jitterY)>16)
     {p.error="Invalid display reconstruction inputs, extent, alias, or jitter";return false;}
+    auto* pipeline=p.Pipeline(true,in.outputStorage);if(!pipeline)return false;
     Constants c;c.size[0]=float(in.width);c.size[1]=float(in.height);c.policy[0]=float(in.jitterX);c.policy[1]=float(in.jitterY);
     Impl::Pending pending;RenderDescriptorSetBuilder set;DefineSet(set,p.vulkan);pending.set=set.create(p.device);
     const RenderTexture* attachments[]={in.output};pending.framebuffer=p.device->createFramebuffer(RenderFramebufferDesc(attachments,1));
@@ -417,7 +488,7 @@ bool TemporalAA::ReconstructDisplay(RenderCommandList* commands,const TemporalDi
     const bool timed=p.displayTimer.Begin(p.device,commands);
     commands->setFramebuffer(resources.framebuffer.get());RenderViewport viewport(0,0,float(in.width),float(in.height));RenderRect scissor(0,0,in.width,in.height);
     commands->setViewports(&viewport,1);commands->setScissors(&scissor,1);
-    commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(p.displayPipeline.get());
+    commands->setGraphicsPipelineLayout(p.layout.get());commands->setPipeline(pipeline);
     if(!p.vulkan) commands->setGraphicsPushConstants(0,&c);commands->setGraphicsDescriptorSet(resources.set.get(),0);commands->drawInstanced(3,1,0,0);
     if(timed)p.displayTimer.End(commands,p.recordedSerial);
     return true;

@@ -772,6 +772,7 @@ namespace gpu::renderer
             uint32_t taaLiveWidth = 0, taaLiveHeight = 0;
             double taaLiveJitterX = 0, taaLiveJitterY = 0;
             bool taaLiveHistoryReused = false, taaLiveMotionReady = false, taaLiveMotionConsumed = false;
+            RenderFormat taaLiveSourceFormat = RenderFormat::UNKNOWN, taaLiveHistoryFormat = RenderFormat::UNKNOWN, taaLiveOutputFormat = RenderFormat::UNKNOWN;
             void PollTaaLive()
             {
                 if (!taaLiveDirectory || !*taaLiveDirectory) return;
@@ -790,18 +791,32 @@ namespace gpu::renderer
                         if (hdrTemporalHistory) hdrTemporalHistory->Reset();
                         temporalSupportedFrame = ~0ull; ++temporalEpoch;
                         taaLiveResolvedFrame = 0; taaLiveHistoryReused = false;
+                        taaLiveSourceFormat = taaLiveHistoryFormat = taaLiveOutputFormat = RenderFormat::UNKNOWN;
                         LOG_INFO("renderer: live TAA controls applied serial={} frame={}", next.serial, frame);
                     }
                 }
                 const auto temporary = directory / "state.json.tmp", destination = directory / "state.json";
                 std::ofstream state(temporary, std::ios::trunc);
                 if (!state) return;
+                const auto taaTiming = temporalHistory ? temporalHistory->ResolveTiming() : temporal::GpuPassTimingStats{};
+                const auto replayTiming = motionReplay ? motionReplay->DrawTiming() : temporal::GpuPassTimingStats{};
+                const auto maskTiming = motionReplay ? motionReplay->MaskTiming() : temporal::GpuPassTimingStats{};
                 state << fmt::format("{{\"applied_serial\":{},\"frame\":{},\"resolved_frame\":{},\"width\":{},\"height\":{},"
                     "\"history_reused\":{},\"motion_ready\":{},\"motion_consumed\":{},\"aa\":{},\"jitter_x\":{},\"jitter_y\":{},\"acceptance\":{},"
+                    "\"history_fp16\":{},\"source_format\":{},\"history_format\":{},\"output_format\":{},"
+                    "\"gpu_timing\":{},\"taa_samples\":{},\"taa_total_ms\":{},\"taa_last_ms\":{},"
+                    "\"replay_samples\":{},\"replay_total_ms\":{},\"replay_last_ms\":{},"
+                    "\"mask_samples\":{},\"mask_total_ms\":{},\"mask_last_ms\":{},"
                     "\"backend\":{},\"source_version\":{},\"request_error\":{}}}",
                     taaLiveApplied ? taaLiveOptions.serial : 0, frame, taaLiveResolvedFrame, taaLiveWidth, taaLiveHeight,
                     taaLiveHistoryReused, taaLiveMotionReady, taaLiveMotionConsumed, taaDiagnosticAA,
                     taaLiveJitterX, taaLiveJitterY, taaLiveApplied ? taaLiveOptions.acceptance : 0,
+                    taaLiveHistoryFormat == RenderFormat::R16G16B16A16_FLOAT,
+                    uint32_t(taaLiveSourceFormat), uint32_t(taaLiveHistoryFormat), uint32_t(taaLiveOutputFormat),
+                    taaLiveApplied && taaLiveOptions.gpu_timing,
+                    taaTiming.samples, taaTiming.totalMilliseconds, taaTiming.lastMilliseconds,
+                    replayTiming.samples, replayTiming.totalMilliseconds, replayTiming.lastMilliseconds,
+                    maskTiming.samples, maskTiming.totalMilliseconds, maskTiming.lastMilliseconds,
                     temporal::LiveJsonString(vulkan ? "Vulkan" : "D3D12"),
                     temporal::LiveJsonString(lo_version::Source), temporal::LiveJsonString(taaLiveError));
                 state.close();
@@ -3578,8 +3593,9 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     temporalHistory->BeginFrame(frame,temporalEpoch,
                         taa_collection::DiagnosticsActive() || (diagnosticStart&&frame>=diagnosticFrame&&temporalFramesLogged<256) || (withTrace&&resolveTraceRemaining));
                     if (hdrTemporalHistory) hdrTemporalHistory->BeginFrame(frame, temporalEpoch, resolveTraceRemaining != 0);
-                    temporalHistory->EnableGpuTiming(motionOptions.timing);
-                    if (hdrTemporalHistory) hdrTemporalHistory->EnableGpuTiming(motionOptions.timing);
+                    const bool gpuTiming = motionOptions.timing || (taaLiveApplied && taaLiveOptions.gpu_timing);
+                    temporalHistory->EnableGpuTiming(gpuTiming);
+                    if (hdrTemporalHistory) hdrTemporalHistory->EnableGpuTiming(gpuTiming);
                     if (motionOptions.enabled) {
                         render_batch::CpuTimer<> mvTimer(motionOptions.timing);
                         drawTemporalTracker.BeginFrame(frame, temporalEpoch);
@@ -3592,7 +3608,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                 motionReplay.reset(); motionInitFailed = true;
                             }
                         }
-                        if (motionReplay) {motionReplay->EnableGpuTiming(motionOptions.timing);motionReplay->BeginFrame(frame, temporalEpoch);}
+                        if (motionReplay) {motionReplay->EnableGpuTiming(gpuTiming);motionReplay->BeginFrame(frame, temporalEpoch);}
                     }
                 }
                 taaInit.AddTo(tTaa);
@@ -3729,7 +3745,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     temporalExperiment && temporalJitter && !diagnosticMaterialBypass, temporalViewport, jitterAnchor,
                     depth ? depth->allocationSerial : 0,
                     {rasterViewport.x, rasterViewport.y, rasterViewport.width, rasterViewport.height},
-                    vsConstants, psConstants, &temporalScene.Depth(), jitterSampledDepth ? &*jitterSampledDepth : nullptr);
+                    vsConstants, psConstants, &temporalScene.Depth(), jitterSampledDepth ? &*jitterSampledDepth : nullptr,
+                    taaLiveApplied ? taaLiveOptions.jitter_scale : 1.0);
                 const uint32_t collectionFlags=(temporalViewport?1u:0u)|(temporalJitter?2u:0u)|
                     (drawJitter.applied?4u:0u)|((depthControl&4)?8u:0u)|
                     (jitterAnchor&&depth&&depth->allocationSerial==jitterAnchor->depthAllocation?16u:0u);
@@ -4019,7 +4036,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                         (fetch[1] >> 12) << 12, fetch[1] & 0x3F, tex->width, tex->height, true};
                                     if (hdrScene.ObserveColor(hdrSource)) {
                                         Transition(*tex, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
-                                        const auto jitter = temporal::FrameJitter(frame, tex->width, tex->height);
+                                        const auto jitter = temporal::FrameJitter(frame, tex->width, tex->height,
+                                            taaLiveApplied ? taaLiveOptions.jitter_scale : 1.0);
                                         FinishMotion(hdrTemporalHistory.get());
                                         hdrTemporalOutput = hdrTemporalHistory->ResolveColor(commandList, tex->texture.get(), hdrScene,
                                             temporalJitter ? jitter.pixelX : 0, temporalJitter ? jitter.pixelY : 0,
@@ -4072,6 +4090,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             tex->format == RenderFormat::R8G8B8A8_UNORM && rasterViewport.width == tex->width && rasterViewport.height == tex->height;
                         if (diagnosticFullSceneCopy) QueueResolveTrace(*tex, 0xffff0020u);
                         RenderTexture* temporalDisplay=nullptr;
+                        RenderFormat temporalDisplayFormat=tex->format;
                         bool temporalDisplayFromHistory = false;
                         if(temporalSceneCopy && fullSceneCopy && s==ps && slot==0 &&
                            rasterViewport.width==tex->width && rasterViewport.height==tex->height &&
@@ -4080,7 +4099,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             temporalScene.ObserveColor(*temporalSceneCopy);
                             if(temporalExperiment && temporalHistory && temporalScene.Ready() && tex->format==RenderFormat::R8G8B8A8_UNORM) {
                                 Transition(*tex,RenderTextureLayout::COPY_SOURCE,RenderBarrierStage::COPY);
-                                const auto sample = temporal::FrameJitter(frame, rasterViewport.width, rasterViewport.height);
+                                const auto sample = temporal::FrameJitter(frame, rasterViewport.width, rasterViewport.height,
+                                    taaLiveApplied ? taaLiveOptions.jitter_scale : 1.0);
                                 const double jx = temporalJitter ? sample.pixelX : 0, jy = temporalJitter ? sample.pixelY : 0;
                                 FinishMotion(temporalHistory.get());
                                 const bool consumeMotion = motionOptions.consume && (!taaLiveApplied || taaLiveOptions.mv_consume);
@@ -4090,16 +4110,20 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                                     taaLiveResolvedFrame=frame;taaLiveWidth=tex->width;taaLiveHeight=tex->height;
                                     taaLiveJitterX=jx;taaLiveJitterY=jy;taaLiveHistoryReused=temporalDisplay&&temporalHistory->Reused();
                                     taaLiveMotionReady=motionView.ready;taaLiveMotionConsumed=temporalDisplay&&consumeMotion&&temporalHistory->MotionVectorValid();
+                                    taaLiveSourceFormat=temporalDisplay?temporalHistory->SourceFormat():RenderFormat::UNKNOWN;
+                                    taaLiveHistoryFormat=temporalDisplay?temporalHistory->HistoryFormat():RenderFormat::UNKNOWN;
+                                    taaLiveOutputFormat=temporalDisplay?temporalHistory->OutputFormat():RenderFormat::UNKNOWN;
                                 }
                                 if (motionOptions.consume && motionView.ready && motionReplay) motionReplay->RecordConsumerUse();
                                 Transition(*tex,RenderTextureLayout::SHADER_READ,RenderBarrierStage::GRAPHICS);
                                 if(temporalDisplay) {
+                                    temporalDisplayFormat=temporalHistory->OutputFormat();
                                     temporalDisplayFromHistory = true;
                                     temporalAARecorded=true;
                                     // Reserved diagnostic IDs (not guest addresses): same draw source,
                                     // reconstructed display, and owned current depth, copied before reuse.
                                     QueueResolveTrace(*tex,0xffff0001u);
-                                    QueueResolveTrace(temporalDisplay,RenderFormat::R8G8B8A8_UNORM,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0002u);
+                                    QueueResolveTrace(temporalDisplay,temporalDisplayFormat,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0002u);
                                     QueueResolveTrace(temporalHistory->CurrentDepth(),RenderFormat::R32_FLOAT,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0003u);
                                     if(temporalHistory->CurrentMotionVector())
                                         QueueResolveTrace(temporalHistory->CurrentMotionVector(),RenderFormat::R16G16_FLOAT,tex->width,tex->height,RenderTextureLayout::SHADER_READ,0xffff0004u);
@@ -4128,7 +4152,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             taaResolve.AddTo(tTaa);
                         }
                         if (diagnosticFullSceneCopy)
-                            QueueResolveTrace(temporalDisplay ? temporalDisplay : tex->texture.get(), tex->format,
+                            QueueResolveTrace(temporalDisplay ? temporalDisplay : tex->texture.get(), temporalDisplay ? temporalDisplayFormat : tex->format,
                                 tex->width, tex->height, RenderTextureLayout::SHADER_READ, 0xffff0021u);
                         uint32_t d3 = fetch[3];
                         shared.textureInfo[slot] = ((fetch[0] >> 2) & 0xFF) | (((d3 >> 1) & 0xFFF) << 8);

@@ -2,6 +2,9 @@
 
 状态：排查中。用户已确认 exact-stationary MV 加 stationary color-clip 候选
 明显更稳定，但仍有残余闪烁；Vulkan 4K 铃铛问题尚未解决。
+已验证的基线已提交并推送到 `origin/mv`，commit 为
+`ae7df0fb051980a32410423284199c7cebd9dfc3`；这不是正式发布版本。独立的
+`history_fp16` 实验已通过技术检查，但未通过画面验收。
 台账：18 个 `taa-position` case 全部保持 `needs_review` /
 `not_implemented` / `not_validated` / `not_accepted`，本文不把历史结论绑定到新证据。
 
@@ -95,6 +98,61 @@ video 和 ground 为 100% zero，upper 为 99.412% zero。静止权重 `0.95` �
 用户现已实景查看 exact-stationary MV 加 stationary color-clip 候选，确认画面
 明显更稳定，但仍有残余闪烁。这确认了当前 Bell 场景的部分视觉改善，但不代表
 问题已完全解决，也不关闭本次排查。
+
+### History FP16 精度候选
+
+独立的 `history_fp16` 开关已通过 50 项 precision-only GPU 检查，覆盖 RGBA8
+source 加 FP16 history 更新、最终 SDR/alpha、HistoryOwner 往返与重置，以及
+`127/129` 格式。FP16 parser、Python half-trace、静止范围和 HTML syntax 检查也
+通过，runtime 构建记录在 `build-history-precision-runtime.log`。同一 exe 的
+32 帧数值为 RGBA8 `31/33`：upper/video/ground
+`0.5168837/0.5271268/0.3196223`；FP16 `31/33`：
+`0.5533177/0.5797869/0.3611376`，因此不宣称 FP16 修复，也不推荐作为默认。
+FP16 `63/65` 为 `0.4818415/0.4930559/0.2660568`，`127/129` 为
+`0.4366672/0.4451076/0.2160987`；RGBA8 `127/129` 为
+`0.3996239/0.4103040/0.1550984`。更高静止权重仅作诊断，可能产生运动拖影。
+
+用户对更高静止权重候选的最新观察是：似乎只稳定了一点，肉眼不容易分辨；
+没有明显看到拖影，但反馈帧率变低。因此该候选未通过验收。当前控制已恢复为
+baseline 的 RGBA8 history 和 `31/33` 权重。
+
+### Uhra Main Street 后续观察
+
+用户确认 Uhra Main Street 上方钢架是当前抖动区域。旧版同场景 8 帧 source/output
+均值中，钢架由 `7.760` 降至 `0.356`，墙面由 `2.779` 降至 `0.034`，地面由
+`2.004` 降至 `0.013`，说明 history 合成有效，残余已局部化。此前多层轮廓候选
+让画面略有平稳感，但 60 FPS 降至约 55–58，关闭后恢复 60 FPS。短样本
+PresentMon 中 TAA on 的 GPU/CPU busy 为 `7.098/16.877 ms`，AA off 为
+`5.018/16.514 ms`，约增加 `2.08 ms` GPU 和 `0.36 ms` CPU；这不是广泛性能结论。
+
+新 debug 候选增加 `jitter_scale`、`stationary_multi_surface` 和 `gpu_timing`，state
+报告分阶段计时。当前运行的构建已记录累计 `total_ms`，运行候选同时报告 `last_ms`。
+Uhra user02 中 `jitter_scale=.5` 基本消除了横向抖动；`.35` 没有进一
+步改善，已恢复 `.5`。同时开启 `stationary_multi_surface=1` 后，用户确认斜线
+更稳定，移动中未明显看到拖影，约保持 60 FPS。`.5`/multi-v2 短样本 PresentMon
+为 CPU busy `16.8234/16.816 ms`、GPU busy `7.0976/7.0372 ms`、呈现间隔
+`16.9901/16.9816 ms`，差异属于噪声范围。当前运行态为 AA3、jitter1、
+`jitter_scale=.5`、multi-surface1、snap1、colorclip1、FP16 off、权重 `31/33`。
+314 帧中每帧约 732.6 个 replay draw，replay `1.356 ms`、TAA `0.447 ms`、
+mask `0.128 ms`；当前已关闭 gpu timing。这只是 Uhra 本地 debug 候选的画面验收，
+不代表默认、全地图、跨平台或正式修复。FP16 仍为 opt-in，尚未验收。
+
+### 2026-09-19 当前 Uhra 验收记录
+
+当前已接受的本地 debug 候选使用 internal 3840x2160、用户输出 4K、
+`jitter_scale=.5`、`stationary_multi_surface=1`、`snap_stationary=1`、
+`stationary_color_clip=1`、`history_fp16=0`、`moving_bilinear_fallback=0`，
+history 和 MV 输入均有效。在 `debug-moving-bilinear-opt.exe` 上（SHA-256 为
+`00FC2575AD0D515EBC7A68CB2F26110981B271024974E4C870078A2F54E3E3A0`），用户反馈
+“这一版已经不错了。可以接受”，实测约 60 FPS。这只是 Uhra 本地 debug 验收；
+仍有轻微抖动，不涵盖全局、默认、跨平台或正式发布行为。
+
+1080p internal 到 4K output 时，钢架模型仍严重抖动。`.25` 能改善静态内容，
+但移动相机抖动比 `.5` 更差，因此恢复 `.5`。钢架 ROI temporal byte delta 从
+`10.15` 降至 `0.483`。移动诊断中钢架第三层拒绝为 `5.44%`、墙面为 `.075%`；
+实验性的 `moving_bilinear_fallback=1` 将钢架拒绝降至 `.69%`，但约 60 FPS 下
+没有明显感知收益，保持关闭。早期 fallback 虽改善画面却降至 55–58 FPS，仍未
+验收。尚未定位到具体材质 shader。
 
 ### Bell 候选的初步实景结果
 

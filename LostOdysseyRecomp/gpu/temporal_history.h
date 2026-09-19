@@ -178,7 +178,8 @@ class HistoryOwner {
     bool valid_=false,reused_=false;
     bool motionVectorValid_=false;
     bool diagnosticsEnabled_=false;
-    plume::RenderFormat colorFormat_=plume::RenderFormat::R8G8B8A8_UNORM;
+    plume::RenderFormat sourceFormat_=plume::RenderFormat::R8G8B8A8_UNORM;
+    plume::RenderFormat historyFormat_=plume::RenderFormat::R8G8B8A8_UNORM;
     HistoryReuseDiagnostic diagnostics_;
     static void Transition(plume::RenderCommandList* commands,Image& image,plume::RenderTextureLayout layout) {
         if(image.layout!=layout) {commands->barriers(plume::RenderBarrierStage::ALL,plume::RenderTextureBarrier(image.texture.get(),layout));image.layout=layout;}
@@ -189,15 +190,37 @@ class HistoryOwner {
         image.texture=device_->createTexture(plume::RenderTextureDesc::Texture2D(width_,height_,1,format,plume::RenderTextureFlag::RENDER_TARGET));
         return bool(image.texture);
     }
+    bool SetHistoryStorage(bool fp16) {
+        // HDR already owns FP16 source/history. The SDR precision experiment
+        // changes only accumulation and display storage, never the copied source.
+        const auto format=(fp16||sourceFormat_==plume::RenderFormat::R16G16B16A16_FLOAT)?
+            plume::RenderFormat::R16G16B16A16_FLOAT:plume::RenderFormat::R8G8B8A8_UNORM;
+        if(format==historyFormat_)return true;
+        std::array<Image,2> nextHistory;Image nextDisplay;
+        for(auto& image:nextHistory)if(!Allocate(image,format))return false;
+        if(!Allocate(nextDisplay,format))return false;
+        // Retain attachments through the last recorded use, including pending
+        // framebuffers and external scene-copy draws sharing that fence timeline.
+        const auto serial=aa_.RecordedSerial();
+        for(auto& image:history_)if(image.texture)retired_.push_back({serial,std::move(image.texture)});
+        if(display_.texture)retired_.push_back({serial,std::move(display_.texture)});
+        history_=std::move(nextHistory);display_=std::move(nextDisplay);historyFormat_=format;
+        Reset();return true;
+    }
+    TemporalColorStorage OutputStorage() const {
+        return historyFormat_==plume::RenderFormat::R16G16B16A16_FLOAT?
+            TemporalColorStorage::Rgba16Float:TemporalColorStorage::Rgba8;
+    }
     static bool SameRaster(const Camera& a,const Camera& b) {
         const auto& x=a.Raster();const auto& y=b.Raster();
         return x.x==y.x&&x.y==y.y&&x.width==y.width&&x.height==y.height&&x.ndcYSign==y.ndcYSign&&x.halfPixelNdcX==y.halfPixelNdcX&&x.halfPixelNdcY==y.halfPixelNdcY;
     }
 public:
-    // Color source, history and display share the instance format; depth remains R32 FLOAT.
+    // The instance selects the source domain, which never changes at runtime.
+    // SDR may independently retain FP16 history; HDR stays FP16 throughout.
     bool Init(plume::RenderDevice* device,std::shared_ptr<taa_collection::SparseDepthGPU> sparse={},bool hdrColor=false) {
         device_=device;sparse_=std::move(sparse);
-        colorFormat_=hdrColor?plume::RenderFormat::R16G16B16A16_FLOAT:plume::RenderFormat::R8G8B8A8_UNORM;
+        sourceFormat_=historyFormat_=hdrColor?plume::RenderFormat::R16G16B16A16_FLOAT:plume::RenderFormat::R8G8B8A8_UNORM;
         return aa_.Init(device,hdrColor);
     }
     void EnableGpuTiming(bool enabled) {aa_.EnableGpuTiming(enabled);}
@@ -223,9 +246,9 @@ public:
             bool ok=width_&&height_&&width_<=16384&&height_<=16384;
             if(!ok)return false;
             for(auto& image:depth_)ok=Allocate(image,plume::RenderFormat::R32_FLOAT)&&ok;
-            for(auto& image:history_)ok=Allocate(image,colorFormat_)&&ok;
-            ok=Allocate(source_,colorFormat_)&&ok;
-            ok=Allocate(display_,colorFormat_)&&ok;
+            for(auto& image:history_)ok=Allocate(image,historyFormat_)&&ok;
+            ok=Allocate(source_,sourceFormat_)&&ok;
+            ok=Allocate(display_,historyFormat_)&&ok;
             if(!ok){width_=height_=0;return false;}
         }
         Matrix vp{};for(unsigned i=0;i<16;++i)vp[i]=std::bit_cast<float>(scene.Anchor().vpBits[i]);
@@ -237,11 +260,14 @@ public:
         Transition(commands,destination,plume::RenderTextureLayout::SHADER_READ);
         aa_.RecordExternalUse();return true;
     }
-    // Caller supplies full scene color in the instance color format and COPY_SOURCE. Output is SHADER_READ.
+    // Caller supplies full scene color in SourceFormat() and COPY_SOURCE. Output
+    // is SHADER_READ in OutputFormat(); the guest SDR scene-copy still quantizes
+    // the sampled result into its original RGBA8 target, outside this owner.
     // allowHistory is an explicit experiment assertion, NOT inferred scene/MV safety.
     plume::RenderTexture* ResolveColor(plume::RenderCommandList* commands,plume::RenderTexture* source,const SceneObservation& scene,double jx,double jy,bool allowHistory,bool stableGrid=false,bool colorReactive=false,const MotionFrameView* motion=nullptr,bool motionDebug=false,const LiveOptions* live=nullptr) {
         auto& current=frames_[frame_%2];auto& previous=frames_[(frame_+1)%2];
         if(!commands||!source||!scene.Ready()||scene.Frame()!=frame_||!current.camera||current.completed||current.depthOrdinal!=scene.Depth().ordinal||scene.Color().width!=width_||scene.Color().height!=height_) {Reset();return nullptr;}
+        if(!SetHistoryStorage(live&&live->history_fp16!=0)){Reset();return nullptr;}
         current.jx=jx;current.jy=jy;current.colorOrdinal=scene.Color().ordinal;current.stableGrid=stableGrid;
         const bool reuse=valid_&&previous.completed&&previous.stableGrid==stableGrid&&previous.number+1==frame_&&previous.epoch==epoch_&&previous.camera&&previous.allocation==current.allocation&&SameRaster(*current.camera,*previous.camera)&&ContinuousHistoryCamera(*current.camera,*previous.camera);
         if(diagnosticsEnabled_)diagnostics_=InspectHistoryReuse(
@@ -259,6 +285,7 @@ public:
             motion->velocity&&motion->depths&&motion->reactive;
         if(motionVectorValid_)motionView_=*motion;
         TemporalAAInputs in;in.rejectOutOfNeighborhoodHistory=colorReactive;in.stableGrid=stableGrid;in.currentColor=source_.texture.get();in.currentDepth=depth_[frame_%2].texture.get();in.historyColor=history_[(frame_+1)%2].texture.get();in.historyDepth=depth_[(frame_+1)%2].texture.get();in.output=history_[frame_%2].texture.get();
+        in.outputStorage=OutputStorage();
         in.motionVector=motionView_.velocity;in.motionDepths=motionView_.depths;in.reactiveMask=motionView_.reactive;
         in.motionVectorDebug=motionDebug;
         in.motionVectorValid=motionVectorValid_;
@@ -268,6 +295,8 @@ public:
             in.stabilizeStationaryGeometry=live->stationary!=0;in.stationaryCoverage=live->coverage!=0;
             in.snapStationaryMotion=live->snap_stationary!=0;
             in.stationaryColorClip=live->stationary_color_clip!=0;
+            in.stationaryMultiSurface=live->stationary_multi_surface!=0;
+            in.movingBilinearFallback=live->moving_bilinear_fallback!=0;
             in.historyWeight=live->history_weight;in.stationaryHistoryWeight=live->stationary_weight;
             in.stationaryMotionMin=live->motion_min;in.stationaryMotionMax=live->motion_max;
             in.depthAbsoluteThreshold=live->depth_absolute;in.depthRelativeThreshold=live->depth_relative;
@@ -302,12 +331,15 @@ public:
         }
         if(stableGrid) {current.completed=true;valid_=true;reused_=reuse&&!in.rejectAllHistory;return history_[frame_%2].texture.get();}
         Transition(commands,display_,plume::RenderTextureLayout::COLOR_WRITE);
-        if(!aa_.ReconstructDisplay(commands,{history_[frame_%2].texture.get(),display_.texture.get(),width_,height_,jx,jy})){Reset();return nullptr;}
+        if(!aa_.ReconstructDisplay(commands,{history_[frame_%2].texture.get(),display_.texture.get(),width_,height_,jx,jy,OutputStorage()})){Reset();return nullptr;}
         Transition(commands,display_,plume::RenderTextureLayout::SHADER_READ);
         current.completed=true;valid_=true;reused_=reuse&&!in.rejectAllHistory;return display_.texture.get();
     }
     bool Completed() const {return frames_[frame_%2].completed;}
     bool Reused() const {return reused_;}
+    plume::RenderFormat SourceFormat() const {return sourceFormat_;}
+    plume::RenderFormat HistoryFormat() const {return historyFormat_;}
+    plume::RenderFormat OutputFormat() const {return historyFormat_;}
     const HistoryReuseDiagnostic& Diagnostics() const {return diagnostics_;}
     // Borrowed diagnostic view, SHADER_READ; restore that layout after a readback.
     plume::RenderTexture* CurrentDepth() const {return depth_[frame_%2].texture.get();}

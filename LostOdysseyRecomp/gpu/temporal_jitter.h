@@ -10,16 +10,17 @@ struct JitterSample
     float ndcX = 0, ndcY = 0;
 };
 
-inline JitterSample FrameJitter(uint64_t frame, double width, double height)
+inline JitterSample FrameJitter(uint64_t frame, double width, double height, double scale = 1)
 {
-    if (!std::isfinite(width) || !std::isfinite(height) || width < 1 || height < 1) return {};
+    if (!std::isfinite(width) || !std::isfinite(height) || width < 1 || height < 1 ||
+        !std::isfinite(scale) || scale < 0 || scale > 1) return {};
     const auto halton = [](uint32_t n, uint32_t base) {
         double value = 0, fraction = 1;
         while (n) { fraction /= base; value += fraction * (n % base); n /= base; }
         return value - .5;
     };
     const uint32_t phase = uint32_t(frame % 32 + 1);
-    const double x = halton(phase, 2), y = halton(phase, 3);
+    const double x = halton(phase, 2) * scale, y = halton(phase, 3) * scale;
     // Guest NDC Y is up; the supported host viewport is Y down.
     return {phase, x, y, float(2 * float(x) / width), float(-2 * float(y) / height)};
 }
@@ -75,7 +76,8 @@ inline DrawJitter ApplyDrawJitter(uint64_t vs, uint64_t ps, uint64_t frame,
     bool enabled, bool compatibleViewport, const SceneAnchor* anchor,
     uint64_t depthAllocation, const Viewport& rasterViewport,
     uint32_t* vsConstants, uint32_t* psConstants,
-    const SceneResolve* sceneDepth = nullptr, const SceneResolve* sampledDepth = nullptr)
+    const SceneResolve* sceneDepth = nullptr, const SceneResolve* sampledDepth = nullptr,
+    double jitterScale = 1)
 {
     DrawJitter result;
     result.slot = PositionVPSlot(vs);
@@ -92,7 +94,7 @@ inline DrawJitter ApplyDrawJitter(uint64_t vs, uint64_t ps, uint64_t frame,
     if (rasterViewport.x != anchor->viewport.x || rasterViewport.y != anchor->viewport.y ||
         rasterViewport.width != anchor->viewport.width || rasterViewport.height != anchor->viewport.height)
         return reject(JitterRejection::IncompatibleViewport);
-    result.sample = FrameJitter(frame, rasterViewport.width, rasterViewport.height);
+    result.sample = FrameJitter(frame, rasterViewport.width, rasterViewport.height, jitterScale);
     if (!result.sample.phase) return reject(JitterRejection::InvalidExtent);
     const bool shadow = vs == 0x99c2b4b0960a9ccdull && ps == 0xd55a20d004031279ull;
     if (shadow && !IsSceneDepthSample(frame, sceneDepth, sampledDepth))
