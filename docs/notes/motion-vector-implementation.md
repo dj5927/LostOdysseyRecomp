@@ -72,7 +72,12 @@ Local validation before delivery:
 - The existing `temporal_aa_test.cpp` runs unchanged on software Vulkan, including original camera/jitter/history fixtures and synthetic Halton geometry. Offline telemetry is disabled by a test adapter.
 - The actual `renderer.cpp` translation unit compiles against the actual patched Plume interfaces. Its **compile-only guest ABI boundary** replaces unused generated PPC declarations in the PCH. This is explicitly **not** a full-game link or a test of recompiled PPC code.
 
-CI `mv-validation.yml` reproduces Linux software-Vulkan tests with validation layers plus CPU sanitizers, and Windows MSVC compilation/CPU/DXIL-SPIR-V checks. Check the actual run result; existence of the workflow is not a pass. `--compile-only` does not execute a GPU.
+The former `mv-validation.yml` hosted workflow ran Linux software-Vulkan,
+validation-layer and CPU-sanitizer checks plus Windows MSVC/CPU/DXIL-SPIR-V
+checks. Those results remain historical. Future changes should use focused
+local checks for their affected behavior; Release CI builds and packages from
+verified inputs. A build does not replace those tests, and `--compile-only`
+does not execute a GPU.
 
 ## What remains unverified / unsupported
 
