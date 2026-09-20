@@ -19,6 +19,15 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
+## v0.6.6 release (preparing / unreleased)
+
+Preparing release [v0.6.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.6) (pending CI completion and publication; not yet published). It introduces initial native ultrawide (21:9) support (Issue #17) and Linux AppImage updater rollback-preserving cleanup.
+
+> [!WARNING]
+> **Ultrawide support is EXPERIMENTAL, has known shadow mapping problems, and currently ONLY 3440×1440 is supported.** 2560×1080 is not currently advertised or supported despite appearing as an unverified UI option.
+
+See the [changelog](CHANGELOG.md#v066--2026-09-20) and [development status](docs/STATUS.md) for validation limits.
+
 ## v0.6.3 release
 
 Published at [GitHub Release v0.6.3](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.3) on 2026-09-19T23:56:08Z. It restores bounded sampled comparison for large vertex-cache hits to reduce CPU comparison cost while keeping small vertex buffers and index-cache source validation exact. `LoVertexCacheTest` passed 3,668,957 focused checks; no release-binary performance or full-game result is claimed. It also includes the Issue #54 language-menu safety correction, Issue #53 file-I/O locking and bounded diagnostics, deterministic I/O lifetime regression coverage, and platform-native asynchronous F1 render-state archives. The Windows ZIP and Linux AppImage, plus their sidecars, passed package hash and public delivery checks. Linux native GPU, Steam Deck, AppImage runtime and broader gameplay remain pending. See the [changelog](CHANGELOG.md#v063--2026-09-19).

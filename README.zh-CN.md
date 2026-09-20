@@ -19,6 +19,15 @@ Windows x64 · Direct3D 12 · Vulkan · PowerPC 静态重编译
 > [!IMPORTANT]
 > **本项目仍处于早期测试阶段。** 已测试开场区域和部分场景，尚未通关。渲染和稳定性仍有问题。请自行提供受支持版本的游戏文件。
 
+## v0.6.6 发布版（准备中 / 未发布）
+
+正在准备 [v0.6.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.6) 发布版本（待 CI 完成及发布；尚未正式发布）。包含原生超宽屏 (21:9) 初始支持（Issue #17）以及 Linux AppImage 更新器保留回滚的清理逻辑。
+
+> [!WARNING]
+> **超宽屏支持为实验性（EXPERIMENTAL），存在已知阴影贴图（shadow mapping）问题，目前仅支持 3440×1440。** 界面虽有 2560×1080 选项但尚未验证支持，请勿作为受支持分辨率使用。
+
+验证边界详见[更新日志](CHANGELOG.md#v066--2026-09-20)与[开发状态](docs/STATUS.md)。
+
 ## v0.6.3 发布版
 
 已于 2026-09-19T23:56:08Z 发布到 [GitHub Release v0.6.3](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.3)。大顶点缓存命中恢复为有界采样比较，以降低 CPU 比较成本；小顶点缓冲和 index cache 源数据校验继续保持精确。`LoVertexCacheTest` 通过 3,668,957 项定向检查；尚未宣称发布二进制性能或全游戏结果。本版本还包含 Issue #54 语言菜单安全修正、Issue #53 文件 I/O 锁范围修正和有界诊断、确定性的 I/O 生命周期回归覆盖，以及使用平台归档格式的异步 F1 渲染状态导出。Windows ZIP、Linux AppImage 及其 sidecar 已通过包 hash 和公开交付核验。Linux 原生 GPU、Steam Deck、AppImage 运行时及更广游戏流程仍待完成。详见[更新日志](CHANGELOG.md#v063--2026-09-19)。
