@@ -8,11 +8,11 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
-_No unreleased changes._
+- On Linux, the AppImage updater removes the exact temporary previous AppImage after the replacement reaches normal startup, while preserving it when replacement execution fails so rollback remains available. The focused WSL Manjaro Linux restart/rollback regression passed. Packaged AppImage, Fedora desktop and user acceptance remain pending.
 
 ### 简体中文
 
-_暂无未发布改动。_
+- Linux AppImage 更新器会在替换版本正常启动后删除对应的临时旧版 AppImage；如果替换版本执行失败，则保留旧版 AppImage 以便回滚。定向 WSL Manjaro Linux 重启／回滚回归已通过；打包 AppImage、Fedora 桌面和用户验收仍待完成。
 
 ## v0.6.3 — 2026-09-19
 

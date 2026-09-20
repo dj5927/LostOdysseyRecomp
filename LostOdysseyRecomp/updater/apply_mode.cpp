@@ -234,7 +234,28 @@ std::optional<int> TryRunApplyMode()
         return std::nullopt;
     };
     const auto planArgument = findArgument("--apply-plan");
-    if (!planArgument) return std::nullopt;
+    if (!planArgument)
+    {
+        // Only the successfully restarted image may discard the rollback copy.
+        // This also handles updates applied by versions predating cleanup.
+        const char *current = std::getenv("APPIMAGE");
+        if (current && *current)
+        {
+            const auto currentPath = std::filesystem::path(current).lexically_normal();
+            if (currentPath.is_absolute())
+            {
+                std::error_code cleanupError;
+                const auto previous = std::filesystem::path(currentPath.string() + ".previous");
+                if (std::filesystem::is_regular_file(std::filesystem::symlink_status(previous, cleanupError)))
+                    std::filesystem::remove(previous, cleanupError);
+                if (cleanupError == std::errc::no_such_file_or_directory) cleanupError.clear();
+                if (cleanupError)
+                    std::cerr << "Lost Odyssey update: could not remove previous AppImage: "
+                              << cleanupError.message() << "\n";
+            }
+        }
+        return std::nullopt;
+    }
 
     std::optional<std::filesystem::path> failureOperationRoot;
     auto failWithReason = [&](std::string_view reason) -> int {
