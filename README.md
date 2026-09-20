@@ -19,9 +19,9 @@ Optional diagnostics are off by default and can be disabled in Settings. See [Pr
 > [!IMPORTANT]
 > **This project is still in early testing.** Opening areas and selected scenes have been tested; a complete playthrough has not. Rendering and stability issues remain. You must supply your own supported game files.
 
-## v0.6.6 release (preparing / unreleased)
+## v0.6.6 release
 
-Preparing release [v0.6.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.6) (pending CI completion and publication; not yet published). It introduces initial native ultrawide (21:9) support (Issue #17) and Linux AppImage updater rollback-preserving cleanup.
+Published at [GitHub Release v0.6.6](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.6) on 2026-09-20T08:10:24Z from commit `c953bb5`. It introduces initial native ultrawide (21:9) support (Issue #17) and Linux AppImage updater rollback-preserving cleanup. Release CI [35497779401](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35497779401) passed Windows and Linux packaging, and public package URLs returned HTTP 200 with verified SHA-256 sidecars.
 
 > [!WARNING]
 > **Ultrawide support is EXPERIMENTAL, has known shadow mapping problems, and currently ONLY 3440×1440 is supported.** 2560×1080 is not currently advertised or supported despite appearing as an unverified UI option.

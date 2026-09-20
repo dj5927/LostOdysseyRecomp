@@ -1621,9 +1621,9 @@
         "Kind": "Feature",
         "Area": "Graphics presentation",
         "Status": "In Progress",
-        "Delivery": "In progress",
+        "Delivery": "Implemented",
         "Source key": "ultrawide-fov-layout",
-        "Evidence": "Initial experimental native Hor+ ultrawide rendering implemented in commit fa38df7, currently supporting 3440x1440 only. Windows Clang build passed; FramePlan (18 checks), TargetMapping (5 checks), resolution sizing (40 checks) and temporal tests passed. Vulkan startup with 28,482 bundled shaders loaded save in 13.93s; scene-transition screenshots 382/383; actual primary color/depth 3440x1472 padding resolve 3440x1440 verified. Shadow mapping issues are known and user-reported. Full stable gameplay, visual Hor+, HUD, shadow fixes, dynamic resize, failure injection and player visual acceptance remain pending; v0.6.6 release is in preparation (not published).",
+        "Evidence": "Initial experimental native Hor+ ultrawide rendering published in v0.6.6 (source commit c953bb56857330a2238869b306ffda98fe41bcdd, core commit fa38df7; Release CI 35497779401, public HTTP 200/hash/sidecar verified). Experimental scope currently supports 3440x1440 only. Windows Clang build passed; FramePlan (18 checks), TargetMapping (5 checks), resolution sizing (40 checks) and temporal tests passed. Vulkan startup with 28,482 bundled shaders loaded save in 13.93s; scene-transition screenshots 382/383; actual primary color/depth 3440x1472 padding resolve 3440x1440 verified. Shadow mapping issues are a known, user-reported bug. Full stable gameplay, visual Hor+, HUD, shadow fixes, dynamic resize, failure injection and player visual acceptance remain pending; Issue #17 kept open and in progress.",
         "Release": "v0.6.6"
       },
       "title": "Support ultrawide output and FOV changes",
