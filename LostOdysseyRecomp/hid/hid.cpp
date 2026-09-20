@@ -5,6 +5,7 @@
 #include <os/shader_log.h>
 #include <atomic>
 extern std::atomic<uint32_t> g_presentedSwaps;
+extern std::atomic<uint32_t> g_ringPhase;
 #include <vector>
 #include <SDL.h>
 #include <settings/menu.h>
@@ -382,6 +383,48 @@ uint32_t hid::GetState(uint32_t dwUserIndex, XAMINPUT_STATE* pState)
         if (keys[SDL_SCANCODE_K]) gp.sThumbLY = -32768;
         if (keys[SDL_SCANCODE_J]) gp.sThumbLX = -32768;
         if (keys[SDL_SCANCODE_L]) gp.sThumbLX = 32767;
+    }
+
+    // Lost Odyssey's Aim Ring only advances while RT is non-zero. If phase 4
+    // begins with RT released, keep the ring moving and translate the first
+    // physical RT press into the release/judge edge. Entering phase 4 with RT
+    // already held is left untouched, preserving the original hold/release
+    // control scheme. Set LO_RING_ASSIST=0 to disable this compatibility path.
+    {
+        static const bool ringAssist = [] {
+            const char* value = getenv("LO_RING_ASSIST");
+            return !value || strcmp(value, "0") != 0;
+        }();
+        static uint32_t previousPhase = 0;
+        static bool autoMode = false;
+        static bool previousPressed = false;
+        static bool judgeReleased = false;
+
+        const uint32_t phase = g_ringPhase.load(std::memory_order_relaxed);
+        const bool pressed = gp.bRightTrigger >= 32;
+        if (ringAssist && phase == 4)
+        {
+            if (previousPhase != 4)
+            {
+                autoMode = !pressed;
+                previousPressed = pressed;
+                judgeReleased = false;
+            }
+            if (autoMode)
+            {
+                if (!judgeReleased && pressed && !previousPressed)
+                    judgeReleased = true;
+                gp.bRightTrigger = judgeReleased ? 0 : 255;
+                previousPressed = pressed;
+            }
+        }
+        else
+        {
+            autoMode = false;
+            judgeReleased = false;
+            previousPressed = pressed;
+        }
+        previousPhase = phase;
     }
 
     // Background integration input, opt-in per test process. A new serial starts
