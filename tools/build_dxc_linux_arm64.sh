@@ -29,15 +29,17 @@ git -C "$CACHE_REPO" worktree remove --force "$WORK_SRC" >/dev/null 2>&1 || true
 rm -rf "$WORK_SRC"
 git -C "$CACHE_REPO" worktree add --detach "$WORK_SRC" "$DXC_REF"
 
-# The tested DXC revision contains two ObjC rewriter call sites that predate
-# DXC's HLSL ParamMods extension to ASTContext::getFunctionType. They are not
-# used by Lost Odyssey, but GCC still compiles the translation units. Patch the
-# detached worktree only; the cached source checkout remains untouched.
-python3 - "$WORK_SRC" <<'PY'
+# Apply the small compatibility fixes required by the validated DXC revision
+# in the detached worktree only. The cached source checkout remains untouched.
+python3 - "$WORK_SRC" "$CLANG_FORMAT" <<'PY'
 from pathlib import Path
 import sys
 
 root = Path(sys.argv[1])
+clang_format = sys.argv[2]
+
+# HLSL extends ASTContext::getFunctionType with ParamMods. Two ObjC rewriter
+# call sites in this revision still use the older three-argument form.
 for rel in (
     "tools/clang/lib/Frontend/Rewrite/RewriteObjC.cpp",
     "tools/clang/lib/Frontend/Rewrite/RewriteModernObjC.cpp",
@@ -47,10 +49,39 @@ for rel in (
     old = "return Context->getFunctionType(result, args, fpi);"
     new = "return Context->getFunctionType(result, args, fpi, None);"
     if old in text:
-        text = text.replace(old, new)
-        p.write_text(text)
+        p.write_text(text.replace(old, new))
     elif new not in text:
         raise SystemExit(f"unexpected DXC source at {rel}")
+
+# DXC's nested NATIVE configure must build tools for the x86-64 host, not for
+# the AArch64 target. Pass host compilers and the same EH/RTTI settings used by
+# the validated Linux build if the nested configure is regenerated.
+p = root / "cmake/modules/CrossCompile.cmake"
+text = p.read_text()
+needle = "function(llvm_create_cross_target_internal target_name toochain buildtype)\n"
+insert = """function(llvm_create_cross_target_internal target_name toochain buildtype)
+
+  set(LO_NATIVE_HOST_FLAGS)
+  if("${target_name}" STREQUAL "NATIVE" AND UNIX AND CMAKE_CROSSCOMPILING)
+    set(LO_NATIVE_HOST_FLAGS
+        -DCMAKE_C_COMPILER=/usr/bin/gcc
+        -DCMAKE_CXX_COMPILER=/usr/bin/g++
+        -DCMAKE_AR=/usr/bin/ar
+        -DCMAKE_RANLIB=/usr/bin/ranlib
+        -DLLVM_ENABLE_EH=ON
+        -DLLVM_ENABLE_RTTI=ON
+        -DCLANG_FORMAT_EXE=""" + clang_format + """)
+  endif()
+"""
+if "set(LO_NATIVE_HOST_FLAGS)" not in text:
+    if needle not in text:
+        raise SystemExit("unexpected DXC CrossCompile.cmake")
+    text = text.replace(needle, insert, 1)
+    text = text.replace(
+        '        ${CROSS_TOOLCHAIN_FLAGS_${target_name}} ${CMAKE_SOURCE_DIR}',
+        '        ${LO_NATIVE_HOST_FLAGS}\n        ${CROSS_TOOLCHAIN_FLAGS_${target_name}} ${CMAKE_SOURCE_DIR}'
+    )
+p.write_text(text)
 PY
 
 rm -rf "$BUILD_DIR"
