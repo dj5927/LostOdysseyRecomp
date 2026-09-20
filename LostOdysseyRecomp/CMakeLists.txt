@@ -560,6 +560,14 @@ add_executable(LoRenderResolutionTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools
 target_include_directories(LoRenderResolutionTest PRIVATE ${LO_RUNTIME_ROOT})
 target_compile_features(LoRenderResolutionTest PRIVATE cxx_std_20)
 
+add_executable(LoFramePlanTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/frame_plan_test.cpp)
+target_include_directories(LoFramePlanTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoFramePlanTest PRIVATE cxx_std_20)
+
+add_executable(LoTargetMappingTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/target_mapping_test.cpp)
+target_include_directories(LoTargetMappingTest PRIVATE ${LO_RUNTIME_ROOT})
+target_compile_features(LoTargetMappingTest PRIVATE cxx_std_20)
+
 add_executable(LoTemporalSceneTest EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tools/tests/temporal_scene_test.cpp)
 target_include_directories(LoTemporalSceneTest PRIVATE ${LO_RUNTIME_ROOT})
 target_compile_features(LoTemporalSceneTest PRIVATE cxx_std_20)

@@ -1620,9 +1620,10 @@
       "fields": {
         "Kind": "Feature",
         "Area": "Graphics presentation",
-        "Status": "Todo",
-        "Delivery": "Not started",
-        "Source key": "ultrawide-fov-layout"
+        "Status": "In Progress",
+        "Delivery": "In progress",
+        "Source key": "ultrawide-fov-layout",
+        "Evidence": "Initial implementation complete (native Hor+ frameplan/catalog/movies/HUD/resolution options). Windows Clang build passed; FramePlan (18 checks), TargetMapping (5 checks), resolution sizing (40 checks) and temporal tests passed. Vulkan startup with 28,482 bundled shaders loaded save in 13.93s; scene-transition screenshots 382/383; actual primary color/depth 3440x1472 padding resolve 3440x1440 verified. Full stable gameplay, visual Hor+, HUD, shadow, dynamic resize, failure injection and player visual acceptance remain pending."
       },
       "title": "Support ultrawide output and FOV changes",
       "body_sha256": "b7de1b27cfbd7e0d5080892fbe47986264be9293d3afff63feecb11401b81cc7"

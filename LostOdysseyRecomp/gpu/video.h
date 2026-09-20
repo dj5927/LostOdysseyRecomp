@@ -50,6 +50,9 @@ namespace gpu::video
     // Untiles the guest frontbuffer (a tiled 32bpp texture written by the
     // GPU resolve) into an upload buffer and presents it.
     void PresentFrontbuffer(uint32_t physicalAddress, uint32_t width, uint32_t height, uint32_t copyDestInfo);
+    // Waits the independent presentation submission before renderer resources
+    // referenced by it are retired. Called on the command processor thread.
+    void WaitForPresentGpu();
     // Presents the host menu overlay (settings or debug overlay) on the presentation thread.
     bool IsHostOverlayActive();
     void PresentHostOverlay();

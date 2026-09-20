@@ -8,10 +8,12 @@ One record of completed changes, with unpublished work separated from verified r
 
 ### English
 
+- Add initial native ultrawide (21:9) support (Issue #17): render targets follow the native display aspect ratio using Hor+ projection adjustments applied before derived matrices and view-frustum culling, keeping 16:9 safe-region HUD and ordered left/right pillarbox bars during video playback. The frame plan manages queue epoch tracking and render-target catalog roles, and graphics settings expose 2560×1080 and 3440×1440 options. Focused checks passed for `windows-clang` runtime build, `LoFramePlanTest` (18 checks), `LoTargetMappingTest` (5 checks), resolution (40 checks) and temporal math fixtures; in Vulkan testing with packed shaders, a native save loaded at 13.93s, captured two frames during scene transition at swaps 382–383, and verified 3440×1472 padded color/depth allocations with 3440×1440 resolve content. Comprehensive visual Hor+, HUD positioning, dynamic resize, shadow accuracy, failure injection, other backends, and user acceptance remain pending.
 - On Linux, the AppImage updater removes the exact temporary previous AppImage after the replacement reaches normal startup, while preserving it when replacement execution fails so rollback remains available. The focused WSL Manjaro Linux restart/rollback regression passed. Packaged AppImage, Fedora desktop and user acceptance remain pending.
 
 ### 简体中文
 
+- 增加原生超宽屏 (21:9) 初始支持（Issue #17）：渲染目标依原生显示比例分配，在派生矩阵与视锥裁剪前应用 Hor+ 投影调整，并在视频播放期间保持 16:9 HUD 安全区与有序左右立柱黑边。FramePlan 负责队列周期跟踪与目标分类角色管理，图形设置提供 2560×1080 与 3440×1440 选项。`windows-clang` 运行时构建、`LoFramePlanTest`（18 项检查）、`LoTargetMappingTest`（5 项检查）、分辨率（40 项）与时序数学测试均已通过；在 Vulkan 搭配打包着色器测试中，原生存档于 13.93 秒成功载入，在场景过渡期间捕获 swap 382–383 的两帧，日志确认 3440×1472 对齐的色彩／深度缓冲分配及 3440×1440 resolve 画面。完整实机 Hor+ 视觉呈现、HUD 排布、动态调整大小、阴影精度、故障注入、其他图形后端及用户验收仍待完成。
 - Linux AppImage 更新器会在替换版本正常启动后删除对应的临时旧版 AppImage；如果替换版本执行失败，则保留旧版 AppImage 以便回滚。定向 WSL Manjaro Linux 重启／回滚回归已通过；打包 AppImage、Fedora 桌面和用户验收仍待完成。
 
 ## v0.6.3 — 2026-09-19

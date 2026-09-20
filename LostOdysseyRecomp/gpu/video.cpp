@@ -231,7 +231,7 @@ namespace gpu::video
         constexpr plume::RenderFormat kSwapChainFormat = plume::RenderFormat::R8G8B8A8_UNORM;
         constexpr uint32_t kSwapChainBuffers = 3;
 
-        void WaitForPresentGpu()
+        void WaitForPresentGpuImpl()
         {
             if (!g_presentPending || !g_queue || !g_fence) return;
             g_queue->waitForCommandFence(g_fence.get());
@@ -329,6 +329,12 @@ namespace gpu::video
     }
 
     bool IsVulkan() { return g_vulkan; }
+    void WaitForPresentGpu()
+    {
+#ifdef LO_GPU_PLUME
+        WaitForPresentGpuImpl();
+#endif
+    }
     std::optional<backend::Backend> SelectedBackend() {
         const auto selected = g_selectedBackend.load();
         return selected < 0 ? std::nullopt : std::optional(static_cast<backend::Backend>(selected));
@@ -1086,6 +1092,8 @@ namespace gpu::video
         // Fast path: the frontbuffer was resolved on the GPU, copy it straight
         // into the swap chain. LO_PRESENT_CPU=1 forces the untiling path below.
         static const bool cpuPresent = getenv("LO_PRESENT_CPU") != nullptr;
+        if (renderer::SuppressPresent())
+            return;
         if (g_available && !cpuPresent && !menu)
         {
             uint32_t rw = 0, rh = 0, rf = 0;

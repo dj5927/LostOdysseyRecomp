@@ -5,6 +5,8 @@
 #include <string>
 
 namespace plume { struct RenderTexture; }
+namespace gpu::frame_plan { struct FramePlan; }
+namespace gpu::frame_plan { enum class SurfaceRole : uint32_t; }
 
 // Xenos draw backend on plume: turns the command processor's register state
 // plus a DRAW_INDX packet into host draws, emulates EDRAM render targets as
@@ -28,6 +30,17 @@ namespace gpu::renderer
     void Shutdown();
     // Report the actual swapchain extent; the next renderer frame applies Auto.
     void SetOutputSize(uint32_t width, uint32_t height);
+    // The aspect attached to the renderer's current allocation epoch. Guest
+    // camera hooks use this rather than a concurrently resized swapchain.
+    float ActiveOutputAspect();
+    // The command processor commits only tagged CPU frame plans. Renderer
+    // allocation consumes this immutable plan instead of the window size.
+    void SelectFramePlan(const frame_plan::FramePlan& plan);
+    void RegisterCatalogSurface(frame_plan::SurfaceRole role, uint32_t surfaceInfo, uint32_t colorInfo);
+    // Ordered host-private movie command, consumed on the command processor
+    // thread after the movie helper has drawn its safe-area destination.
+    void ClearMovieBars(uint32_t surfaceInfo, uint32_t colorInfo,
+        float x, float y, float width, float height, float safeLeft, float safeRight);
     // Convert the guest frontbuffer content extent to this surface's physical
     // pixels (storage padding remains excluded).
     void ScaleResolvedSize(uint32_t physicalAddress, uint32_t& width, uint32_t& height);
@@ -47,6 +60,8 @@ namespace gpu::renderer
     // Record the frontbuffer COPY_SOURCE barrier on the still-open swap list.
     // Must run before Flush so Present does not submit a second command list.
     void PreparePresent(uint32_t physicalAddress);
+    // A failed allocation epoch must not fall through to stale CPU frontbuffer data.
+    bool SuppressPresent();
 
     // Guest memory range was written by the GPU (resolve) or is known dirty.
     void InvalidateGuestRange(uint32_t physicalAddress, uint32_t size);

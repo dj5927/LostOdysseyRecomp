@@ -47,7 +47,8 @@ bool bypass = false, sawModal = false;
 bool closing = false;
 uint32_t lastMenu = 0;
 std::wstring status;
-constexpr uint32_t resolutions[][2] = {{1280, 720}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
+constexpr uint32_t resolutions[][2] = {
+    {1280, 720}, {1600, 900}, {1920, 1080}, {2560, 1080}, {2560, 1440}, {3440, 1440}, {3840, 2160}};
 constexpr int internalResolutions[] = {0, 720, 1080, 1440, 2160};
 const wchar_t *Tr(const wchar_t *en, const wchar_t *zh)
 {
@@ -154,15 +155,14 @@ void Publish(uint8_t *base, uint32_t config)
         {
             outputChoices.push_back(std::to_wstring(resolutions[i][0]) + L" × " +
                                     std::to_wstring(resolutions[i][1]));
-            if (edit.width == resolutions[i][0]) outputChoice = i;
+            if (edit.width == resolutions[i][0] && edit.height == resolutions[i][1]) outputChoice = i;
         }
         addChoices(L"Output resolution", L"輸出解析度", std::move(outputChoices), outputChoice);
         std::vector<std::wstring> internalChoices{Tr(L"Auto (match output)", L"自動（跟隨輸出）")};
         uint32_t internalChoice = 0;
         for (uint32_t i = 1; i < std::size(internalResolutions); ++i)
         {
-            internalChoices.push_back(std::to_wstring(internalResolutions[i] * 16 / 9) + L" × " +
-                                      std::to_wstring(internalResolutions[i]));
+            internalChoices.push_back(std::to_wstring(internalResolutions[i]) + L"p");
             if (edit.internalResolution == internalResolutions[i]) internalChoice = i;
         }
         addChoices(L"Internal resolution", L"內部解析度", std::move(internalChoices), internalChoice);
@@ -643,10 +643,10 @@ PPC_FUNC(sub_822F19B0)
             if (row == 2)
             {
                 uint32_t index = 0;
-                for (uint32_t i = 0; i < 5; i++)
-                    if (edit.width == resolutions[i][0])
+                for (uint32_t i = 0; i < std::size(resolutions); i++)
+                    if (edit.width == resolutions[i][0] && edit.height == resolutions[i][1])
                         index = i;
-                index = cycle(index, 5);
+                index = cycle(index, uint32_t(std::size(resolutions)));
                 edit.width = resolutions[index][0];
                 edit.height = resolutions[index][1];
             }

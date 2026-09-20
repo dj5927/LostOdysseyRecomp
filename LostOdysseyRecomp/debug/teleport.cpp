@@ -1,4 +1,5 @@
 #include <stdafx.h>
+#include "gpu/frame_plan.h"
 #include <kernel/heap.h>
 #include <kernel/memory.h>
 #include <os/logger.h>
@@ -413,7 +414,7 @@ PPC_FUNC(sub_82290B60)
     if (getenv("LO_TELEPORT_COMMAND_FILE") && !observed.exchange(true))
         LOG_INFO("teleport scene hook this={:#x} caller={:#x}", ctx.r3.u32, uint32_t(ctx.lr));
     const bool engine = ctx.r3.u32 == PPC_LOAD_U32(0x83315FB4);
-    if (engine) frame_timing::EngineTick(ctx.f1.f64);
+    if (engine) { gpu::frame_plan::BeginCpuFrame(); frame_timing::EngineTick(ctx.f1.f64); }
     __imp__sub_82290B60(ctx, base);
     if (engine) { debug_menu::UpdateMapInfo(base); Tick(ctx, base); }
 }

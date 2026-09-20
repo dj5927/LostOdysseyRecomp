@@ -5,6 +5,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include "gpu/frame_plan.h"
 
 // Minimal Xenos command processor: consumes the primary ring buffer, executes
 // the PM4 packets the CPU synchronises against (memory writes, fences, waits,
@@ -93,6 +94,14 @@ namespace gpu
         uint8_t* TranslatePhysical(uint32_t physicalAddress);
 
         std::vector<uint32_t> m_registers;
+        struct MovieClearStage
+        {
+            bool active = false;
+            uint32_t surfaceInfo = 0, colorInfo = 0;
+            uint32_t x = 0, y = 0, width = 0, height = 0, safeLeft = 0, safeRight = 0;
+        } m_movieClear;
+        gpu::frame_plan::wire::PlanStage m_framePlan;
+        gpu::frame_plan::wire::CatalogStage m_catalog;
         uint32_t m_primaryBufferPhysical = 0;
         uint32_t m_primaryBufferSize = 0;
         uint32_t m_readPtrIndex = 0;

@@ -1,5 +1,7 @@
 #include <stdafx.h>
 #include "command_processor.h"
+#include "movie_clear.h"
+#include "frame_plan.h"
 #include "video.h"
 #include "renderer.h"
 #include "frame_pacer.h"
@@ -308,6 +310,48 @@ namespace gpu
 
     void CommandProcessor::WriteRegister(uint32_t index, uint32_t value)
     {
+        if (index >= frame_plan::wire::CatalogBase && index <= frame_plan::wire::CatalogBase + 4)
+        {
+            frame_plan::SurfaceRole role;
+            uint32_t surfaceInfo = 0, colorInfo = 0;
+            if (m_catalog.Write(index, value, role, surfaceInfo, colorInfo))
+                renderer::RegisterCatalogSurface(role, surfaceInfo, colorInfo);
+            return;
+        }
+        if (index >= frame_plan::wire::PlanBase && index <= frame_plan::wire::PlanBase + 7)
+        {
+            if (const auto plan = m_framePlan.Write(index, value))
+                renderer::SelectFramePlan(*plan);
+            return;
+        }
+        if (index >= movie_clear::RegisterBase && index <= movie_clear::Commit)
+        {
+            using namespace movie_clear;
+            switch (index)
+            {
+            case Begin:
+                m_movieClear = {};
+                m_movieClear.active = value == Magic;
+                break;
+            case SurfaceInfo: if (m_movieClear.active) m_movieClear.surfaceInfo = value; break;
+            case ColorInfo: if (m_movieClear.active) m_movieClear.colorInfo = value; break;
+            case OriginalX: if (m_movieClear.active) m_movieClear.x = value; break;
+            case OriginalY: if (m_movieClear.active) m_movieClear.y = value; break;
+            case OriginalWidth: if (m_movieClear.active) m_movieClear.width = value; break;
+            case OriginalHeight: if (m_movieClear.active) m_movieClear.height = value; break;
+            case SafeLeft: if (m_movieClear.active) m_movieClear.safeLeft = value; break;
+            case SafeRight: if (m_movieClear.active) m_movieClear.safeRight = value; break;
+            case Commit:
+                if (m_movieClear.active && value == Magic)
+                    renderer::ClearMovieBars(m_movieClear.surfaceInfo, m_movieClear.colorInfo,
+                        std::bit_cast<float>(m_movieClear.x), std::bit_cast<float>(m_movieClear.y),
+                        std::bit_cast<float>(m_movieClear.width), std::bit_cast<float>(m_movieClear.height),
+                        std::bit_cast<float>(m_movieClear.safeLeft), std::bit_cast<float>(m_movieClear.safeRight));
+                m_movieClear = {};
+                break;
+            }
+            return;
+        }
         if (index >= REGISTER_COUNT)
             return;
 

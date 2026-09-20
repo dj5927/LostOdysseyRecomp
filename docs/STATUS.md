@@ -1,5 +1,35 @@
 # Project status
 
+## Native ultrawide (21:9) implementation (Issue #17 / unreleased) / 原生超宽屏 (21:9) 实现（Issue #17 / 未发布）
+
+Initial native ultrawide implementation allows internal render targets to follow
+aspect ratios beyond 16:9 using Hor+ projection adjustments. The Hor+ projection
+scale is applied before derived matrices and view-frustum culling, preserving
+perspective geometry across the expanded field of view. HUD elements are constrained
+to a 16:9 safe region, and video playback applies ordered left/right pillarbox bars.
+FramePlan manages queue epoch tracking and render-target catalog roles. Display settings
+provide selectable 2560×1080 and 3440×1440 options.
+
+Validation and limits: The `windows-clang` runtime build passed. Focused unit fixtures
+passed for `LoFramePlanTest` (18 checks), `LoTargetMappingTest` (5 checks), resolution
+calculation (40 checks), and temporal math. In Vulkan live testing with bundled shaders,
+a native save loaded at 13.93 seconds and captured two frames during scene transition
+at swaps 382–383, with log confirmation of 3440×1472 padded main color/depth allocation
+and 3440×1440 resolve content. Full visual verification across scenes, HUD element
+alignment, dynamic window resizing, shadow map projection accuracy, failure injection
+paths, other backends (Direct3D 12), and player visual acceptance remain pending.
+
+原生超宽屏初步支持允许内部渲染目标跟随 16:9 以外的显示比例，并使用 Hor+ 进行投影调整。
+Hor+ 缩放于派生矩阵计算与视锥裁剪前应用，在拓展视野中保持正确的透视几何结构。HUD 界面元素被
+限制在 16:9 安全区内，视频播放期间添加有序左右立柱黑边。FramePlan 负责队列周期跟踪与渲染目标分类角色管理。
+显示设置中增加了 2560×1080 和 3440×1440 选项。
+
+验证范围与限制：`windows-clang` 运行时构建通过。定向单元测试通过了 `LoFramePlanTest`（18 项检查）、
+`LoTargetMappingTest`（5 项检查）、分辨率计算（40 项）与时序数学检查。在 Vulkan 搭配内置着色器包测试中，
+原生存档于 13.93 秒成功载入，在场景过渡期间捕获 swap 382–383 的两帧，日志确认主颜色／深度缓冲分配为
+3440×1472（对齐），resolve 内容为 3440×1440。跨场景的完整实机视觉验证、HUD 排布对齐、动态窗口大小调整、
+阴影贴图投影精度、故障注入路径、Direct3D 12 等其他图形后端，以及玩家视觉验收均仍待完成。
+
 ## v0.6.3 published / v0.6.3 已发布
 
 v0.6.3 was published on 2026-09-19T23:56:08Z from tag/source commit

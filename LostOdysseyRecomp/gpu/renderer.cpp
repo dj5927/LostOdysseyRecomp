@@ -7,6 +7,7 @@
 #include "renderer.h"
 #include <os/user_paths.h>
 #include "render_resolution.h"
+#include "movie_clear.h"
 #include "video.h"
 #include "command_processor.h"
 #include "shader_source_capture.h"
@@ -75,12 +76,29 @@
 #include <vector>
 #include <mutex>
 #include <string_view>
+#include "gpu/frame_plan.h"
 
 namespace gpu::renderer
 {
     namespace binding = gpu::taa_collection::binding;
     namespace {
-        std::atomic<uint64_t> outputSize{(uint64_t(1280) << 32) | 720};
+        std::mutex framePlanMutex;
+        frame_plan::FramePlan committedPlan{};
+        std::mutex catalogMutex;
+        std::unordered_map<uint64_t, frame_plan::SurfaceRole> catalogRoles;
+        uint64_t CatalogKey(uint32_t surfaceInfo, uint32_t colorInfo)
+        {
+            return (uint64_t(colorInfo & 0xFFF) << 32) | (surfaceInfo & 0x3FFF);
+        }
+        resolution::TargetRole ResolveCatalogRole(uint32_t base, uint32_t pitch)
+        {
+            std::lock_guard lock(catalogMutex);
+            const auto found = catalogRoles.find((uint64_t(base) << 32) | pitch);
+            if (found == catalogRoles.end()) return resolution::TargetRole::Unknown;
+            return found->second == frame_plan::SurfaceRole::Scene ? resolution::TargetRole::Scene
+                : found->second == frame_plan::SurfaceRole::Fixed ? resolution::TargetRole::Fixed
+                : resolution::TargetRole::Unknown;
+        }
         std::mutex captureMutex;
         bool captureBusy = false, capturePending = false;
         std::wstring captureStatus;
@@ -279,8 +297,9 @@ namespace gpu::renderer
             RenderFormat format = RenderFormat::UNKNOWN;
             uint32_t width = 0, height = 0;
             uint32_t guestWidth = 0, guestHeight = 0;
-            uint32_t resolutionHeight = 720;
-            uint32_t Scale(uint32_t value) const { return resolution::Scale(value, resolutionHeight); }
+            resolution::Size resolutionSize{};
+            uint32_t ScaleX(uint32_t value) const { return resolution::ScaleX(value, resolutionSize.width); }
+            uint32_t ScaleY(uint32_t value) const { return resolution::Scale(value, resolutionSize.height); }
             uint32_t depthMsaa = 0;
             // Guest-memory footprint and a sampled hash of it, so a texture the
             // title streams in after we first uploaded it is noticed and re-read.
@@ -499,9 +518,12 @@ namespace gpu::renderer
             uint64_t temporalSupportedFrame=~0ull;
             uint32_t temporalJitterDraws=0,temporalJitterMisses=0,temporalJitterUnknowns=0;
             uint64_t temporalEpoch=1,temporalFramesLogged=0,temporalSubmittedFrame=~0ull;
-            uint64_t resolutionConfigFrame=~0ull;
+            uint64_t appliedPlanEpoch=~0ull;
             resolution::Size internalSize{}, requestedInternalSize{};
-            bool resolutionAllocationFailed=false;
+            frame_plan::FramePlan activePlan{};
+            // Allocation failures are recorded by the GPU and can be observed
+            // after later plan markers have already been committed.
+            std::unordered_set<uint64_t> failedPlanEpochs;
             std::chrono::steady_clock::time_point temporalFrameTime=std::chrono::steady_clock::now();
             std::unique_ptr<gpu::Presentation> sceneProcessor;
             std::unique_ptr<RenderTexture> sceneAAOutput;
@@ -1339,7 +1361,7 @@ namespace gpu::renderer
                     "  return float4(Float7e3To32(c.x), Float7e3To32(c.y), Float7e3To32(c.z), alpha);\n"
                     "}\n"
                     "float4 main(float4 pos : SV_Position) : SV_Target {\n"
-                    "  float4 v = src.Load(int3(int2(pos.xy * asfloat(xeTransfer.z)), 0));\n"
+                    "  float4 v = src.Load(int3(int2(pos.x * asfloat(xeTransfer.z), pos.y * asfloat(xeTransfer.w)), 0));\n"
                     "  return UnpackGuest(PackGuest(v, xeTransfer.x), xeTransfer.y);\n"
                     "}\n";
                 xenos::CompiledShader f = xenos::CompileCachedHlsl(psSrc, "main", "ps_6_0", binaryFormat);
@@ -1390,12 +1412,13 @@ namespace gpu::renderer
                 SharedConstants transferConstants{};
                 transferConstants.transfer[0] = srcClass;
                 transferConstants.transfer[1] = dstClass;
-                transferConstants.transfer[2] = std::bit_cast<uint32_t>(float(src.resolutionHeight) / dst.resolutionHeight);
+                transferConstants.transfer[2] = std::bit_cast<uint32_t>(float(src.resolutionSize.width) / dst.resolutionSize.width);
+                transferConstants.transfer[3] = std::bit_cast<uint32_t>(float(src.resolutionSize.height) / dst.resolutionSize.height);
                 uint64_t offset = Upload(&transferConstants, sizeof(transferConstants));
                 if (offset == UINT64_MAX)
                     return;
-                const uint32_t w = dst.Scale(std::min(src.guestWidth, dst.guestWidth));
-                const uint32_t h = dst.Scale(std::min(src.guestHeight, dst.guestHeight));
+                const uint32_t w = dst.ScaleX(std::min(src.guestWidth, dst.guestWidth));
+                const uint32_t h = dst.ScaleY(std::min(src.guestHeight, dst.guestHeight));
                 Begin();
                 Transition(src, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
                 Transition(dst, RenderTextureLayout::COLOR_WRITE, RenderBarrierStage::GRAPHICS);
@@ -2583,26 +2606,30 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
             }
 
-            void ApplyInternalResolution()
+            bool ApplyInternalResolution()
             {
-                if (resolutionConfigFrame == frame) return;
-                const bool first = resolutionConfigFrame == ~0ull;
-                resolutionConfigFrame = frame;
-                const uint64_t output = outputSize.load(std::memory_order_relaxed);
-                const auto config = settings::GetConfig();
-                const auto requested = resolution::ResolveInternalSize(config.internalResolution, uint32_t(output >> 32), uint32_t(output));
-                const bool requestChanged = requested != requestedInternalSize;
-                if (requestChanged) {
-                    requestedInternalSize = requested;
-                    resolutionAllocationFailed = false;
+                frame_plan::FramePlan selected;
+                bool failed = false;
+                {
+                    std::lock_guard lock(framePlanMutex);
+                    selected = committedPlan;
+                    failed = selected.geometryEpoch != 0 && failedPlanEpochs.contains(selected.geometryEpoch);
                 }
-                const auto effective = resolveReadback || resolutionAllocationFailed ? resolution::Size{} : requested;
-                if (effective == internalSize && !first && !requestChanged) return;
+                activePlan = selected;
+                if (failed)
+                    return false;
+                const resolution::Size requested{selected.width, selected.height};
+                const bool first = appliedPlanEpoch == ~0ull;
+                const bool requestChanged = requested != requestedInternalSize;
+                if (selected.geometryEpoch == appliedPlanEpoch && !requestChanged && !first) return true;
+                requestedInternalSize = requested;
+                const auto effective = requested;
                 // Resize only between renderer frames. Complete all references
                 // before destroying framebuffer views and the resources they use.
                 if (effective != internalSize) {
                     Flush();
                     WaitForGpu();
+                    video::WaitForPresentGpu();
                     framebuffers.clear();
                     renderTargets.clear();
                     resolved.clear();
@@ -2615,9 +2642,30 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     ++temporalEpoch;
                 }
                 internalSize = effective;
-                LOG_INFO("renderer: internal resolution f{} requested={}x{} effective={}x{} output={}x{} mode={} cpu_readback={} allocation_fallback={}",
-                    frame, requested.width, requested.height, effective.width, effective.height,
-                    uint32_t(output >> 32), uint32_t(output), config.internalResolution, resolveReadback, resolutionAllocationFailed);
+                appliedPlanEpoch = selected.geometryEpoch;
+                LOG_INFO("renderer: internal resolution f{} plan={} epoch={} requested={}x{} effective={}x{} cpu_readback={} allocation_fallback={}",
+                    frame, selected.cpuSerial, selected.geometryEpoch, requested.width, requested.height, effective.width, effective.height,
+                    resolveReadback, false);
+                return true;
+            }
+
+            void FailCurrentPlan()
+            {
+                if (!activePlan.cpuSerial || !activePlan.geometryEpoch) return;
+                {
+                    std::lock_guard lock(framePlanMutex);
+                    if (!failedPlanEpochs.emplace(activePlan.geometryEpoch).second)
+                        return;
+                }
+                const uint32_t fallback = activePlan.height > 720 ? std::max(720u, activePlan.height * 3 / 4) : 720u;
+                frame_plan::ReportFailedEpoch(activePlan.geometryEpoch, fallback);
+                LOG_ERROR("renderer: allocation failure suppresses frame-plan epoch {} and requests {}p retry", activePlan.geometryEpoch, fallback);
+            }
+
+            bool PlanSuppressed()
+            {
+                std::lock_guard lock(framePlanMutex);
+                return committedPlan.geometryEpoch != 0 && failedPlanEpochs.contains(committedPlan.geometryEpoch);
             }
 
             HostTexture* GetRenderTarget(uint32_t base, uint32_t format, uint32_t pitch, uint32_t height, bool depth)
@@ -2632,18 +2680,16 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 // One host texture per (base, pitch, storage class).
                 const uint32_t colorClass = depth ? 0u : ColorClassOf(format);
                 RenderTargetKey key{ base, colorClass, pitch, 0, depth };
+                const resolution::Size desiredSize = resolution::TargetSizeForRole(ResolveCatalogRole(base, pitch), pitch, height, internalSize);
                 auto it = renderTargets.find(key);
                 if (it != renderTargets.end())
                 {
-                    if (it->second->guestHeight >= height)
+                    // A catalog publication can arrive after a target's first
+                    // use. Test its effective mapping before returning a cache
+                    // hit so the old native/square allocation is never reused.
+                    if (it->second->guestHeight >= height && it->second->resolutionSize == desiredSize)
                         return it->second.get();
                     height = std::max(height, it->second->guestHeight);
-                    const RenderTexture* old = it->second->texture.get();
-                    for (auto fb = framebuffers.begin(); fb != framebuffers.end();)
-                    {
-                        if (fb->first.first == old || fb->first.second == old) fb = framebuffers.erase(fb);
-                        else ++fb;
-                    }
                     Gpu().retiredTextures.push_back(std::move(it->second));
                     renderTargets.erase(it);
                 }
@@ -2654,18 +2700,18 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 tex->format = depth ? RenderFormat::D32_FLOAT_S8_UINT : ClassHostFormat(colorClass);
                 tex->guestWidth = pitch;
                 tex->guestHeight = height;
-                tex->resolutionHeight = resolution::TargetHeight(pitch, height, internalSize.height);
-                tex->width = std::max(1u, tex->Scale(pitch));
-                tex->height = std::max(1u, tex->Scale(height));
+                tex->resolutionSize = resolution::TargetSizeForRole(ResolveCatalogRole(base, pitch), pitch, height, internalSize);
+                tex->width = std::max(1u, tex->ScaleX(pitch));
+                tex->height = std::max(1u, tex->ScaleY(height));
                 RenderTextureDesc desc = RenderTextureDesc::Texture2D(tex->width, tex->height, 1, tex->format, depth ? RenderTextureFlag::DEPTH_TARGET : RenderTextureFlag::RENDER_TARGET);
                 tex->texture = device->createTexture(desc);
                 tex->layout = RenderTextureLayout::UNKNOWN;
                 if (!tex->texture) {
-                    resolutionAllocationFailed = true;
+                    FailCurrentPlan();
                     LOG_ERROR("renderer: render target allocation failed guest={}x{} physical={}x{}; native resolution fallback next frame", pitch, height, tex->width, tex->height);
                     return nullptr;
                 }
-                LOG_INFO("renderer: new {} target base={:#x} fmt={} guest={}x{} physical={}x{} scale_height={}", depth ? "depth" : "color", base, format, pitch, height, tex->width, tex->height, tex->resolutionHeight);
+                LOG_INFO("renderer: new {} target base={:#x} fmt={} guest={}x{} physical={}x{} scale={}x{}", depth ? "depth" : "color", base, format, pitch, height, tex->width, tex->height, tex->resolutionSize.width, tex->resolutionSize.height);
                 HostTexture* result = tex.get();
                 renderTargets.emplace(key, std::move(tex));
                 return result;
@@ -2818,8 +2864,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         bindingInfo->resolveGap = binding::RelativeAge(resolveWriteOrdinal, rs->writeOrdinal);
                         bindingInfo->resolveRect = {rs->writeX, rs->writeY, rs->writeWidth, rs->writeHeight};
                     }
-                    const uint32_t physicalWidth = std::max(1u, rs->tex->Scale(width));
-                    const uint32_t physicalHeight = std::max(1u, rs->tex->Scale(height));
+                    const uint32_t physicalWidth = std::max(1u, rs->tex->ScaleX(width));
+                    const uint32_t physicalHeight = std::max(1u, rs->tex->ScaleY(height));
                     // Resolve pitch describes memory storage, whereas normalized
                     // sampling and GetDimensions use the fetch's logical size.
                     // For example, the 428-wide blur texture has a 448-pixel pitch.
@@ -2836,13 +2882,13 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             view->format = rs->tex->format;
                             view->guestWidth = width;
                             view->guestHeight = height;
-                            view->resolutionHeight = rs->tex->resolutionHeight;
+                            view->resolutionSize = rs->tex->resolutionSize;
                             view->width = physicalWidth;
                             view->height = physicalHeight;
                             view->texture = device->createTexture(RenderTextureDesc::Texture2D(physicalWidth, physicalHeight, 1, view->format));
                         }
                         if (!view->texture) {
-                            resolutionAllocationFailed = true;
+                            FailCurrentPlan();
                             LOG_ERROR("renderer: fetch view allocation failed guest={}x{} physical={}x{}; native resolution fallback next frame", width, height, physicalWidth, physicalHeight);
                             return nullptr;
                         }
@@ -3319,7 +3365,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 // All draw-side writes, including uploads, AA, alias transfers and
                 // optimized clears, are outside the consecutive-resolve window.
                 if (modeControl != 6) consecutiveResolveCopies.Invalidate();
-                ApplyInternalResolution();
+                if (!ApplyInternalResolution())
+                    return;
                 // LO_DRAW_LIMIT=<n>: only record the first n draws of each frame,
                 // to bisect which pass ruins the image.
                 static const uint32_t drawLimit = getenv("LO_DRAW_LIMIT") ? strtoul(getenv("LO_DRAW_LIMIT"), nullptr, 10) : 0;
@@ -3665,10 +3712,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
                 // Shader constants stay in guest coordinates; only rasterization
                 // and API pixel rectangles move to the physical target grid.
-                const double rasterScale = double(color->resolutionHeight) / 720.0;
+                const double rasterScaleX = double(color->resolutionSize.width) / 1280.0;
+                const double rasterScaleY = double(color->resolutionSize.height) / 720.0;
                 RenderViewport rasterViewport = viewport;
-                rasterViewport.x *= rasterScale; rasterViewport.y *= rasterScale;
-                rasterViewport.width *= rasterScale; rasterViewport.height *= rasterScale;
+                rasterViewport.x *= rasterScaleX; rasterViewport.y *= rasterScaleY;
+                rasterViewport.width *= rasterScaleX; rasterViewport.height *= rasterScaleY;
                 render_batch::CpuTimer<> taaJitter(cpuTimingEnabled);
                 const int temporalSlot=temporal::PositionVPSlot(key.vs);
                 if((temporalExperiment||sceneAAEnabled)&&temporalSlot>=0&&temporalViewport&&depth&&(depthControl&4)) {
@@ -3958,11 +4006,14 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 const uint32_t sceneCopyBank = ps && ps->info.textureDimension[0] == 2 ? 1 :
                     ps && ps->info.textureDimension[0] == 3 ? 2 : 0;
                 std::optional<binding::Producer> boundSceneProducer;
+                bool failedPlan = false;
                 auto bindTextures = [&](Shader* s)
                 {
                     if (!s) return;
                     for (uint32_t slot = 0; slot < kTextureSlots; slot++)
                     {
+                        if (failedPlan)
+                            return;
                         if (!((s->info.textureSlotMask >> slot) & 1))
                             continue;
                         uint32_t fetch[6];
@@ -3978,6 +4029,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             selectedBinding ? &*selectedBinding : nullptr, bindingEpoch) : nullptr;
                         if (!tex)
                         {
+                            if (PlanSuppressed())
+                            {
+                                failedPlan = true;
+                                return;
+                            }
                             // Descriptor sets are pooled and reused, so a slot the
                             // shader reads must always be written: otherwise it keeps
                             // the texture some earlier draw left there.
@@ -4205,7 +4261,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     }
                 };
                 bindTextures(ps);
+                if (failedPlan)
+                    return;
                 bindTextures(vs);
+                if (failedPlan)
+                    return;
                 RenderDescriptorSet *set1, *set2, *set3;
                 {
                     ScopedTimer timer{ tSets, cpuTimingEnabled };
@@ -4359,8 +4419,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 }
                 scissor.left = std::clamp(scissor.left, 0, int32_t(pitch)); scissor.right = std::clamp(scissor.right, 0, int32_t(pitch));
                 scissor.top = std::clamp(scissor.top, 0, int32_t(rtHeight)); scissor.bottom = std::clamp(scissor.bottom, 0, int32_t(rtHeight));
-                scissor.left = int32_t(color->Scale(uint32_t(scissor.left))); scissor.right = int32_t(color->Scale(uint32_t(scissor.right)));
-                scissor.top = int32_t(color->Scale(uint32_t(scissor.top))); scissor.bottom = int32_t(color->Scale(uint32_t(scissor.bottom)));
+                scissor.left = int32_t(color->ScaleX(uint32_t(scissor.left))); scissor.right = int32_t(color->ScaleX(uint32_t(scissor.right)));
+                scissor.top = int32_t(color->ScaleY(uint32_t(scissor.top))); scissor.bottom = int32_t(color->ScaleY(uint32_t(scissor.bottom)));
                 // Height is a historical EDRAM allocation estimate. Attachments
                 // may have different padding while covering the same draw; keep
                 // that draw and constrain it to their common physical extent.
@@ -4935,8 +4995,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                             if (vulkan) CoalesceDepthClearRects(mapped);
                             std::vector<RenderRect> clearRects;
                             clearRects.reserve(mapped.size());
-                            for (const auto& r : mapped) clearRects.push_back({int32_t(target->Scale(uint32_t(r.left))), int32_t(target->Scale(uint32_t(r.top))),
-                                int32_t(target->Scale(uint32_t(r.right))), int32_t(target->Scale(uint32_t(r.bottom)))});
+                            for (const auto& r : mapped) clearRects.push_back({int32_t(target->ScaleX(uint32_t(r.left))), int32_t(target->ScaleY(uint32_t(r.top))),
+                                int32_t(target->ScaleX(uint32_t(r.right))), int32_t(target->ScaleY(uint32_t(r.bottom)))});
                             // A zero rectangle count means a whole-resource clear in
                             // the graphics API, so an empty mapping must be skipped.
                             if (!clearRects.empty())
@@ -4963,7 +5023,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                         // the host formats are equal).
                         const uint32_t clearedRows = uint32_t(std::ceil(std::max(0.0f, maxY - minY)));
                         uint32_t mappedRows = uint32_t((uint64_t(clearedRows) * pitch + k.pitch - 1) / k.pitch);
-                        mappedRows = target->Scale(std::clamp<uint32_t>(mappedRows, 1, target->guestHeight));
+                        mappedRows = target->ScaleY(std::clamp<uint32_t>(mappedRows, 1, target->guestHeight));
                         HostTexture* otherDepth = depth ? GetRenderTarget(depthInfo & 0xFFF, (depthInfo >> 16) & 1, k.pitch, target->guestHeight, true) : nullptr;
                         if (otherDepth && (otherDepth->width != target->width || otherDepth->height != target->height))
                             continue;
@@ -5177,21 +5237,21 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
             // Depth resolve: the depth plane is copied into an R32_FLOAT surface that
             // k_24_8 / k_24_8_FLOAT fetches read (.x = stored depth, our reversed
             // range included, exactly what the guest wrote).
-            void ResolveDepthOnGpu(HostTexture& depth, uint32_t destBase, uint32_t destFormat, uint32_t destPitch, uint32_t destHeight,
+            bool ResolveDepthOnGpu(HostTexture& depth, uint32_t destBase, uint32_t destFormat, uint32_t destPitch, uint32_t destHeight,
                                    uint32_t x0, uint32_t y0, uint32_t w, uint32_t h)
             {
                 consecutiveResolveCopies.Invalidate();
                 Begin();
                 const uint32_t guestW = std::clamp<uint32_t>(std::max(destPitch, x0 + w), 1, 8192);
                 const uint32_t guestH = std::clamp<uint32_t>(std::max(destHeight, y0 + h), 1, 8192);
-                const uint32_t texW = std::max(1u, depth.Scale(guestW)), texH = std::max(1u, depth.Scale(guestH));
+                const uint32_t texW = std::max(1u, depth.ScaleX(guestW)), texH = std::max(1u, depth.ScaleY(guestH));
                 if (texW > 16384 || texH > 16384) {
-                    resolutionAllocationFailed = true;
+                    FailCurrentPlan();
                     LOG_ERROR("renderer: depth resolve exceeds texture limit physical={}x{}; native resolution fallback next frame", texW, texH);
-                    return;
+                    return false;
                 }
-                w = depth.Scale(x0 + w) - depth.Scale(x0); h = depth.Scale(y0 + h) - depth.Scale(y0);
-                x0 = depth.Scale(x0); y0 = depth.Scale(y0);
+                w = depth.ScaleX(x0 + w) - depth.ScaleX(x0); h = depth.ScaleY(y0 + h) - depth.ScaleY(y0);
+                x0 = depth.ScaleX(x0); y0 = depth.ScaleY(y0);
                 ResolvedSurface& rs = ResolvedSlot(destBase, destFormat);
                 if (!rs.tex || rs.tex->format != RenderFormat::R32_FLOAT || rs.tex->width != texW || rs.tex->height != texH)
                 {
@@ -5203,16 +5263,16 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     rs.tex->width = texW;
                     rs.tex->height = texH;
                     rs.tex->guestWidth = guestW; rs.tex->guestHeight = guestH;
-                    rs.tex->resolutionHeight = depth.resolutionHeight;
+                    rs.tex->resolutionSize = depth.resolutionSize;
                     rs.tex->texture = device->createTexture(RenderTextureDesc::Texture2D(texW, texH, 1, RenderFormat::R32_FLOAT,
                         vulkan ? RenderTextureFlag::RENDER_TARGET : RenderTextureFlag::NONE));
                     rs.tex->layout = RenderTextureLayout::UNKNOWN;
                     if (!rs.tex->texture)
                     {
-                        resolutionAllocationFailed = true;
+                        FailCurrentPlan();
                         LOG_ERROR("renderer: depth resolve allocation failed guest={}x{} physical={}x{}; native resolution fallback next frame", guestW, guestH, texW, texH);
                         DropResolved(destBase, destFormat);
-                        return;
+                        return false;
                     }
                     static uint32_t created = 0;
                     if (created++ < 8)
@@ -5221,18 +5281,18 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 rs.destFormat = destFormat;
                 rs.destPitch = destPitch;
                 rs.swapRedBlue = false;
-                if (x0 >= texW || y0 >= texH) return;
+                if (x0 >= texW || y0 >= texH) return true;
                 w = std::min(w, texW - x0);
                 h = std::min(h, texH - y0);
                 if (w == 0 || h == 0)
-                    return;
+                    return true;
                 if (vulkan) {
                     // Vulkan 1.2 image copies cannot reinterpret D32/S8 storage
                     // as an R32 color plane. Load the depth aspect and write the
                     // exact float value, retaining the destination rectangle.
                     if (!BlitRegion(depth, *rs.tex, x0, y0, w, h)) {
                         LOG_ERROR("renderer: Vulkan depth resolve blit failed");
-                        return;
+                        return false;
                     }
                 } else {
                     Transition(depth, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
@@ -5260,25 +5320,26 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     }
                 }
                 DumpResolveStep(*rs.tex, destBase, rs.writeOrdinal, rs.destFormat);
+                return true;
             }
 
             // Copies the resolve rectangle into the host texture standing in for the
             // destination memory (destPitch x destHeight texels, rectangle placed at its
             // window position). No GPU sync, no tiling, no guest memory writes.
-            void ResolveOnGpu(HostTexture& color, uint32_t destBase, uint32_t destFormat, uint32_t destPitch, uint32_t destHeight,
+            bool ResolveOnGpu(HostTexture& color, uint32_t destBase, uint32_t destFormat, uint32_t destPitch, uint32_t destHeight,
                               uint32_t x0, uint32_t y0, uint32_t w, uint32_t h)
             {
                 Begin();
                 const uint32_t guestW = std::clamp<uint32_t>(std::max(destPitch, x0 + w), 1, 8192);
                 const uint32_t guestH = std::clamp<uint32_t>(std::max(destHeight, y0 + h), 1, 8192);
-                const uint32_t texW = std::max(1u, color.Scale(guestW)), texH = std::max(1u, color.Scale(guestH));
+                const uint32_t texW = std::max(1u, color.ScaleX(guestW)), texH = std::max(1u, color.ScaleY(guestH));
                 if (texW > 16384 || texH > 16384) {
-                    resolutionAllocationFailed = true;
+                    FailCurrentPlan();
                     LOG_ERROR("renderer: color resolve exceeds texture limit physical={}x{}; native resolution fallback next frame", texW, texH);
-                    return;
+                    return false;
                 }
-                w = color.Scale(x0 + w) - color.Scale(x0); h = color.Scale(y0 + h) - color.Scale(y0);
-                x0 = color.Scale(x0); y0 = color.Scale(y0);
+                w = color.ScaleX(x0 + w) - color.ScaleX(x0); h = color.ScaleY(y0 + h) - color.ScaleY(y0);
+                x0 = color.ScaleX(x0); y0 = color.ScaleY(y0);
                 // The destination's own format decides what the surface holds, so the
                 // frontbuffer stays 8888 even though EDRAM is kept in FP16.
                 const RenderFormat destHost = (destFormat == 32 || destFormat == 7) ? RenderFormat::R16G16B16A16_FLOAT : RenderFormat::R8G8B8A8_UNORM;
@@ -5295,15 +5356,15 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     rs.tex->width = texW;
                     rs.tex->height = texH;
                     rs.tex->guestWidth = guestW; rs.tex->guestHeight = guestH;
-                    rs.tex->resolutionHeight = color.resolutionHeight;
+                    rs.tex->resolutionSize = color.resolutionSize;
                     rs.tex->texture = device->createTexture(RenderTextureDesc::Texture2D(texW, texH, 1, destHost, RenderTextureFlag::RENDER_TARGET));
                     rs.tex->layout = RenderTextureLayout::UNKNOWN;
                     if (!rs.tex->texture)
                     {
-                        resolutionAllocationFailed = true;
+                        FailCurrentPlan();
                         LOG_ERROR("renderer: color resolve allocation failed guest={}x{} physical={}x{}; native resolution fallback next frame", guestW, guestH, texW, texH);
                         DropResolved(destBase, destFormat);
-                        return;
+                        return false;
                     }
                     // Placed render-target textures require full-subresource
                     // initialization before a partial copy. The blur resolve
@@ -5323,11 +5384,11 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 rs.destFormat = destFormat;
                 rs.destPitch = destPitch;
                 rs.swapRedBlue = ((Reg(REG_RB_COPY_DEST_INFO) >> 24) & 1) != 0;
-                if (x0 >= texW || y0 >= texH) return;
+                if (x0 >= texW || y0 >= texH) return true;
                 w = std::min(w, texW - x0);
                 h = std::min(h, texH - y0);
                 if (w == 0 || h == 0)
-                    return;
+                    return true;
                 if (rs.tex->format == color.format)
                 {
                     Transition(color, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
@@ -5346,7 +5407,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     consecutiveResolveCopies.Record(copy);
                 }
                 else if (!BlitRegion(color, *rs.tex, x0, y0, w, h))
-                    return;
+                    return false;
                 Transition(*rs.tex, RenderTextureLayout::SHADER_READ, RenderBarrierStage::GRAPHICS);
                 rs.frame = frame;
                 rs.writeOrdinal = ++resolveWriteOrdinal;
@@ -5360,6 +5421,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 rs.tex->aaProvenance.Resolve(frame,rs.tex->allocationSerial,sourceCoverage,
                     x0==0&&y0==0&&w==texW&&h==texH);
                 DumpResolveStep(*rs.tex, destBase, rs.writeOrdinal, rs.destFormat);
+                return true;
             }
 
             void Resolve()
@@ -5404,7 +5466,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     HostTexture* depthRt = GetRenderTarget(depthInfo & 0xFFF, (depthInfo >> 16) & 1, pitch, rtHeight, true);
                     if (depthRt && !resolveReadback)
                     {
-                        ResolveDepthOnGpu(*depthRt, destBase, destFormat | kDepthResolveTag, destPitch, destHeight, x0, y0, copyWidth, copyHeight);
+                        if (!ResolveDepthOnGpu(*depthRt, destBase, destFormat | kDepthResolveTag, destPitch, destHeight, x0, y0, copyWidth, copyHeight))
+                            return;
                         InvalidateRange(destBase, ((destPitch + 31) & ~31u) * copyHeight * 4);
                     }
                     else
@@ -5438,7 +5501,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 if (!color || !color->texture) return;
                 if (!resolveReadback)
                 {
-                    ResolveOnGpu(*color, destBase, destFormat, destPitch, destHeight, x0, y0, copyWidth, copyHeight);
+                    if (!ResolveOnGpu(*color, destBase, destFormat, destPitch, destHeight, x0, y0, copyWidth, copyHeight))
+                        return;
                     InvalidateRange(destBase, ((destPitch + 31) & ~31u) * copyHeight * (destFormat == 32 ? 8 : 4));
                 }
                 else
@@ -5556,7 +5620,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                     RenderColor c(float((clear >> 16) & 0xFF) / 255.0f, float((clear >> 8) & 0xFF) / 255.0f, float(clear & 0xFF) / 255.0f, float(clear >> 24) / 255.0f);
                     Transition(*color, RenderTextureLayout::COLOR_WRITE, RenderBarrierStage::GRAPHICS);
                     commandList->setFramebuffer(GetFramebuffer(color, nullptr));
-                    RenderRect rect{ int32_t(color->Scale(x0)), int32_t(color->Scale(y0)), int32_t(color->Scale(x1)), int32_t(color->Scale(y1)) };
+                    RenderRect rect{ int32_t(color->ScaleX(x0)), int32_t(color->ScaleY(y0)), int32_t(color->ScaleX(x1)), int32_t(color->ScaleY(y1)) };
                     commandList->clearColor(0, c, &rect, 1);
                     if (taa_collection::Enabled())
                         color->bindingProducer.Clear(taa_collection::ConsentEpoch(), frame,
@@ -5578,6 +5642,58 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                 uint32_t clear = Reg(REG_RB_DEPTH_CLEAR);
                 commandList->clearDepthStencil(true, true, float(clear >> 8) / 16777215.0f, clear & 0xFF);
                 if (taa_collection::Enabled()) depth->bindingProducer.Clear(taa_collection::ConsentEpoch(), frame, true);
+            }
+
+            void ClearMovieBars(uint32_t surfaceInfo, uint32_t colorInfo,
+                                float x, float y, float width, float height, float safeLeft, float safeRight)
+            {
+                if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(width) || !std::isfinite(height) ||
+                    !std::isfinite(safeLeft) || !std::isfinite(safeRight) || width <= 0.0f || height <= 0.0f)
+                    return;
+
+                const uint32_t pitch = surfaceInfo & 0x3FFF;
+                if (!pitch)
+                    return;
+                if (!ApplyInternalResolution())
+                    return;
+                Begin();
+                const uint32_t bottom = uint32_t(std::clamp(std::lround(y + height), 0l, 0x3FFFl));
+                const uint32_t rtHeight = GuessTargetHeight(pitch, bottom);
+                HostTexture* color = AcquireColorTarget(colorInfo & 0xFFF, (colorInfo >> 16) & 0xF, pitch, rtHeight);
+                if (!color || !color->texture)
+                    return;
+
+                const auto scaleX = [&](float boundary) { return int32_t(gpu::movie_clear::ScaleBoundary(boundary, color->width, color->guestWidth)); };
+                const auto scaleY = [&](float boundary) { return int32_t(gpu::movie_clear::ScaleBoundary(boundary, color->height, color->guestHeight)); };
+                const int32_t targetLeft = std::clamp(scaleX(x), 0, int32_t(color->width));
+                const int32_t targetRight = std::clamp(scaleX(x + width), targetLeft, int32_t(color->width));
+                const int32_t targetTop = std::clamp(scaleY(y), 0, int32_t(color->height));
+                const int32_t targetBottom = std::clamp(scaleY(y + height), targetTop, int32_t(color->height));
+                const int32_t leftBarEnd = std::clamp(scaleX(safeLeft), targetLeft, targetRight);
+                const int32_t rightBarStart = std::clamp(scaleX(safeRight), targetLeft, targetRight);
+                if (targetBottom <= targetTop || (leftBarEnd <= targetLeft && rightBarStart >= targetRight))
+                    return;
+
+                std::array<RenderRect, 2> bars{};
+                uint32_t count = 0;
+                auto addBar = [&](int32_t left, int32_t right)
+                {
+                    if (right <= left)
+                        return;
+                    bars[count++] = { left, targetTop, right, targetBottom };
+                };
+                addBar(targetLeft, leftBarEnd);
+                addBar(rightBarStart, targetRight);
+                if (!count)
+                    return;
+
+                consecutiveResolveCopies.Invalidate();
+                Transition(*color, RenderTextureLayout::COLOR_WRITE, RenderBarrierStage::GRAPHICS);
+                commandList->setFramebuffer(GetFramebuffer(color, nullptr));
+                commandList->clearColor(0, RenderColor(0.0f, 0.0f, 0.0f, 1.0f), bars.data(), count);
+                if (taa_collection::Enabled())
+                    color->bindingProducer.Clear(taa_collection::ConsentEpoch(), frame, false);
+                color->aaProvenance.Invalidate(frame, color->allocationSerial, false);
             }
         };
 
@@ -5645,7 +5761,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
                          << ",\"depth\":" << ((rs.destFormat & Renderer::kDepthResolveTag) ? "true" : "false")
                          << ",\"storage\":[" << rs.tex->width << ',' << rs.tex->height << ']'
                          << ",\"guest_storage\":[" << rs.tex->guestWidth << ',' << rs.tex->guestHeight << ']'
-                         << ",\"resolution_height\":" << rs.tex->resolutionHeight
+                         << ",\"resolution\":[" << rs.tex->resolutionSize.width << ',' << rs.tex->resolutionSize.height << ']'
                          << ",\"pitch\":" << rs.destPitch << ",\"last_write_frame\":" << rs.frame
                          << ",\"last_write_ordinal\":" << rs.writeOrdinal
                          << ",\"last_write_rect\":[" << rs.writeX << ',' << rs.writeY << ',' << rs.writeWidth << ',' << rs.writeHeight << ']'
@@ -5798,12 +5914,19 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
     {
         if (!g_renderer)
             return;
+        if (g_renderer->PlanSuppressed())
+            return;
         g_renderer->consecutiveResolveCopies.Invalidate();
         auto* rs = g_renderer->NewestResolved(physicalAddress & 0x1FFFFFFF);
         if (!rs || !rs->tex)
             return;
         g_renderer->Begin();
         g_renderer->Transition(*rs->tex, RenderTextureLayout::COPY_SOURCE, RenderBarrierStage::COPY);
+    }
+
+    bool SuppressPresent()
+    {
+        return g_renderer && g_renderer->PlanSuppressed();
     }
 
     void Flush()
@@ -6015,6 +6138,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
     {
         if (!g_renderer)
             return nullptr;
+        if (g_renderer->PlanSuppressed())
+            return nullptr;
         g_renderer->consecutiveResolveCopies.Invalidate();
         auto* rs = g_renderer->NewestResolved(physicalAddress & 0x1FFFFFFF);
         if (!rs)
@@ -6042,8 +6167,8 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
         if (!g_renderer) return;
         const auto* surface = g_renderer->NewestResolved(physicalAddress & 0x1FFFFFFF);
         if (!surface || !surface->tex) return;
-        width = surface->tex->Scale(width);
-        height = surface->tex->Scale(height);
+        width = surface->tex->ScaleX(width);
+        height = surface->tex->ScaleY(height);
     }
 
     std::vector<uint32_t> GetResolvedAddresses()
@@ -6159,6 +6284,7 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
     void Draw(const DrawInfo&) {}
     void Flush() {}
     void PreparePresent(uint32_t) {}
+    bool SuppressPresent() { return false; }
     void InvalidateGuestRange(uint32_t, uint32_t) {}
     bool SceneAAApplied(uint32_t) { return false; }
     plume::RenderTexture* AcquireResolvedSurface(uint32_t, uint32_t&, uint32_t&, uint32_t&) { return nullptr; }
@@ -6168,6 +6294,47 @@ void main(triangle V input[3], inout TriangleStream<V> stream)
 #endif
     void SetOutputSize(uint32_t width, uint32_t height)
     {
-        if (width && height) outputSize.store((uint64_t(width) << 32) | height, std::memory_order_relaxed);
+        frame_plan::PublishDrawable(width, height);
+    }
+
+    float ActiveOutputAspect()
+    {
+        const auto plan = frame_plan::CurrentProducerPlan();
+        return plan && plan->height ? float(plan->width) / plan->height : 16.0f / 9.0f;
+    }
+
+    void SelectFramePlan(const frame_plan::FramePlan& plan)
+    {
+        if (!plan.width || !plan.height) return;
+        std::lock_guard lock(framePlanMutex);
+        committedPlan = plan;
+    }
+
+    void RegisterCatalogSurface(frame_plan::SurfaceRole role, uint32_t surfaceInfo, uint32_t colorInfo)
+    {
+        if (!surfaceInfo) return;
+        std::lock_guard lock(catalogMutex);
+        const uint64_t key = CatalogKey(surfaceInfo, colorInfo);
+        const auto found = catalogRoles.find(key);
+        if (role == frame_plan::SurfaceRole::Unknown) {
+            if (found != catalogRoles.end()) catalogRoles.erase(found);
+            return;
+        }
+        if (found != catalogRoles.end() && found->second != role)
+            LOG_WARNING("renderer: catalog role conflict base={:#x} pitch={} old={} new={}", colorInfo & 0xFFF, surfaceInfo & 0x3FFF,
+                uint32_t(found->second), uint32_t(role));
+        catalogRoles[key] = role;
+    }
+
+    void ClearMovieBars(uint32_t surfaceInfo, uint32_t colorInfo,
+                        float x, float y, float width, float height, float safeLeft, float safeRight)
+    {
+#ifdef LO_GPU_PLUME
+        if (g_renderer)
+            g_renderer->ClearMovieBars(surfaceInfo, colorInfo, x, y, width, height, safeLeft, safeRight);
+#else
+        (void)surfaceInfo; (void)colorInfo; (void)x; (void)y;
+        (void)width; (void)height; (void)safeLeft; (void)safeRight;
+#endif
     }
 }

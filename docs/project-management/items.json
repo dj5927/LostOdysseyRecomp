@@ -3593,18 +3593,20 @@
     {
       "key": "ultrawide-fov-layout",
       "title": "Support ultrawide output and FOV changes",
-      "body": "<!-- lo-project:ultrawide-fov-layout -->\n\n后续支持宽屏/FOV 并保持 UI 正确布局。\n\n## Scope and completion criteria\n\n- [ ] 定义宽高比、FOV 与场景裁剪策略\n- [ ] 保护字幕、HUD、战斗菜单和鼠标坐标布局\n- [ ] 覆盖窗口/全屏与切分辨率\n\n## Validation and acceptance\n\n不同宽高比实际场景与 UI 对比，确认无拉伸/裁切及玩法视野异常。\n\n尚未完成所列场景验收；实现/发布/测试与用户验收独立。\n\nstage_detail: Not started\n\n## Sources\n\n- [docs/ROADMAP.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.zh-CN.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.zh-CN.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.md) (repository reference; working-tree requirements may be newer)\n- [docs/ROADMAP.zh-CN.md](https://github.com/freefrank/LostOdysseyRecomp/blob/147bffb214cd3650f3eadb810e86f7237511ac23/docs/ROADMAP.zh-CN.md) (repository reference; working-tree requirements may be newer)\n",
-      "issue_url": null,
+      "body": "<!-- lo-project:ultrawide-fov-layout -->\n\n支持超宽屏 (21:9) 及 FOV 调整，并保持 UI 与交互正确布局。\n\n## Scope and completion criteria\n\n- [x] 定义宽屏与超宽屏分辨率分配、FOV 调整策略 (Hor+) 与场景目标缩放\n- [x] 初步实现原生 Hor+ frame-plan、catalog、过场影片、HUD 布局与分辨率选项\n- [ ] 完整稳定实机游玩与玩法视野验证\n- [ ] 动态切分辨率、窗口/全屏切换与故障注入测试\n- [ ] 阴影映射与其它后端 (D3D12 等) 验证及玩家视觉验收\n\n## Validation and acceptance\n\n- Windows Clang 构建通过。\n- 单元与集成测试通过：`FramePlan` (18 项检查)、`TargetMapping` (5 项检查)、分辨率计算 (40 项检查) 以及时序场景相位与相机抖动测试均通过。\n- Vulkan 实机加载验证：加载 28,482 个内置着色器，13.93 秒成功读入存档；捕获场景转换截图 382/383；主颜色与深度表面以 3440×1472 (含 padding) 分配并正确 resolve 至 3440×1440。\n- 尚未完成完整稳定实机游玩、Hor+ 视觉表现、HUD、阴影、动态尺寸切换、故障注入以及玩家视觉验收。\n\nstage_detail: In progress\nrelated_issue_url: https://github.com/freefrank/LostOdysseyRecomp/issues/17\n\n## Sources\n\n- https://github.com/freefrank/LostOdysseyRecomp/issues/17\n- [docs/ROADMAP.md](https://github.com/freefrank/LostOdysseyRecomp/blob/main/docs/ROADMAP.md)\n- [docs/ROADMAP.zh-CN.md](https://github.com/freefrank/LostOdysseyRecomp/blob/main/docs/ROADMAP.zh-CN.md)\n",
+      "issue_url": "https://github.com/freefrank/LostOdysseyRecomp/issues/17",
       "fields": {
         "Kind": "Feature",
         "Area": "Graphics presentation",
-        "Status": "Todo",
-        "Delivery": "Not started",
+        "Status": "In Progress",
+        "Delivery": "In progress",
         "Release": null,
         "Start date": null,
-        "Target date": null
+        "Target date": null,
+        "Evidence": "Initial implementation complete (native Hor+ frameplan/catalog/movies/HUD/resolution options). Windows Clang build passed; FramePlan (18 checks), TargetMapping (5 checks), resolution sizing (40 checks) and temporal tests passed. Vulkan startup with 28,482 bundled shaders loaded save in 13.93s; scene-transition screenshots 382/383; actual primary color/depth 3440x1472 padding resolve 3440x1440 verified. Full stable gameplay, visual Hor+, HUD, shadow, dynamic resize, failure injection and player visual acceptance remain pending."
       },
       "source_refs": [
+        "https://github.com/freefrank/LostOdysseyRecomp/issues/17",
         "docs/ROADMAP.md",
         "docs/ROADMAP.zh-CN.md",
         "docs/ROADMAP.md#phase-4-modernization",
