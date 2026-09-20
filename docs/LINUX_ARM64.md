@@ -101,6 +101,11 @@ Place the verified pack at:
 
 or set `LO_SHADER_PACK_PATH`.
 
+For an x86-64 cross-build host, prefer verifying the pack with a native host
+`LoShaderPackTool` and then copying it into the ARM64 runtime directory.
+Passing `LO_PORTABLE_SHADER_PACK` directly to a cross configure may cause the
+target AArch64 verification tool to be invoked on the x86-64 build host.
+
 A complete ARM64 runtime directory should contain at least:
 
 ```text
