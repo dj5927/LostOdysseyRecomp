@@ -11,11 +11,16 @@ extern "C" PPC_FUNC(__imp__sub_82AC6D88);
 extern "C" PPC_FUNC(__imp__sub_82B15960);
 void ArmGuestWriteWatchpoint(uint32_t address, uint32_t length);
 
+// Updated by the guest Aim Ring hook and sampled by HID. Keeping this atomic
+// avoids coupling the game thread to the host input thread.
+std::atomic<uint32_t> g_ringPhase{0};
+
 // Observe the guest's ring update on its owning thread; never edit its values.
 PPC_FUNC(sub_82B15960)
 {
     const uint32_t ring = ctx.r3.u32;
     __imp__sub_82B15960(ctx, base);
+    g_ringPhase.store(PPC_LOAD_U8(ring + 2), std::memory_order_relaxed);
     static const bool trace = getenv("LO_RING_TRACE") != nullptr;
     if (!trace) return;
     const auto number = [&](uint32_t offset) {
