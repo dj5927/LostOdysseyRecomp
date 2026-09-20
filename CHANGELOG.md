@@ -14,7 +14,7 @@ _No unreleased changes._
 
 _暂无未发布改动。_
 
-## v0.6.3 — 2026-09-19 / Pending publication / 待发布
+## v0.6.3 — 2026-09-19
 
 ### English
 
@@ -25,6 +25,8 @@ _暂无未发布改动。_
 - Add deterministic guest I/O lifetime, APC/event ordering, independent-file and duplicate-handle regression coverage, and reuse the multi-disc checks on Windows and Linux. These checks do not establish a story transition or player acceptance.
 - Use the platform archive format for asynchronous F1 render-state exports: Windows produces `.zip`, while Linux uses the system `tar` and `gzip` tools to produce `.tar.gz`. Focused WSL Manjaro g++ C++20 `-Wall -Wextra -Werror` checks pass for byte-identical 8 MiB/log extraction, asynchronous preparation, archive collisions, missing `tar`, unreadable sources, symlink-root rejection and shutdown joining. AppImage runtime and in-game/user acceptance remain pending.
 
+Published at [GitHub Release v0.6.3](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.3) on 2026-09-19T23:56:08Z from tag/source commit `93bdbc1ccae7652e38dc80db24a9d25a34a72a47`. Release CI [35476569158](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35476569158) passed Windows and Linux packaging on its first attempt. The four public assets are the Windows ZIP and Linux AppImage plus their `.sha256` sidecars; both package hashes match their sidecars and GitHub digests, and public sidecars returned HTTP 200. The Windows ZIP is 211,084,312 bytes with SHA-256 `9737befe09bc011c17327d5a83df8e437ab7e03a0f107b4acf40621dfd5fee08`; the Linux AppImage is 220,813,816 bytes with SHA-256 `b4f0448e6e661f51a2cab07209289188c786710929e4c4334f09786f125e7ed7`. The Windows manifest reports version/source version `0.6.3`, commit `93bdbc1` and `dirty=false`; all 49 payload hashes and the embedded shader were verified. Linux native GPU, Steam Deck, AppImage runtime and broader gameplay remain unverified.
+
 ### 简体中文
 
 - 为优先降低绘制阶段 CPU 成本，将大顶点缓存命中恢复为有界 sampled-content 比较。小顶点缓冲仍逐字节精确比较；大缓冲比较头尾片段和跨区采样；index cache 命中继续保留完整源字节校验。定向 `LoVertexCacheTest` 通过 3,668,957 项检查，覆盖采样变化、小缓冲精确性和已选择的大顶点采样盲区策略。已知存在合成盲区；目前没有任何已知游戏 bug 由采样引起，也没有据此宣称实机或发布二进制性能结果。可靠且低成本的顶点失效机制仍列入 backlog。
@@ -33,6 +35,8 @@ _暂无未发布改动。_
 - 增加默认关闭且有界的 I/O 诊断，记录文件句柄生命周期、互斥锁等待／取得、传输、完成发布和 API 返回阶段，并支持手动导出 JSONL 快照。
 - 在 Windows 与 Linux 补充真实客户机 I/O 生命周期、APC／event 顺序、独立文件和复制句柄回归覆盖，并复用多盘测试。这些检查不代表已完成剧情换盘或玩家验收。
 - 为异步 F1 渲染状态导出使用平台归档格式：Windows 生成 `.zip`，Linux 使用系统 `tar` 和 `gzip` 生成 `.tar.gz`。WSL Manjaro g++ C++20 `-Wall -Wextra -Werror` 定向检查已通过，覆盖 8 MiB／日志逐字节一致解包、异步 prepare、归档冲突、缺少 `tar`、源文件不可读、拒绝符号链接根目录和退出时 join。AppImage 运行时及游戏内／用户验收仍待完成。
+
+v0.6.3 已于 2026-09-19T23:56:08Z 从 tag/source commit `93bdbc1ccae7652e38dc80db24a9d25a34a72a47` 发布到 [GitHub Release](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.3)。Release CI [35476569158](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35476569158) 首次通过 Windows/Linux 打包。四个公开资产为 Windows ZIP、Linux AppImage 及各自 `.sha256` sidecar；两个主体包 hash 与 sidecar 和 GitHub digest 一致，公开 sidecar 返回 HTTP 200。Windows ZIP 大小为 211,084,312 字节，SHA-256 为 `9737befe09bc011c17327d5a83df8e437ab7e03a0f107b4acf40621dfd5fee08`；Linux AppImage 大小为 220,813,816 字节，SHA-256 为 `b4f0448e6e661f51a2cab07209289188c786710929e4c4334f09786f125e7ed7`。Windows manifest 报告版本／source version 为 `0.6.3`、commit `93bdbc1`、`dirty=false`；49 个 payload hash 和内置 shader 均已核验。Linux 原生 GPU、Steam Deck、AppImage 运行时和更广游戏流程仍未验证。
 
 ## v0.6.2 — 2026-09-19
 

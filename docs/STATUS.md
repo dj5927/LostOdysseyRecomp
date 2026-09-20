@@ -1,21 +1,29 @@
 # Project status
 
-## v0.6.3 release candidate / v0.6.3 发布候选
+## v0.6.3 published / v0.6.3 已发布
 
-The v0.6.3 source candidate is in release preparation and has not been
-published. It promotes the current Unreleased changes: bounded sampled
+v0.6.3 was published on 2026-09-19T23:56:08Z from tag/source commit
+`93bdbc1ccae7652e38dc80db24a9d25a34a72a47`. It promotes the bounded sampled
 comparison for large vertex-cache hits, the Issue #54 language-menu safety
 correction, the Issue #53 file-I/O locking and bounded diagnostics, deterministic
 I/O lifetime regression coverage, and platform-native asynchronous F1 archive
 export. The focused vertex-cache fixture passed 3,668,957 checks; the other
 validation records are reused from their existing bounded evidence. No new
 game run, release-binary performance result or player acceptance is claimed.
+Release CI [35476569158](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35476569158)
+passed Windows and Linux packaging on its first attempt. The Windows ZIP and
+Linux AppImage plus their sidecars matched package hashes and GitHub digests;
+public sidecars returned HTTP 200. The Windows manifest reports version/source
+version `0.6.3`, commit `93bdbc1` and `dirty=false`; all 49 payload hashes and
+the embedded shader were verified. Linux native GPU, Steam Deck, AppImage
+runtime and broader gameplay remain unverified.
 
-v0.6.3 源码候选正在准备发布，尚未公开发布。本候选提升当前 Unreleased 中的改动：大顶点缓存命中的有界采样比较、Issue #54 语言菜单安全修正、Issue #53 文件 I/O 锁范围修正与有界诊断、确定性的 I/O 生命周期回归覆盖，以及使用平台归档格式的异步 F1 归档导出。定向顶点缓存 fixture 通过 3,668,957 项检查；其余验证记录沿用已有的有界证据。本次未新增游戏运行、发布二进制性能结果或玩家验收结论。
+v0.6.3 已于 2026-09-19T23:56:08Z 从 tag/source commit
+`93bdbc1ccae7652e38dc80db24a9d25a34a72a47` 发布。版本包含大顶点缓存命中的有界采样比较、Issue #54 语言菜单安全修正、Issue #53 文件 I/O 锁范围修正与有界诊断、确定性的 I/O 生命周期回归覆盖，以及使用平台归档格式的异步 F1 归档导出。定向顶点缓存 fixture 通过 3,668,957 项检查；其余验证记录沿用已有的有界证据。本次未新增游戏运行、发布二进制性能结果或玩家验收结论。Release CI [35476569158](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35476569158) 首次通过 Windows/Linux 打包。Windows ZIP、Linux AppImage 及其 sidecar 与包 hash 和 GitHub digest 一致，公开 sidecar 返回 HTTP 200。Windows manifest 报告版本／source version 为 `0.6.3`、commit `93bdbc1`、`dirty=false`；49 个 payload hash 和内置 shader 均已核验。Linux 原生 GPU、Steam Deck、AppImage 运行时和更广游戏流程仍未验证。
 
-## Issue #57 development vertex-cache sampling / Issue #57 开发中的顶点缓存采样策略
+## Issue #57 vertex-cache sampling in published v0.6.3 / Issue #57 已发布 v0.6.3 中的顶点缓存采样
 
-The development source temporarily prioritizes vertex-cache CPU cost: small
+The published v0.6.3 source prioritizes vertex-cache CPU cost: small
 vertex buffers still use exact comparison, while large vertex-cache hits use
 bounded head/tail and strided samples. Index-cache hits retain complete
 source-byte verification. This can miss a synthetic mutation outside the
@@ -26,13 +34,13 @@ policy. This is source-level fixture evidence only; no game run, release-binary
 performance result or player acceptance is claimed. A reliable low-cost vertex
 write/invalidation mechanism remains backlog work.
 
-开发源码暂时优先降低顶点缓存 CPU 成本：小顶点缓冲仍使用精确比较，大顶点缓存命中改用有界的头尾片段和跨区采样；index cache 命中继续保留完整源字节校验。采样字节之外的合成修改可能漏检，但目前没有任何已知游戏 bug 由采样引起。Clang `-O2` 定向 `LoVertexCacheTest` 通过 3,668,957 项检查，覆盖采样变化、小缓冲精确性和已选择的大顶点采样盲区策略。这只是源码 fixture 证据，不代表实机运行、发布二进制性能或玩家验收。可靠且低成本的顶点写入／失效机制仍列入 backlog。
+公开 v0.6.3 源码优先降低顶点缓存 CPU 成本：小顶点缓冲仍使用精确比较，大顶点缓存命中改用有界的头尾片段和跨区采样；index cache 命中继续保留完整源字节校验。采样字节之外的合成修改可能漏检，但目前没有任何已知游戏 bug 由采样引起。Clang `-O2` 定向 `LoVertexCacheTest` 通过 3,668,957 项检查，覆盖采样变化、小缓冲精确性和已选择的大顶点采样盲区策略。这只是源码 fixture 证据，不代表实机运行、发布二进制性能或玩家验收。可靠且低成本的顶点写入／失效机制仍列入 backlog。
 
 ## Issue #54 language-menu safety correction / Issue #54 语言菜单安全修正
 
-The language menu now ignores invalid table counts and indices without reading or rewriting the selected language, shows `—` for unavailable entries, and follows the native parser's 16-entry capacity. The existing `82481BE8` USA/Europe host-language mapping and independent text/voice semantics are unchanged. `LO_TRACE_LANGUAGE=1` enables bounded opt-in tracing for lookup, menu and native-cache stages. The specific cause of the reported cutscene voice issue remains unconfirmed; no save was available and no real-game reproduction was performed. The correction is pending the next release and does not establish Issue #54 acceptance.
+The language menu now ignores invalid table counts and indices without reading or rewriting the selected language, shows `—` for unavailable entries, and follows the native parser's 16-entry capacity. The existing `82481BE8` USA/Europe host-language mapping and independent text/voice semantics are unchanged. `LO_TRACE_LANGUAGE=1` enables bounded opt-in tracing for lookup, menu and native-cache stages. The specific cause of the reported cutscene voice issue remains unconfirmed; no save was available and no real-game reproduction was performed. The correction is included in published v0.6.3 and does not establish Issue #54 acceptance.
 
-语言菜单现在会忽略无效语言表数量和索引，不读取或改写当前选择；无效项显示为 `—`，容量遵循原生 parser 的 16 项限制。既有 `82481BE8` USA/Europe 宿主语言映射及文字／配音独立语义保持不变。`LO_TRACE_LANGUAGE=1` 可开启默认关闭且有界的 lookup、菜单和原生缓存阶段追踪。具体过场配音问题的根因尚未确认；没有存档，本次未做实机复现。修正待下个版本发布，也不代表 Issue #54 已完成验收。
+语言菜单现在会忽略无效语言表数量和索引，不读取或改写当前选择；无效项显示为 `—`，容量遵循原生 parser 的 16 项限制。既有 `82481BE8` USA/Europe 宿主语言映射及文字／配音独立语义保持不变。`LO_TRACE_LANGUAGE=1` 可开启默认关闭且有界的 lookup、菜单和原生缓存阶段追踪。具体过场配音问题的根因尚未确认；没有存档，本次未做实机复现。修正已包含在公开 v0.6.3 中，也不代表 Issue #54 已完成验收。
 
 ## Experimental geometric motion vectors (v0.6.2 / v0.6.2 已纳入)
 

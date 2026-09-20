@@ -4,13 +4,13 @@
 
 `[ ]` 待完成 · `[~]` 进行中 · `[x]` 在所述范围内已有证据。[公开维护者 Project](https://github.com/users/freefrank/projects/3) 是当前工作项的事实来源。本镜像只保留方向、未完成事项和验证边界；实现、玩家验收和发布状态彼此独立。
 
-v0.6.3 是当前发布候选，正在准备公开发布；目前不存在公开的 v0.6.3 tag 或安装包。v0.6.2 已于 2026-09-19T21:16:38Z 从 tag/source commit `7f99786f302b4ef3e5f672eacdba2b7a62972fda` 发布。其发布资产和验证边界见[状态记录](STATUS.md)。
+v0.6.3 已于 2026-09-19T23:56:08Z 从 tag/source commit `93bdbc1ccae7652e38dc80db24a9d25a34a72a47` 发布。Release CI [35476569158](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35476569158) 首次通过 Windows/Linux 打包。其资产和验证边界见[状态记录](STATUS.md)。
 
 ## 交付
 
-[v0.6.3] 是当前发布候选，仍未公开发布，包含 Issue #53/#54 修正、大顶点缓存采样比较和 F1 归档导出；沿用已有有界验证，未新增实机性能验收。 [v0.6.2](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.2) 仍是当前公开发布版本，Windows ZIP 和 Linux AppImage 均内置 shader 集合，没有单独 shader 发布包。真实更新事务、实体手柄输入、Linux 原生 GPU、Steam Deck 和 GUI 验收仍待完成。
+[v0.6.3](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.3) 是当前公开发布版本，包含 Issue #53/#54 修正、大顶点缓存采样比较和 F1 归档导出；沿用已有有界验证，未新增实机性能验收。Windows ZIP 和 Linux AppImage 均内置 shader 集合，没有单独 shader 发布包。真实更新事务、实体手柄输入、Linux 原生 GPU、Steam Deck 和 GUI 验收仍待完成。
 
-- [~] **v0.6.3 发布候选：**源码和定向文档已准备发布；CMake／版本号以及 CI／打包核验由发布流程继续完成。目前没有公开 tag、安装包、发布结果或新的实机性能结论。
+- [x] **v0.6.3 发布：**从 `93bdbc1` 发布；Release CI 35476569158、包 hash、sidecar、GitHub digest 和 Windows manifest 核验均通过。源码有界证据及运行时／玩家验收边界仍见[状态记录](STATUS.md)。
 - [x] **v0.6.2 发布：**已接受的 Uhra 4K Vulkan TAA 策略和实验性几何运动矢量 replay 已进入 Windows/Linux 发布包。CI、包交付和公开 sidecar 已通过核验；更广场景、1080p internal 到 4K output 的移动相机覆盖、Linux 原生 GPU、Steam Deck 和 D3D12 replay PSO 验收仍开放。
 
 [v0.6.0](https://github.com/freefrank/LostOdysseyRecomp/releases/tag/v0.6.0) 已于 2026-09-18T15:21:34Z 从 `4b4b6c617172d43c7a73477881263e6e542d6cdf` 公开发布。[Release CI 35359206991](https://github.com/freefrank/LostOdysseyRecomp/actions/runs/35359206991) 已通过审计、Windows Release 和 Linux Release 门槛。公开发布包含 Windows 与 Linux 发布包、独立便携式 Vulkan 着色器包及 SHA-256 校验文件。Windows ZIP、Linux AppImage 和 shader pack 的 hash 分别为 `7ebcad6c2660ea6bcce801df3e6eb0f9bb6faef87e5108898618c1144031d161`、`46c1c10e9dbaf0dc5db490aa3fd2f5b195eea8ccdbd7e35a0996f978292d3901` 和 `387a23b9328b8136847d48b37b574fddd600a526eb837807fbb08b758c6de4d9`。原生 Linux GPU、Steam Deck、AppImage 更新事务和全流程游戏仍待验证。
