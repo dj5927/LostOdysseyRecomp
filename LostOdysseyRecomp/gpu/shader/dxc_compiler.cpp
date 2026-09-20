@@ -111,7 +111,7 @@ namespace xenos
                 selfPath[n] = '\0';
                 candidates.push_back(std::filesystem::path(selfPath).parent_path() / "libdxcompiler.so");
             }
-#if defined(__aarch64__)
+#if defined(__linux__) && defined(__aarch64__)
             const std::filesystem::path relativeDxc = "tools/XenosRecomp/thirdparty/dxc-bin/lib/arm64/libdxcompiler.so";
 #else
             const std::filesystem::path relativeDxc = "tools/XenosRecomp/thirdparty/dxc-bin/lib/x64/libdxcompiler.so";
